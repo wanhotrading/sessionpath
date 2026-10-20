@@ -1,0 +1,43 @@
+name: Publish SessionPath
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: sessionpath-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import prepared website on first run
+        if: ${{ hashFiles('docs/index.html') == '' }}
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 --max-time 600 'https://refresh-saw-privilege-nutten.trycloudflare.com/sessionpath-pages.zip' -o /tmp/sessionpath.zip
+          echo 'fb153f35228e21ae4c1265f88d76110823fed872d9b09a433771d9cce5a1dc53  /tmp/sessionpath.zip' | sha256sum --check
+          python3 -m zipfile -e /tmp/sessionpath.zip docs
+          test -f docs/index.html
+          test -f docs/.nojekyll
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs
+          git commit -m 'Import SessionPath CL and NQ static website'
+          git push origin HEAD:main
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
