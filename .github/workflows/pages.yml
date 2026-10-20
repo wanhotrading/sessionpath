@@ -4,7 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
@@ -12,12 +12,126 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Import verified public screenshot materials
+        if: hashFiles('site-materials/part-000.bin') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/sessionpath-materials.zip"
+          mapfile -t parts < <(find site-materials -maxdepth 1 -type f -name 'part-[0-9][0-9][0-9].bin' | LC_ALL=C sort)
+          test "${#parts[@]}" -gt 0
+          cat "${parts[@]}" > "$archive"
+          echo "f8cbf9b3951fcbec03f8521efe80476f0e29a665a0b42861ef05d74fcea211fc  $archive" | sha256sum --check -
+          python3 <<'PY'
+          import collections
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import shutil
+          import stat
+          import struct
+          import zipfile
+
+          root = Path.cwd().resolve()
+          archive = Path(os.environ['RUNNER_TEMP']) / 'sessionpath-materials.zip'
+          expected_json = {
+              'docs/data/gallery-index.json',
+              'docs/data/nq/gallery-index.json',
+              'docs/data/public-screenshots.json',
+          }
+          with zipfile.ZipFile(archive) as bundle:
+              entries = bundle.infolist()
+              names = [entry.filename for entry in entries]
+              if len(names) != 1141 or len(set(names)) != len(names):
+                  raise SystemExit('Screenshot archive has unexpected or duplicate members.')
+              if sum(entry.file_size for entry in entries) > 250 * 1024 * 1024:
+                  raise SystemExit('Screenshot archive exceeds the expected extracted size.')
+              images = set()
+              metadata = set()
+              for entry in entries:
+                  name = entry.filename
+                  path = PurePosixPath(name)
+                  if (path.is_absolute() or '\\' in name or ':' in name or
+                          '\x00' in name or '..' in path.parts or
+                          path.as_posix() != name or not path.parts or
+                          path.parts[0] != 'docs' or entry.is_dir() or
+                          stat.S_ISLNK(entry.external_attr >> 16)):
+                      raise SystemExit('Screenshot archive contains an unsafe member path.')
+                  target = root.joinpath(*path.parts).resolve()
+                  try:
+                      target.relative_to(root / 'docs')
+                  except ValueError:
+                      raise SystemExit('Screenshot member escapes the website folder.')
+                  if (len(path.parts) == 5 and
+                          path.parts[:3] == ('docs', 'charts', 'captures') and
+                          path.parts[3] in ('CL', 'NQ') and path.suffix == '.png'):
+                      images.add(name)
+                  elif name in expected_json:
+                      metadata.add(name)
+                  else:
+                      raise SystemExit('Screenshot archive contains an unexpected member.')
+              if len(images) != 1138 or metadata != expected_json:
+                  raise SystemExit('Screenshot archive must contain 1,138 PNGs and three indexes.')
+
+              manifest = json.loads(bundle.read('docs/data/public-screenshots.json'))
+              expected_counts = {'CL': 684, 'NQ': 454}
+              manifest_images = set()
+              counts = collections.Counter()
+              for market, count in expected_counts.items():
+                  records = manifest.get(market)
+                  if not isinstance(records, list) or len(records) != count:
+                      raise SystemExit(f'Unexpected {market} public screenshot count.')
+                  for item in records:
+                      if not isinstance(item, dict) or item.get('instrument') != market:
+                          raise SystemExit('Public screenshot manifest has an invalid market.')
+                      src = item.get('src')
+                      if not isinstance(src, str):
+                          raise SystemExit('Public screenshot manifest has no image path.')
+                      member = 'docs/' + src
+                      if member not in images or member in manifest_images:
+                          raise SystemExit('Public screenshot manifest has a missing or duplicate image.')
+                      if not member.startswith(f'docs/charts/captures/{market}/'):
+                          raise SystemExit('Public screenshot is listed under the wrong market.')
+                      data = bundle.read(member)
+                      if (len(data) != item.get('bytes') or
+                              hashlib.sha256(data).hexdigest() != item.get('sha256') or
+                              data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR' or
+                              struct.unpack('>II', data[16:24]) != (item.get('width'), item.get('height'))):
+                          raise SystemExit('Public screenshot bytes or dimensions failed verification.')
+                      manifest_images.add(member)
+                      counts[market] += 1
+              if manifest_images != images or dict(counts) != expected_counts:
+                  raise SystemExit('Screenshot archive and public manifest do not agree.')
+              for member in expected_json:
+                  if not isinstance(json.loads(bundle.read(member)), dict):
+                      raise SystemExit('Public screenshot index is not an object.')
+
+              # Validate every member before creating or replacing any website file.
+              for entry in entries:
+                  target = root.joinpath(*PurePosixPath(entry.filename).parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with bundle.open(entry) as source, target.open('wb') as destination:
+                      shutil.copyfileobj(source, destination)
+          print('Verified and imported 684 CL + 454 NQ screenshots and three public indexes.')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/charts/captures/CL docs/charts/captures/NQ docs/data/gallery-index.json docs/data/nq/gallery-index.json docs/data/public-screenshots.json
+          # Remove only the task-owned upload shards, preserving any unrelated files.
+          git rm -- "${parts[@]}"
+          if ! git diff --cached --quiet; then
+            git commit -m 'Import verified public SessionPath screenshot archive'
+            # actions/checkout authenticates this push using the scoped GITHUB_TOKEN.
+            git push origin HEAD:main
+          fi
       - name: Verify required website files
         run: |
           test -s docs/index.html
