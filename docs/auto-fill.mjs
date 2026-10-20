@@ -31,6 +31,7 @@ export function mountAutoFill(){
  }
  button.addEventListener('click',async()=>{
   if(reading)return;
+  if($('analyze-btn')?.disabled){notify('Wait for the research data to load, then try again.',true);return;}
   const date=value('trading-date'),cutoff=value('asof'),units=value('ud-units'),avr=value('avr');
   if(date!==today()||$('replay-toggle')?.checked){notify('Auto-fill uses today’s front-month contract. Turn Replay off.',true);return;}
   if(units==='percent'&&!(Number(avr)>0)){notify('Enter a positive AVR before filling U/D percentages.',true);return;}

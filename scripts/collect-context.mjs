@@ -25,11 +25,15 @@ for(const market of ['CL','NQ']){
    if(failure)throw Error(failure);
    const data=calculateContext(feed,{date,cutoff,market,contract:feed.meta.contract});
    const values=Object.fromEntries(['priorLow','priorHigh','open1930','rangeHigh','rangeLow','up','down'].map(k=>[k,data[k]]));
+   const tick=market==='CL'?.01:.25;
+   for(const key of Object.keys(values))values[key]=Number((Math.round(values[key]/tick)*tick).toFixed(2));
+   values.up=Number((values.rangeHigh-values.open1930).toFixed(2));
+   values.down=Number((values.open1930-values.rangeLow).toFixed(2));
    snapshot.markets[market][cutoff]={status:'ready',date,cutoff,market,generatedAt,source:'Yahoo Finance',sourceSymbol:data.symbol,contract:data.contract,continuous:false,quoteTime:data.quoteTime,priorDate:data.priorDate,priorBarCount:data.priorBarCount,overnightBarCount:data.overnightBarCount,values};
    console.log(market,cutoff,data.contract,'ready',JSON.stringify(values));
   }catch(error){
    snapshot.markets[market][cutoff]={status:'unavailable',date,cutoff,market,generatedAt,error:error.message||'The delayed data could not be read.'};
-   console.log(market,cutoff,'unavailable:',error.message);
+   console.log(market,cutoff,'unavailable:',error.message,JSON.stringify(error.details||{}));
   }
  }
 }
