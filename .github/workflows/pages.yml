@@ -4,7 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 concurrency:
@@ -18,21 +18,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Import prepared website on first run
-        if: ${{ hashFiles('docs/index.html') == '' }}
-        shell: bash
+      - name: Verify required website files
         run: |
-          cat site-import/part-*.bin > /tmp/sessionpath.zip
-          echo 'fb153f35228e21ae4c1265f88d76110823fed872d9b09a433771d9cce5a1dc53  /tmp/sessionpath.zip' | sha256sum --check
-          python3 -m zipfile -e /tmp/sessionpath.zip docs
-          test -f docs/index.html
+          test -s docs/index.html
+          test -s docs/app-v5.js
+          test -s docs/instrument.mjs
+          test -s docs/data/nq/session-path-nq.pine
           test -f docs/.nojekyll
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs
-          git rm -r site-import
-          git commit -m 'Import SessionPath CL and NQ static website'
-          git push origin HEAD:main
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload website
