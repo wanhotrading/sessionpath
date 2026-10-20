@@ -8,15 +8,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Test explicit futures contracts
+      - name: Check NQ midnight source coverage
         shell: python
         run: |
-          import urllib.request, urllib.parse, json
-          for symbol in ['CLZ26.NYM','NQZ26.CME']:
-            url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(symbol,safe='')+'?range=5d&interval=5m'
+          import urllib.request, json
+          for interval in ['5m','1m']:
             try:
-              req=urllib.request.Request(url,headers={'User-Agent':'SessionPath/1.0 (delayed futures context)'})
+              url='https://query1.finance.yahoo.com/v8/finance/chart/NQZ26.CME?range=5d&interval='+interval+'&includePrePost=true'
+              req=urllib.request.Request(url,headers={'User-Agent':'SessionPath/1.0'})
               with urllib.request.urlopen(req,timeout=20) as r: data=json.load(r)
-              result=data['chart']['result'][0];meta=result['meta']
-              print(json.dumps({'symbol':symbol,'meta':{k:meta.get(k) for k in ['symbol','shortName','instrumentType','dataGranularity','regularMarketTime']},'bars':len(result['timestamp']),'first':result['timestamp'][0],'last':result['timestamp'][-1]}))
-            except Exception as e: print(symbol,type(e).__name__,str(e))
+              item=data['chart']['result'][0];q=item['indicators']['quote'][0];times=item['timestamp']
+              subset=[{'t':t,**{k:q[k][i] for k in ['open','high','low','close']}} for i,t in enumerate(times) if 1792468500<=t<=1792469400]
+              print(json.dumps({'interval':interval,'bars':len(times),'midnight':subset}))
+            except Exception as e: print(interval,type(e).__name__,str(e))
