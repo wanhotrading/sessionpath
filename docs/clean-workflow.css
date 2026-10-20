@@ -1,0 +1,44 @@
+/* Main forecast panels stay visible; supporting utilities open from the wrench. */
+.workspace-tools-toggle{position:fixed;right:12px;top:99px;z-index:35;width:46px;height:46px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:15px;border:1px solid #cbdfff66;background:rgba(24,39,66,.92);box-shadow:0 5px 22px #0005;backdrop-filter:blur(16px);font-size:22px;line-height:1;touch-action:manipulation}
+.workspace-tools-toggle:hover{background:rgba(49,72,106,.98)}
+.workspace-tools-toggle:focus-visible{outline:2px solid #a3d6ff;outline-offset:4px}
+#workspace-tools-dialog{position:fixed;inset:12px 12px 12px auto;margin:0;width:min(390px,calc(100vw - 24px));height:calc(100dvh - 24px);max-width:none;max-height:none;padding:24px;border-radius:23px;overflow:auto}
+#workspace-tools-dialog::backdrop{background:rgba(2,6,17,.45);backdrop-filter:blur(3px)}
+#workspace-tools-dialog .dialog-head{gap:12px;align-items:start}
+#workspace-tools-dialog .dialog-head h2{margin:7px 0 0}
+#workspace-tools-close{min-width:44px;min-height:44px}
+#workspace-tools-dialog #tools-section{width:auto;max-width:100%;margin:0;padding:0;border:0;background:none}
+.workflow-tool-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:22px 0 0}
+.workflow-tool-card{min-width:0;padding:16px;border:1px solid var(--border);border-radius:16px;background:rgba(127,161,211,.06)}
+.workflow-tool-card h3{font-size:17px;margin:0 0 8px}
+.workflow-tool-card p{font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 14px}
+.workflow-tool-card button{width:100%;min-height:44px;white-space:normal;font-size:14px}
+#chart-reader-dialog{width:min(680px,calc(100vw - 28px));max-height:calc(100dvh - 28px);padding:24px;overflow:auto}
+#chart-reader-dialog #chart-assistant{width:auto;max-width:100%;margin:0;padding:8px 0 0;border:0;background:none;box-shadow:none}
+#chart-assistant>.eyebrow{display:none}
+#chart-reader-dialog .dialog-head{gap:12px;align-items:start}
+#chart-reader-dialog .dialog-head .close-dialog{min-width:44px;min-height:44px}
+#chart-reader-dialog #chart-assistant input,#chart-reader-dialog #chart-assistant textarea{max-width:100%}
+#workspace .replay-picker #replay-tools{display:none}
+#ny-reference input[type="number"]{width:50%;min-width:120px;max-width:150px}
+#bbox-return-details>summary{font-size:15px;color:#dce8fb;min-height:44px;cursor:pointer}
+#bbox-return-details>.bbox-return{margin-top:14px}
+
+body[data-device-view="mobile"] .topbar nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+body[data-device-view="mobile"] .workspace-tools-toggle{top:auto;bottom:22px;right:16px;width:50px;height:50px;border-radius:17px}
+body[data-device-view="mobile"] #workspace-tools-dialog{position:fixed;inset:10px 10px 10px auto;width:min(390px,calc(100vw - 20px))!important;max-width:none!important;height:calc(100dvh - 20px);max-height:none!important;margin:0;padding:20px;overflow:auto}
+body[data-device-view="mobile"] #chart-reader-dialog{padding:20px;max-width:680px!important}
+body[data-device-view="mobile"] #chart-reader-dialog #chart-assistant{padding:6px 0 0;max-height:none;overflow:visible}
+body[data-device-view="mobile"] #ny-reference input[type="number"]{width:50%;min-width:120px;max-width:150px;min-height:44px}
+body[data-device-view="mobile"] #workspace-tools-dialog .workflow-tool-card{padding:16px!important}
+@media(max-width:480px){
+ body[data-device-view="mobile"] .topbar nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .workspace-tools-toggle{right:10px}
+}
+
+#projection .result-head .eyebrow:before{content:none!important}
+.forecast-context.context-missing{border:1px solid #f6a64f!important;background:rgba(163,83,18,.22)!important;box-shadow:inset 0 0 0 1px #f6a64f22}
+.context-missing .missing-icon{display:inline-block;color:#ff626c;font-size:20px;vertical-align:middle;margin-right:6px}
+.copy-feedback{opacity:1;transition:opacity .2s ease}.copy-feedback.copy-faded{opacity:0}
+#bbox-return-details #bbox-return{padding:0;border:0;background:none;box-shadow:none}
+#bbox-return-details #bbox-return>.section-heading{margin-top:12px}

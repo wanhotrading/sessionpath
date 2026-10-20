@@ -1,0 +1,57 @@
+/* Snowy sunset backdrop and the mobile section dock. */
+body:before{
+ background:linear-gradient(180deg,rgba(8,16,34,.43),rgba(8,18,36,.15) 42%,rgba(7,16,34,.24)),url('assets/backgrounds/snowy-sunset-v1.webp') center/cover no-repeat;
+}
+body:after{background:linear-gradient(180deg,rgba(8,14,30,.05),rgba(7,16,34,.16))}
+.meteor-layer{display:none}
+
+body[data-device-view="mobile"]{
+ padding-bottom:calc(102px + env(safe-area-inset-bottom,0px));
+}
+body[data-device-view="mobile"] .topbar nav{
+ position:fixed;
+ top:auto;
+ left:max(12px,env(safe-area-inset-left,0px));
+ right:max(12px,env(safe-area-inset-right,0px));
+ bottom:calc(10px + env(safe-area-inset-bottom,0px));
+ z-index:40;
+ width:auto;
+ max-width:640px;
+ margin:0 auto;
+ display:grid;
+ grid-template-columns:repeat(5,minmax(0,1fr));
+ gap:3px;
+ padding:7px;
+ min-height:64px;
+ border:1px solid rgba(222,232,255,.32);
+ border-radius:25px;
+ background:rgba(12,24,44,.94);
+ box-shadow:0 9px 32px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.07);
+ backdrop-filter:blur(18px) saturate(135%);
+ -webkit-backdrop-filter:blur(18px) saturate(135%);
+}
+body[data-device-view="mobile"] .topbar nav a{
+ min-height:48px;
+ padding:7px 3px;
+ font-size:12px;
+ line-height:1.2;
+ border-radius:18px;
+ color:#e0eafa;
+ overflow-wrap:normal;
+ text-align:center;
+}
+body[data-device-view="mobile"] .topbar nav a:hover,
+body[data-device-view="mobile"] .topbar nav a:focus-visible{
+ background:rgba(210,225,255,.14);
+ color:#fff;
+}
+body[data-device-view="mobile"] .workspace-tools-toggle{
+ bottom:calc(94px + env(safe-area-inset-bottom,0px));
+}
+body[data-device-view="mobile"] #toast{
+ bottom:calc(96px + env(safe-area-inset-bottom,0px));
+}
+@media(max-width:360px){
+ body[data-device-view="mobile"] .topbar nav{left:8px;right:8px;padding:6px;gap:1px}
+ body[data-device-view="mobile"] .topbar nav a{font-size:11px}
+}

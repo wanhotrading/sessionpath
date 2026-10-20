@@ -1,0 +1,264 @@
+//@version=6
+// Session Path v4. Standard 5-minute CL/MCL chart; all clocks America/New_York.
+// Range and quartiles freeze at 04:30. U/D and running extremes continue through 08:30.
+// AVR = mean last 10 COMPLETE NY 09:30-16:00 high-low ranges, frozen at 19:30.
+// Forecast code comes from the local research website. No automatic website connection.
+// Quarter location selects a scenario, not an estimated success probability.
+indicator("Session Path - 04:30 range, AVR and matched U/D", overlay = true, max_boxes_count = 5, max_lines_count = 10, max_labels_count = 8)
+
+string TZ = "America/New_York"
+float manualAvr = input.float(0.0, "AVR override in points (0 = automatic)", minval = 0, step = 0.01, group = "Range and AVR", tooltip = "Automatic uses the last ten complete NY sessions on this chart's symbol. Prefer an explicit delivery contract. A manual override is frozen for the night; change it when your baseline changes.")
+string anchorMode = input.string("Frozen 04:30", "AVR anchor", options = ["Frozen 04:30", "Latest overnight extreme"], group = "Range and AVR")
+bool showAvr = input.bool(true, "Show conditional 1x AVR projection", group = "Range and AVR")
+string forecastCode = input.string("", "Forecast code from website", group = "Historical estimate", tooltip = "Paste the one-line SP4 code from Session Path. This displays the dated snapshot only. Recalculate on the website when conditions change.")
+bool showForecast = input.bool(true, "Show imported average U/D box", group = "Historical estimate")
+
+if not timeframe.isminutes or timeframe.multiplier != 5
+    runtime.error("Use a standard 5-minute chart with overnight bars enabled.")
+if not chart.is_standard
+    runtime.error("Use standard candles, not Heikin Ashi, Renko or another synthetic chart.")
+if syminfo.root != "CL" and syminfo.root != "MCL"
+    runtime.error("This research is for CL/MCL futures.")
+
+f_price(float value) =>
+    na(value) ? "--" : str.tostring(value, "#.00")
+f_percent(float value) =>
+    na(value) ? "--" : str.tostring(value, "#.0") + "%"
+
+int clockMinute = hour(time, TZ) * 60 + minute(time, TZ)
+bool inNy = clockMinute >= 570 and clockMinute < 960
+var array<float> nyRanges = array.new<float>()
+var float nyHigh = na
+var float nyLow = na
+var int nyCount = 0
+var int nyPreviousClose = na
+var bool nyComplete = false
+if barstate.isconfirmed and inNy
+    if clockMinute == 570
+        nyHigh := high
+        nyLow := low
+        nyCount := 0
+        nyPreviousClose := time
+        nyComplete := true
+    if nyCount == 0 and clockMinute != 570
+        nyComplete := false
+    if time != nyPreviousClose
+        nyComplete := false
+    nyHigh := na(nyHigh) ? high : math.max(nyHigh, high)
+    nyLow := na(nyLow) ? low : math.min(nyLow, low)
+    nyCount += 1
+    nyPreviousClose := time_close
+    if clockMinute == 955
+        if nyComplete and nyCount == 78
+            array.push(nyRanges, nyHigh - nyLow)
+            if array.size(nyRanges) > 10
+                array.shift(nyRanges)
+        nyCount := 0
+        nyComplete := false
+
+int localYear = year(time, TZ)
+int localMonth = month(time, TZ)
+int localDay = dayofmonth(time, TZ)
+int anchorDay = clockMinute >= 1170 ? localDay : localDay - 1
+int startForBar = timestamp(TZ, localYear, localMonth, anchorDay, 19, 30)
+int lockForBar = timestamp(TZ, localYear, localMonth, anchorDay + 1, 4, 30)
+int endForBar = timestamp(TZ, localYear, localMonth, anchorDay + 1, 8, 30)
+bool inOvernight = time >= startForBar and time < endForBar
+
+var int sessionStart = na
+var int sessionLock = na
+var int sessionEnd = na
+var int asof = na
+var int barCount = 0
+var bool complete = false
+var bool frozen = false
+var float open1930 = na
+var float runningHigh = na
+var float runningLow = na
+var float fixedHigh = na
+var float fixedLow = na
+var float lastPrice = na
+var float nightAvr = na
+var int avrSessions = 0
+var bool highBroken = false
+var bool lowBroken = false
+var string firstBreak = "None"
+var int firstBreakTime = na
+
+if barstate.isconfirmed and inOvernight
+    if na(sessionStart) or sessionStart != startForBar
+        sessionStart := startForBar
+        sessionLock := lockForBar
+        sessionEnd := endForBar
+        asof := startForBar
+        barCount := 0
+        complete := time == startForBar
+        frozen := false
+        open1930 := time == startForBar ? open : na
+        runningHigh := high
+        runningLow := low
+        fixedHigh := na
+        fixedLow := na
+        highBroken := false
+        lowBroken := false
+        firstBreak := "None"
+        firstBreakTime := na
+        avrSessions := array.size(nyRanges)
+        nightAvr := manualAvr > 0 ? manualAvr : avrSessions == 10 ? array.avg(nyRanges) : na
+    if time != asof
+        complete := false
+    runningHigh := math.max(runningHigh, high)
+    runningLow := math.min(runningLow, low)
+    lastPrice := close
+    asof := time_close
+    barCount += 1
+    if time < sessionLock and time_close == sessionLock and complete and barCount == 108
+        fixedHigh := runningHigh
+        fixedLow := runningLow
+        frozen := true
+    if time >= sessionLock and frozen
+        bool upBreak = high > fixedHigh
+        bool downBreak = low < fixedLow
+        if firstBreak == "None" and (upBreak or downBreak)
+            firstBreak := upBreak and downBreak ? "Both in same 5m bar" : upBreak ? "High first" : "Low first"
+            firstBreakTime := time_close
+        highBroken := highBroken or upBreak
+        lowBroken := lowBroken or downBreak
+
+float printed = runningHigh - runningLow
+float observedUp = runningHigh - open1930
+float observedDown = open1930 - runningLow
+float q = frozen and fixedHigh > fixedLow ? (lastPrice - fixedLow) / (fixedHigh - fixedLow) : na
+bool active = complete and frozen and asof >= sessionLock and asof < sessionEnd and time < sessionEnd
+int side = not na(q) ? q >= 0.75 ? 1 : q <= 0.25 ? -1 : 0 : 0
+bool anchorFailed = anchorMode == "Frozen 04:30" and (side == 1 ? lowBroken : side == -1 ? highBroken : false)
+float avrAnchor = side == 1 ? (anchorMode == "Frozen 04:30" ? fixedLow : runningLow) : side == -1 ? (anchorMode == "Frozen 04:30" ? fixedHigh : runningHigh) : na
+float avrTarget = side == 1 ? avrAnchor + nightAvr : side == -1 ? avrAnchor - nightAvr : na
+bool targetReached = not na(avrTarget) and (side == 1 ? runningHigh >= avrTarget : runningLow <= avrTarget)
+string avrState = not complete ? "Incomplete overnight data" : not frozen ? "Waiting for complete 04:30 range" : not active ? "Window ended at 08:30" : side == 0 ? "Middle 50%: no AVR projection" : anchorFailed ? "Original opposite boundary broke: projection invalid" : na(nightAvr) ? "Load 10 full NY sessions or enter AVR" : targetReached ? "1x AVR level already reached" : side == 1 ? "Upper quarter: low + AVR" : "Lower quarter: high - AVR"
+
+var box rangeBox = na
+var line rangeHighLine = na
+var line rangeLowLine = na
+var line q1Line = na
+var line midLine = na
+var line q3Line = na
+var line avrLine = na
+var line anchorLine = na
+var label rangeLabel = na
+var label avrLabel = na
+if barstate.islast
+    box.delete(rangeBox)
+    line.delete(rangeHighLine)
+    line.delete(rangeLowLine)
+    line.delete(q1Line)
+    line.delete(midLine)
+    line.delete(q3Line)
+    line.delete(avrLine)
+    line.delete(anchorLine)
+    label.delete(rangeLabel)
+    label.delete(avrLabel)
+    if complete and not na(sessionStart)
+        float boxHigh = frozen ? fixedHigh : runningHigh
+        float boxLow = frozen ? fixedLow : runningLow
+        int boxRight = frozen ? sessionLock : asof
+        rangeBox := box.new(left = sessionStart, top = boxHigh, right = boxRight, bottom = boxLow, xloc = xloc.bar_time, border_color = color.silver, bgcolor = color.new(color.blue, 92))
+        rangeLabel := label.new(x = boxRight, y = boxHigh, text = frozen ? "19:30-04:30 FROZEN range" : "19:30 range forming", xloc = xloc.bar_time, style = label.style_label_down, color = color.new(color.gray, 35), textcolor = color.white, size = size.small)
+        if frozen
+            float w = fixedHigh - fixedLow
+            rangeHighLine := line.new(x1 = sessionLock, y1 = fixedHigh, x2 = sessionEnd, y2 = fixedHigh, xloc = xloc.bar_time, color = color.silver)
+            rangeLowLine := line.new(x1 = sessionLock, y1 = fixedLow, x2 = sessionEnd, y2 = fixedLow, xloc = xloc.bar_time, color = color.silver)
+            q1Line := line.new(x1 = sessionStart, y1 = fixedLow + 0.25 * w, x2 = sessionEnd, y2 = fixedLow + 0.25 * w, xloc = xloc.bar_time, color = color.new(color.silver, 40), style = line.style_dotted)
+            midLine := line.new(x1 = sessionStart, y1 = fixedLow + 0.5 * w, x2 = sessionEnd, y2 = fixedLow + 0.5 * w, xloc = xloc.bar_time, color = color.new(color.silver, 60), style = line.style_dotted)
+            q3Line := line.new(x1 = sessionStart, y1 = fixedLow + 0.75 * w, x2 = sessionEnd, y2 = fixedLow + 0.75 * w, xloc = xloc.bar_time, color = color.new(color.silver, 40), style = line.style_dotted)
+        if showAvr and active and side != 0 and not anchorFailed and nightAvr > 0
+            color scenarioColor = targetReached ? color.gray : color.orange
+            avrLine := line.new(x1 = asof, y1 = avrTarget, x2 = sessionEnd, y2 = avrTarget, xloc = xloc.bar_time, color = scenarioColor, width = 2, style = line.style_dashed)
+            anchorLine := line.new(x1 = asof, y1 = avrAnchor, x2 = sessionEnd, y2 = avrAnchor, xloc = xloc.bar_time, color = color.new(scenarioColor, 40), style = line.style_dotted)
+            avrLabel := label.new(x = sessionEnd, y = avrTarget, text = "1x AVR scenario " + f_price(avrTarget) + "\n" + anchorMode + " anchor " + f_price(avrAnchor) + (targetReached ? "\nALREADY REACHED" : "\nNot a historical mean target"), xloc = xloc.bar_time, style = label.style_label_left, color = color.new(scenarioColor, 20), textcolor = color.white, size = size.small)
+
+// One small website export, not the historical dataset. Its price/time never re-anchor.
+var array<string> payload = str.split(forecastCode, "|")
+var int estimateStart = na
+var int estimateEnd = na
+var float estimatePrice = na
+var float estimateUp = na
+var float estimateDown = na
+var float estimateN = na
+var float containment = na
+var float touchUp = na
+var float touchDown = na
+var float estimateAvr = na
+var bool estimateValid = false
+if barstate.isfirst and str.length(forecastCode) > 0
+    if array.size(payload) == 11
+        if array.get(payload, 0) == "SP4"
+            estimateStart := int(str.tonumber(array.get(payload, 1)))
+            estimateEnd := int(str.tonumber(array.get(payload, 2)))
+            estimatePrice := str.tonumber(array.get(payload, 3))
+            estimateUp := str.tonumber(array.get(payload, 4))
+            estimateDown := str.tonumber(array.get(payload, 5))
+            estimateN := str.tonumber(array.get(payload, 6))
+            containment := str.tonumber(array.get(payload, 7))
+            touchUp := str.tonumber(array.get(payload, 8))
+            touchDown := str.tonumber(array.get(payload, 9))
+            estimateAvr := str.tonumber(array.get(payload, 10))
+            estimateValid := not na(estimateStart) and not na(estimateEnd) and not na(estimatePrice) and not na(estimateUp) and not na(estimateDown) and not na(estimateN) and not na(containment) and not na(touchUp) and not na(touchDown) and not na(estimateAvr)
+            estimateValid := estimateValid and estimateStart > 0 and estimateEnd > estimateStart and estimateEnd - estimateStart <= 46800000 and estimateUp >= 0 and estimateDown >= 0 and estimateN >= 1 and estimateN == math.floor(estimateN) and estimateAvr > 0 and containment >= 0 and containment <= 100 and touchUp >= 0 and touchUp <= 100 and touchDown >= 0 and touchDown <= 100
+
+var box estimateUpperBox = na
+var box estimateLowerBox = na
+var label estimateLabel = na
+if barstate.islast
+    box.delete(estimateUpperBox)
+    box.delete(estimateLowerBox)
+    label.delete(estimateLabel)
+    if showForecast and estimateValid
+        estimateUpperBox := box.new(left = estimateStart, top = estimatePrice + estimateUp, right = estimateEnd, bottom = estimatePrice, xloc = xloc.bar_time, border_color = color.teal, bgcolor = color.new(color.teal, 87))
+        estimateLowerBox := box.new(left = estimateStart, top = estimatePrice, right = estimateEnd, bottom = estimatePrice - estimateDown, xloc = xloc.bar_time, border_color = color.maroon, bgcolor = color.new(color.red, 90))
+        estimateLabel := label.new(x = estimateEnd, y = estimatePrice + estimateUp, text = "Matched average U +" + f_price(estimateUp) + " / D -" + f_price(estimateDown) + " pt\n" + str.format_time(estimateStart, "yyyy-MM-dd HH:mm", TZ) + " to " + str.format_time(estimateEnd, "HH:mm", TZ) + " NY\nHistorical containment " + f_percent(containment) + " | n=" + str.tostring(estimateN, "#") + "\nFixed website snapshot", xloc = xloc.bar_time, style = label.style_label_left, color = color.new(color.navy, 10), textcolor = color.white, size = size.small)
+
+var table panel = table.new(position.top_right, 2, 18, bgcolor = color.new(color.black, 12), border_width = 1)
+if barstate.islast
+    color fg = color.white
+    string snapshotDate = not na(asof) ? str.format_time(asof, "yyyy-MM-dd HH:mm", TZ) + " NY" : "Waiting for 19:30"
+    string location = na(q) ? "Not fixed yet" : q >= 0.75 ? "Upper quarter / above" : q <= 0.25 ? "Lower quarter / below" : "Middle 50%"
+    string breakState = highBroken and lowBroken ? "Both original sides broken" : firstBreak
+    table.cell(panel, 0, 0, "SESSION PATH | confirmed 5m", text_color = color.aqua)
+    table.cell(panel, 1, 0, snapshotDate, text_color = fg)
+    table.cell(panel, 0, 1, "Price / 19:30 open", text_color = fg)
+    table.cell(panel, 1, 1, f_price(lastPrice) + " / " + f_price(open1930), text_color = fg)
+    table.cell(panel, 0, 2, "Running high / low", text_color = fg)
+    table.cell(panel, 1, 2, f_price(runningHigh) + " / " + f_price(runningLow), text_color = fg)
+    table.cell(panel, 0, 3, "04:30 high / low", text_color = fg)
+    table.cell(panel, 1, 3, f_price(fixedHigh) + " / " + f_price(fixedLow), text_color = fg)
+    table.cell(panel, 0, 4, "Current U / D points from 19:30", text_color = fg)
+    table.cell(panel, 1, 4, f_price(observedUp) + " / " + f_price(observedDown), text_color = fg)
+    table.cell(panel, 0, 5, "U / D as % AVR", text_color = fg)
+    table.cell(panel, 1, 5, f_percent(nightAvr > 0 ? 100 * observedUp / nightAvr : na) + " / " + f_percent(nightAvr > 0 ? 100 * observedDown / nightAvr : na), text_color = fg)
+    table.cell(panel, 0, 6, "Printed range / % AVR", text_color = fg)
+    table.cell(panel, 1, 6, f_price(printed) + " / " + f_percent(nightAvr > 0 ? 100 * printed / nightAvr : na), text_color = fg)
+    table.cell(panel, 0, 7, "Frozen nightly AVR", text_color = fg)
+    table.cell(panel, 1, 7, f_price(nightAvr) + (manualAvr > 0 ? " manual" : " | " + str.tostring(avrSessions) + "/10 NY sessions"), text_color = fg)
+    table.cell(panel, 0, 8, "Price vs FROZEN quartiles", text_color = fg)
+    table.cell(panel, 1, 8, location, text_color = fg)
+    table.cell(panel, 0, 9, "04:30 boundary events", text_color = fg)
+    table.cell(panel, 1, 9, breakState, text_color = fg)
+    table.cell(panel, 0, 10, "AVR scenario", text_color = color.orange)
+    table.cell(panel, 1, 10, avrState, text_color = color.orange)
+    table.cell(panel, 0, 11, "Matched average remaining U / D", text_color = color.aqua)
+    table.cell(panel, 1, 11, estimateValid ? "+" + f_price(estimateUp) + " / -" + f_price(estimateDown) + " pt | SNAPSHOT" : "Calculate on website; paste forecast code", text_color = fg)
+    table.cell(panel, 0, 12, "Forecast date / window", text_color = fg)
+    table.cell(panel, 1, 12, estimateValid ? str.format_time(estimateStart, "yyyy-MM-dd HH:mm", TZ) + "-" + str.format_time(estimateEnd, "HH:mm", TZ) : str.length(forecastCode) > 0 ? "Invalid SP4 code" : "No historical estimate imported", text_color = fg)
+    table.cell(panel, 0, 13, "Containment / upper touch / lower touch", text_color = fg)
+    table.cell(panel, 1, 13, estimateValid ? f_percent(containment) + " / " + f_percent(touchUp) + " / " + f_percent(touchDown) : "--", text_color = fg)
+    table.cell(panel, 0, 14, "Imported forecast status", text_color = fg)
+    table.cell(panel, 1, 14, estimateValid ? time >= estimateEnd ? "Expired snapshot: recalculate on website" : time_close > estimateStart ? "Snapshot may be stale: refresh after changes" : "Fixed future snapshot" : "Not calculated in Pine", text_color = color.yellow)
+    table.cell(panel, 0, 15, "Data / symbol", text_color = fg)
+    table.cell(panel, 1, 15, (complete ? "Complete overnight bars | " : "MISSING OVERNIGHT BARS | ") + syminfo.ticker, text_color = fg)
+    table.cell(panel, 0, 16, "Use matching explicit contract and AVR", text_color = fg)
+    table.cell(panel, 1, 16, "Quartiles / 1x AVR are scenarios, not win probabilities", text_color = color.yellow)
+    // Broad archive frequencies at FIRST breach; not recalibrated as the market evolves.
+    string baseline = not complete ? "Unavailable: missing bars" : highBroken and lowBroken ? "Opposite boundary failed" : firstBreak == "High first" ? "Original low held: 89.6% (501/559)" : firstBreak == "Low first" ? "Original high held: 88.5% (455/514)" : "Wait for the first 04:30-boundary breach"
+    table.cell(panel, 0, 17, "First-break historical baseline | to 08:30", text_color = fg)
+    table.cell(panel, 1, 17, baseline + " | descriptive, not live odds", text_color = fg)
