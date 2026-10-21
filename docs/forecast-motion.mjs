@@ -1,10 +1,12 @@
 const positions=new WeakMap(),runs=new WeakMap();
 const quiet=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||document.documentElement.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
-export function tint(el,value,baseline,label='Same-market, same-window earlier history'){
+export function tint(el,value,baseline,label='Same-market, same-window earlier history',inverse=false){
  if(!el)return; el.removeAttribute('data-relative');
+ el.removeAttribute('data-polarity');
  if(!Number.isFinite(value)||!Number.isFinite(baseline))return;
  el.dataset.relative=Math.abs(value-baseline)<1e-9?'equal':value<baseline?'below':'above';
- el.title=`${label}: ${baseline.toFixed(4)}. ${el.dataset.relative} baseline. Colours compare magnitude, not trade direction.`;
+ if(inverse)el.dataset.polarity='inverse';
+ el.title=`${label}: ${baseline.toFixed(4)}. ${el.dataset.relative} baseline. ${inverse?'Lower no-expansion probability is orange (more expansion potential); higher is purple.':'Colours compare magnitude, not trade direction.'}`;
 }
 export function reveal(host,nodes,gap=250){
  if(!host)return;

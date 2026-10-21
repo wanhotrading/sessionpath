@@ -6,3 +6,7 @@
 @media(prefers-reduced-motion:reduce){.forecast-shine{display:none}}
 
 .context-meter{background:linear-gradient(to right,#b9a4ff 0 25%,#4b7378 25% 75%,#f4b66f 75%)}
+
+/* No expansion is the inverse of expansion potential. */
+[data-polarity="inverse"][data-relative="above"],[data-polarity="inverse"][data-relative="above"] .probability-value{color:#b9a4ff!important;-webkit-text-fill-color:#b9a4ff!important}
+[data-polarity="inverse"][data-relative="below"],[data-polarity="inverse"][data-relative="below"] .probability-value{color:#f4b66f!important;-webkit-text-fill-color:#f4b66f!important}

@@ -1,6 +1,6 @@
 /* Snowy sunset backdrop and the mobile section dock. */
 body:before{
- background:linear-gradient(180deg,rgba(8,16,34,.43),rgba(8,18,36,.15) 42%,rgba(7,16,34,.24)),url('assets/backgrounds/snowy-sunset-v1.webp') center/cover no-repeat;
+ background:linear-gradient(180deg,rgba(8,16,34,.43),rgba(8,18,36,.15) 42%,rgba(7,16,34,.24)),var(--session-background,url('assets/backgrounds/snowy-sunset-v1.webp')) center/cover no-repeat;
 }
 body:after{background:linear-gradient(180deg,rgba(8,14,30,.05),rgba(7,16,34,.16))}
 .meteor-layer{display:none}
