@@ -138,10 +138,11 @@ export function selectMatches(days, rows, query) {
   const observations = (query.observations || []).filter(o => Number.isFinite(o.minute) && o.minute < minute);
   const conditions = [...observations, current];
   const featureSets = conditions.map(providedFields);
-  const numericCount = featureSets.reduce((sum, set) => sum + set.length, 0), pool = [];
+  const numericCount = featureSets.reduce((sum, set) => sum + set.length, 0), pool = [], baseline = [];
   for (const row of rows) {
     const day = dayMap.get(row.dayIndex);
     if (!day || (query.beforeDate && day.date >= query.beforeDate) || (query.year && String(day.year ?? day.date.slice(0, 4)) !== String(query.year))) continue;
+    baseline.push({day,row,distance:0});
     let sum = 0, eligible = true;
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
@@ -157,7 +158,7 @@ export function selectMatches(days, rows, query) {
   }
   pool.sort((a, b) => a.distance - b.distance || b.day.date.localeCompare(a.day.date));
   const requested = Number(query.limit), limit = Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : 100;
-  return {pool, matches: query.limit === 'ALL' ? pool : pool.slice(0, limit), numericCount, observationCount: observations.length};
+  return {pool, baseline, matches: query.limit === 'ALL' ? pool : pool.slice(0, limit), numericCount, observationCount: observations.length};
 }
 
 // Direction-aware descriptions of completed close paths; these are not workbook tags.

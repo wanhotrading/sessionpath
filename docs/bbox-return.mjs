@@ -1,3 +1,4 @@
+import {tint,reveal} from './forecast-motion.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {instrument,assetPath} from './instrument.mjs';
 import {bboxReturnStats,returnClock as clock,checkpointMinute,makeBBoxReturnCode} from './bbox-return-core.mjs';
@@ -51,5 +52,9 @@ export async function renderBBoxReturn(){
    <div class="br-comparisons"><details class="session-note"><summary>Compare outside conditions</summary><table class="strength-table"><thead><tr><th>Outside state at observation</th><th>Return by ${clock(end)}</th></tr></thead><tbody>${compare(group===1?s:other,1)}${compare(group===0?s:other,0)}</tbody></table></details><div><h3>Return by each deadline</h3><div class="br-bars">${curves.map(x=>`<div><span>${clock(x.minute)}</span><i><em style="width:${100*(x.p||0)}%"></em></i><b>${pc(x.p)}</b></div>`).join('')}</div><p class="compact-note">Cumulative chances from the same ${r.n} eligible dates. These overlapping percentages must not be added.</p></div></div>
    <details class="session-note"><summary>Check consistency by year</summary><table class="strength-table"><thead><tr><th>Year</th><th>Returned / eligible</th><th>95% interval</th></tr></thead><tbody>${s.byYear.filter(x=>x.n).map(x=>`<tr><td>${x.year}</td><td>${pc(x.p)} · ${x.k}/${x.n}</td><td>${pc(x.lo)}–${pc(x.hi)}</td></tr>`).join('')}</tbody></table></details>
    <p class="compact-note">Historical reference frequency, not a trade win rate. Source coverage: ${data.coverage.start}–${data.coverage.end}. <a href="${instrument.id==='NQ'?'#comparison':'seven-studies#s6'}">${instrument.id==='NQ'?'Read NQ model checks':'Read the Q6 research'}</a>.</p>`;
+  const baseline=bboxReturnStats(data.days,{...q,group:null});
+  tint(host.querySelector('.br-hero>div>strong'),r.p,baseline.remaining.p,'Same side, checkpoint, deadline and no-return filter; either outside condition, once per date');
+  host.querySelectorAll('.br-bars>div>b').forEach((el,i)=>tint(el,curves[i].p,baseline.curve.find(x=>x.minute===curves[i].minute)?.p,'Same checkpoint and deadline; either outside condition'));
+  reveal(host,[...host.querySelectorAll('.br-hero>div'),host.querySelector('.br-bars')],230);
  }catch(e){if(rev===revision)host.innerHTML=`<p class="notice" role="alert">${esc(e.message)}</p>`;}
 }

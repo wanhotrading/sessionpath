@@ -26,12 +26,12 @@ export function parseBBoxReturnCode(code){
 export function bboxReturnStats(days,{date,year='',anchor,now,end,side,group}){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))throw Error('Choose a trading date in Session inputs.');
  if(!Number.isInteger(anchor)||anchor%30!==0||anchor<180||anchor>480||!Number.isInteger(end)||end%5!==0||end<anchor+30||end>510||now!==null&&(!Number.isInteger(now)||now%5!==0||now<anchor+30||now>=end))throw Error('Choose a deadline after the checkpoint block. For an update, use a completed five-minute time after the block and before the deadline (through 08:30).');
- if(![1,-1].includes(side)||![0,1].includes(group))throw Error('Select U or D and the observed box condition.');
+ if(![1,-1].includes(side)||!(group===null||[0,1].includes(group)))throw Error('Select U or D and the observed box condition.');
  const base=[];
  for(const d of days){
   if(d.date>=date||(year&&d.date.slice(0,4)!==year))continue;
   // One first qualifying observation per date, side and condition in this block.
-  const s=d.signals.filter(x=>x[0]>=anchor&&x[0]<anchor+30&&x[1]===side&&x[2]===group).sort((a,b)=>a[0]-b[0])[0];
+  const s=d.signals.filter(x=>x[0]>=anchor&&x[0]<anchor+30&&x[1]===side&&(group===null||x[2]===group)).sort((a,b)=>a[0]-b[0])[0];
   if(s)base.push({date:d.date,observed:s[0],first:s[3]});
  }
  const remaining=base.filter(r=>now===null||r.first===null||r.first>now);
