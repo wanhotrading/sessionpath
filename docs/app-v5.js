@@ -7,7 +7,7 @@ import {mountForecastContext,renderForecastContext,clearForecastContext} from '.
 import {mountLocalImporter} from './local-import-ui.mjs';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=sheet-import-20261020';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
-import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=orange-box-fill';
+import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=tail-event';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs';
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs';
