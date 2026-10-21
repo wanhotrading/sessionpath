@@ -16,7 +16,7 @@ if(query.get('instrument')==='NQ')$('market').value='NQ';
 let data,original;
 
 function updateLinks(market){
-  for(const[id,path]of[['home-link','./'],['double-link','double-break-0430.html'],['orange-link','orange-box-fill.html']])$(id).href=`${path}?instrument=${market}`;
+  for(const[id,path]of[['home-link','./'],['double-link','double-break-0430.html'],['orange-link','orange-box-fill.html'],['ny-extension-link','ny-sessionpath-extension.html']])$(id).href=`${path}?instrument=${market}`;
 }
 function setQuery(){
   const q=new URLSearchParams();q.set('instrument',$('market').value);
