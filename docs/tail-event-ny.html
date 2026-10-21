@@ -1,1 +1,101 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tail event · New York follow-through</title><link rel="stylesheet" href="double-break-0430.css"><script src="background-picker.js"></script><script type="module" src="tail-event-ny.mjs"></script></head><body><header><a href="./">SessionPath.</a><nav><a href="double-break-0430.html">04:30 double breaks</a><a href="orange-box-fill.html">Orange boxes</a></nav></header><main><section><h1>Tail event · New York follow-through</h1><p>Does the second overnight break continue after the cash open, or reverse? Direction means the second boundary broken. Orange events and 04:30 double breaks are separate studies.</p><form id="filters" class="filters"><label>Market<select id="market"><option>CL</option><option>NQ</option></select></label><label>Event<select id="event"><option value="0430 double break">04:30 double break</option><option value="Orange three">03–05 both orange boxes</option><option value="Orange five">05–08:30 both orange boxes</option></select></label><label>Second side<select id="side"><option value="D">D · downward</option><option value="U">U · upward</option></select></label><label>Orange forecast minimum matches<select id="min"><option value="50">50 · primary</option><option value="1">1 · sparse sensitivity</option></select></label></form><p id="status"></p></section><section><h2>What happens after each checkpoint?</h2><p>Each row starts at the checkpoint open. A new extreme must exceed the entire high or low already known at that checkpoint. Upper/lower wick events can both occur on one day.</p><div class="scroll"><table><thead><tr><th>Window · NY time</th><th>Days</th><th>Further extreme on second side</th><th>Opposite extreme</th><th>Final close follows second side</th><th>Mean signed move / overnight width</th><th>Favourable / adverse excursion</th></tr></thead><tbody id="results"></tbody></table></div><p>Rates show counts and 95% Wilson intervals. Positive signed movement follows the second-break direction. Excursions include zero; they do not specify which move happened first.</p></section><section><h2>State at the checkpoint</h2><div class="scroll"><table><thead><tr><th>Checkpoint</th><th>Opening price follows direction from 08:30 open</th><th>Close outside overnight edge</th><th>Close back across edge, among days that breached it after 08:30</th></tr></thead><tbody id="states"></tbody></table></div><p>Checkpoint state uses the last completed five-minute close: at 09:30, that is the 09:25–09:30 close. The opening-price measure uses the checkpoint open. For D, the reference is the 19:30–08:30 low; for U, its high. A close above the low alone is not evidence of reversal.</p></section><section><h2>Comparison: days without a 04:30 double break</h2><p>This is an unmatched descriptive baseline, using the same market, direction and clock times. It does not control for news, volatility or trend and is not an orange-specific control.</p><div class="scroll"><table><thead><tr><th>Window</th><th>Days</th><th>Further same-side extreme</th><th>Final close follows side</th></tr></thead><tbody id="control"></tbody></table></div></section><section><h2>Interpretation and audit</h2><p>A higher extreme-touch probability does not establish a profitable earlier entry. Compare future favourable and adverse movement, then test a specified entry, stop and exit on later unseen dates. Waiting also leaves a shorter horizon, so falling touch rates alone do not show that waiting is worse.</p><p>No news cause has been assigned. The current sample describes price patterns, and overlapping events are not independent confirmations. Only pre-08:30 orange events enter this morning study; selecting days using the NY orange outcome would use future information.</p><div id="method"></div><p><a href="tail-event-ny-daily.csv" download>Download daily event measurements</a> · <a href="tail-event-ny-data.json" download>Download summaries and exclusions</a></p></section></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tail event · New York follow-through</title>
+  <link rel="stylesheet" href="double-break-0430.css">
+  <script src="background-picker.js"></script>
+  <script type="module" src="tail-event-ny.mjs?v=expanded-research"></script>
+  <style>
+    .tail-title{color:#b5a0ef}.research-nav{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0}.research-nav a{font-size:12px;padding:7px 11px;border:1px solid #b4c3e32d;border-radius:20px;text-decoration:none}.filters{gap:12px}.filters label{min-width:130px}.filters label.wide{min-width:210px}.filters select{max-width:280px}.status{min-height:26px;margin-top:20px}section{scroll-margin-top:14px}.cards .card strong{font-size:28px}.cards .card small{margin-top:7px}.metric-label{font-size:13px;line-height:1.5}.metric-pair{display:flex;flex-wrap:wrap;gap:8px 24px}.metric-pair span{font-size:13px;color:var(--muted)}.table-note{font-size:12px;color:var(--muted)}td .positive{color:var(--orange)}td .negative{color:var(--purple)}.empty-cell{text-align:left!important;white-space:normal}.comparison-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.comparison-grid .card{margin:0}.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:10px;height:10px;border-radius:3px;background:var(--orange)}.legend .fade{background:var(--purple)}.sample-note{color:#ffcb87;font-size:13px}.state-key{max-width:1000px}.state-key p{font-size:13px;color:var(--muted);margin:6px 0}.downloads{display:flex;flex-wrap:wrap;gap:18px}.error{color:#ffc2c2}.reset{margin-left:auto}.reveal-data{font-variant-numeric:tabular-nums}.nowrap{white-space:nowrap}.hidden{display:none!important}@media(max-width:650px){.filters label,.filters label.wide{min-width:0}.filters select{max-width:none}.reset{margin-left:0;width:100%}.research-nav{gap:6px}.research-nav a{font-size:11px;padding:6px 9px}.cards .card strong{font-size:25px}.comparison-grid{grid-template-columns:1fr}.downloads{gap:12px}.metric-pair{gap:6px 14px}}
+  </style>
+</head>
+<body>
+  <header>
+    <a id="home-link" href="./">SessionPath.</a>
+    <nav><a id="double-link" href="double-break-0430.html">04:30 double breaks</a><a id="orange-link" href="orange-box-fill.html">Orange boxes</a></nav>
+  </header>
+  <main>
+    <section>
+      <div class="eyebrow">CSV research · CL / NQ · New York time</div>
+      <h1 class="tail-title">Tail event · New York follow-through</h1>
+      <p>After both overnight boundaries have broken, does New York continue in the second-break direction, or turn back? This study tests the later high/low, closing direction, reversal path and entry timing using the recorded five-minute candles.</p>
+      <form id="filters" class="filters">
+        <label>Market<select id="market"><option>CL</option><option>NQ</option></select></label>
+        <label class="wide">Event<select id="event"><option value="0430 double break">04:30 double break</option><option value="Orange three">03–05 both orange boxes</option><option value="Orange five">05–08:30 both orange boxes</option></select></label>
+        <label>Second side<select id="side"><option value="D">D · downward</option><option value="U">U · upward</option></select></label>
+        <label id="minimum-label">Orange minimum matches<select id="min"><option value="50">50 · primary</option><option value="1">1 · sparse sensitivity</option></select></label>
+        <label id="qualification-label">Orange qualification<select id="qualification"><option value="strict">Exceed both outer edges</option><option value="touch">Touch both outer edges</option></select></label>
+        <label>Event dates<select id="period"><option value="all">All available years</option><option value="2022-2024">2022–2024</option><option value="2025-2026">2025–2026</option></select></label>
+        <button type="button" id="reset" class="reset">Reset</button>
+      </form>
+      <p id="status" class="status" role="status" aria-live="polite">Loading the CSV research…</p>
+      <p id="selection-note" class="hint"></p>
+      <nav class="research-nav" aria-label="Research sections"><a href="#questions">Hypotheses</a><a href="#outcomes">Future windows</a><a href="#states-section">Checkpoint state</a><a href="#matched-section">Matched controls</a><a href="#timing-section">Entry timing</a><a href="#brackets-section">Target before stop</a><a href="#chronology-section">Chronology</a><a href="#audit">Definitions & data</a></nav>
+    </section>
+
+    <section id="questions">
+      <h2>What do the data say about the hypotheses?</h2>
+      <p>These are separate outcomes. Price can make another extreme and still finish against that direction. “Follow” means the second side broken: selling for D and buying for U.</p>
+      <div id="hypotheses" class="cards reveal-data"></div>
+      <p id="hypothesis-note" class="table-note"></p>
+    </section>
+
+    <section id="outcomes">
+      <h2>What happens after each checkpoint?</h2>
+      <p>Each row starts at the checkpoint open. A new extreme must exceed the entire high or low already known at that checkpoint. Movement is measured against the frozen 19:30–08:30 width.</p>
+      <div class="scroll"><table><thead><tr><th>Window · NY</th><th>Days</th><th>New extreme on second side</th><th>Opposite new extreme</th><th>Final close follows side</th><th>Touches overnight midpoint</th><th>Touches opposite overnight edge</th><th>Mean / median signed move</th><th>Mean favourable / adverse move</th></tr></thead><tbody id="results"></tbody></table></div>
+      <p class="table-note">Rates include counts and 95% Wilson intervals. All movement percentages here use the frozen overnight width, rather than the price level. Positive signed movement follows the second-break direction. Reversal-target rates include only targets still ahead at entry. Excursions include zero. Touching both sides does not reveal which came first within a five-minute candle.</p>
+    </section>
+
+    <section id="states-section">
+      <h2>Does the state at 09:30, 10:00 or 10:30 matter?</h2>
+      <p>Read the last completed close at the checkpoint, then measure the remaining path through 16:00. The overnight high/low stays fixed at 08:30.</p>
+      <details class="state-key"><summary>Read the checkpoint groups</summary><p><b>Outside:</b> the last close remains beyond the overnight edge on the second-break side.</p><p><b>Reclaimed:</b> that edge was breached after 08:30, and the last close is back across it.</p><p><b>Never breached:</b> price has not breached that edge after 08:30. <b>Boundary:</b> the last close equals the edge.</p><p>For D, the edge is the 19:30–08:30 low. For U, it is the high. A close above the overnight low by itself does not establish a reversal.</p></details>
+      <div class="scroll"><table><thead><tr><th>Checkpoint</th><th>State</th><th>State / future days</th><th>Opening price follows side from 08:30</th><th>Close across overnight edge</th><th>Back across edge among breached cases</th><th>Later new extreme on second side</th><th>16:00 close follows side</th><th>Midpoint touch by 16:00</th><th>Opposite edge touch by 16:00</th><th>Mean signed move</th></tr></thead><tbody id="states"></tbody></table></div>
+      <p class="table-note">At 09:30, the state uses the 09:25–09:30 close, and the future path begins at the 09:30 open. State and future coverage can differ; each rate shows its own denominator. Reversal targets must still be ahead at entry.</p>
+    </section>
+
+    <section id="matched-section">
+      <h2>Does the tail event add information?</h2>
+      <p>Each event is compared with five nearest earlier one-sided events in the same direction and event family. Matching uses conditions already known at 08:30. The same future clock window is measured for the event and its controls.</p>
+      <div class="scroll"><table><thead><tr><th>Window</th><th>Event days</th><th>Unique control dates</th><th>Event / control mean signed move</th><th>Difference in mean move</th><th>Event / control new-extreme rate</th><th>Difference in new-extreme rate</th></tr></thead><tbody id="matched"></tbody></table></div>
+      <p class="table-note">Differences are event minus matched control. Movement differences use the frozen overnight width; rate differences are percentage points. Intervals resample calendar-month blocks. Reused controls are not separately resampled, so uncertainty can be understated. Intervals are unavailable below 10 dates or five months. Matching does not identify news causes or establish a causal effect.</p>
+      <details><summary>Unmatched one-sided comparison</summary><p class="hint">All eligible one-sided events from the same market, event family, direction and selected period. This descriptive baseline does not control for volatility or trend.</p><div class="scroll"><table><thead><tr><th>Window</th><th>Days</th><th>Further same-side extreme</th><th>Final close follows side</th></tr></thead><tbody id="control"></tbody></table></div></details>
+    </section>
+
+    <section id="timing-section">
+      <h2>Would an earlier entry have helped?</h2>
+      <p>Compare following the second-break direction at 09:30 with entering at 10:00 or 10:30 on the same eligible dates. The common 16:00 exit and equal 60-minute holding periods answer different timing questions.</p>
+      <div class="scroll"><table><thead><tr><th>Exit / holding period</th><th>Earlier → later entry</th><th>Paired days</th><th>Mean later-minus-earlier return</th><th>Median difference</th></tr></thead><tbody id="timing"></tbody></table></div>
+      <p class="table-note">A positive difference favours the later entry; a negative difference favours 09:30. Returns are signed movement divided by the overnight width, before costs. Paired comparisons use identical dates within each row. An interval crossing zero is compatible with either timing choice.</p>
+    </section>
+
+    <section id="brackets-section">
+      <h2>Can the target arrive before the stop?</h2>
+      <p>Enter at the checkpoint open and follow or fade the second-break direction. Test equal target and stop distances of 25% or 50% of the frozen overnight width, with a 16:00 time exit.</p>
+      <label style="max-width:320px;margin-bottom:18px">Cost sensitivity<select id="cost"><option value="gross">Gross · no cost deduction</option><option value="2">Deduct 2 ticks per round trip</option><option value="4">Deduct 4 ticks per round trip</option></select></label>
+      <div class="legend"><span><i></i>Follow the second side</span><span><i class="fade"></i>Fade the second side</span></div>
+      <div class="scroll"><table><thead><tr><th>Entry</th><th>Direction</th><th>Target / stop distance</th><th>Days</th><th>Target first</th><th>Stop first</th><th>Same-candle ambiguity</th><th>Time exit</th><th>Target-first probability bounds</th><th id="r-heading">Mean gross R bounds</th><th>Mean risk · points</th></tr></thead><tbody id="brackets"></tbody></table></div>
+      <p class="table-note">If both levels are hit within one candle, their order is unknown. Bounds assign those cases to the stop first or target first; these are path-order bounds, not confidence intervals. Gross R includes time exits. The optional deduction is a hypothetical total round-trip cost: one CL tick = 0.01 point, one NQ tick = 0.25 point. It does not estimate actual fees or slippage. This is a specified price-path test, not a claim of live profitability.</p>
+    </section>
+
+    <section id="chronology-section">
+      <h2>Does the result persist across dates?</h2>
+      <p>Yearly results below use the 09:30–16:00 window. Use the event-date selector to compare 2022–2024 with 2025–2026 across all sections.</p>
+      <div class="scroll"><table><thead><tr><th>Year</th><th>Days</th><th>New extreme on second side</th><th>Final close follows side</th><th>Mean signed move / overnight width</th></tr></thead><tbody id="chronology"></tbody></table></div>
+      <p class="table-note">This is an exploratory chronological comparison. Both periods have already been inspected; the later period is not an untouched validation sample. Small yearly counts can change the percentages substantially.</p>
+    </section>
+
+    <section id="audit">
+      <h2>Definitions and downloadable research</h2>
+      <p>04:30 double breaks and both-orange-box events are analysed separately. The second boundary broken supplies direction. Only events confirmed before 08:30 enter this morning study. A NY orange-box result would be known later and cannot qualify a morning signal.</p>
+      <p>No news cause has been assigned. Overlapping events can share dates. This research records price behaviour; proving an entry advantage requires later unseen data and realistic execution costs.</p>
+      <div id="method" class="hint"></div>
+      <details><summary>Research definitions</summary><div id="definitions" class="hint"></div></details>
+      <p class="downloads"><a id="daily-download" href="tail-event-ny-expanded-daily.csv" download>Daily expanded measurements · CSV</a><a href="tail-event-ny-expanded-paired.csv" download>Paired entry dates · CSV</a><a href="tail-event-ny-expanded-matching.csv" download>Exact earlier control dates · CSV</a><a href="tail-event-ny-expanded.json" download>Expanded results and audit · JSON</a><a href="tail-event-ny-daily.csv" download>Original measurements · CSV</a></p>
+    </section>
+  </main>
+</body>
+</html>
