@@ -1,10 +1,10 @@
 //@version=6
-// Session Path v6.7. Standard 5-minute CL/MCL chart; all clocks America/New_York.
+// Session Path v6.8. Standard 5-minute CL/MCL chart; all clocks America/New_York.
 // Range and quartiles freeze at 04:30. U/D and running extremes continue through 08:30.
 // AVR = mean last 10 COMPLETE NY 09:30-16:00 high-low ranges, frozen at 19:30.
 // Forecast code comes from the local research website. No automatic website connection.
 // Quarter location selects a scenario, not an estimated success probability.
-indicator("SessionPath.By LUI v6.7 - overnight + NY + input table", overlay = true, max_boxes_count = 24, max_lines_count = 100, max_labels_count = 70, max_bars_back = 20)
+indicator("SessionPath.By LUI v6.8 - overnight + NY + input table", overlay = true, max_boxes_count = 24, max_lines_count = 100, max_labels_count = 70, max_bars_back = 20)
 
 string TZ = "America/New_York"
 float manualAvr = input.float(0.0, "AVR override in points (0 = automatic)", minval = 0, step = 0.01, group = "Range and AVR", tooltip = "Automatic uses the last ten complete NY sessions on this chart's symbol. Prefer an explicit delivery contract. A manual override is frozen for the night; change it when your baseline changes.")
@@ -30,11 +30,15 @@ bool range110 = input.bool(false, "1.10 (110%)", inline = "r1", group = "Session
 bool range115 = input.bool(false, "1.15 (115%)", inline = "r2", group = "SessionPath range multiples")
 bool range120 = input.bool(true, "1.20 (120%)", inline = "r2", group = "SessionPath range multiples")
 bool range130 = input.bool(true, "1.30 (130%)", inline = "r3", group = "SessionPath range multiples")
+bool range140 = input.bool(false, "1.40 (140%)", inline = "r3b", group = "SessionPath range multiples")
 bool range150 = input.bool(false, "1.50 (150%)", inline = "r3", group = "SessionPath range multiples")
 bool range175 = input.bool(false, "1.75 (175%)", inline = "r4", group = "SessionPath range multiples")
 bool range200 = input.bool(false, "2.00 (200%)", inline = "r4", group = "SessionPath range multiples")
-bool showRangeHitRates = input.bool(true, "Historical hit rates on orange labels", group = "SessionPath range multiples", tooltip = "Q7 reference frequencies from 2022-2026 reconstructed Mean boxes, NOT a recalculated probability for today's exact inputs. Conditional on the first strict wick breach on the displayed side, reaching the level by that box's endpoint; includes hits within the breach candle. Same-bar two-sided first breaches are excluded. These are not trade win rates or live remaining probabilities.")
-string nyQ7Reference = input.string("Not specified", "NY Q7 research reference", options = ["Not specified", "Own Exact", "Own Wide", "Prior Exact", "Prior Wide"], group = "SessionPath range multiples", tooltip = "Choose the research reference matching your NY forecast method. SP5/SP6 codes do not identify this variant. Own uses each session's own range; Prior uses the prior NY BBOX. Wide allows adjacent quarters near a boundary. No NY percentage is shown until selected. These are whole-study reference rates, not rates refitted to additional filters. NY 08:30-10:30 has no matching Q7 study.")
+bool showRangeHitRates = input.bool(true, "Historical hit rates on orange labels", group = "SessionPath range multiples", tooltip = "03:00/05:00 keep their existing first-side historical references. NY uses the new direction-specific earlier-only research; choose its method, cohort, fit minimum and probability basis below. Upper and lower are measured separately. Counts and intervals appear on hover. These are historical frequencies, not live fitted probabilities or trade win rates.")
+string nyQ7Reference = input.string("Not specified", "NY research method", options = ["Not specified", "Own Exact", "Own Wide", "Prior Exact", "Prior Wide"], group = "NY extension probabilities", tooltip = "Match the website NY forecast method exactly. Own uses each completed session's own range; Prior uses the previous NY BBOX. Exact/Wide keep their original classification rules. Codes do not encode this method. New rates use strictly earlier matched days, only NY 08:30-16:00, and only 1.20/1.30/1.40/1.50 levels. No NY probability is shown until selected.")
+string nyProbabilityBasis = input.string("Pending after confirmation", "NY probability basis", options = ["Whole-window directional", "First breakout side", "Pending after confirmation"], group = "NY extension probabilities", tooltip = "Whole-window: independent upper/lower target touch frequencies across all eligible NY forecasts, including no-break days. First breakout side: conditional on that side breaking first; includes trigger-candle target hits. Pending: target still untouched at the first breakout candle's close and next opening price, with candles remaining; only later target hits count. Pending is a historical reference at first confirmation, NOT a probability updated for every later minute. All three bases keep UP and DOWN separate.")
+string nyProbabilityFit = input.string("50+ earlier matches", "NY historical fit minimum", options = ["50+ earlier matches", "1+ earlier match (sensitivity)"], group = "NY extension probabilities", tooltip = "50+ is the primary sample. Sensitivity includes sparse historical fits. Your imported NY forecast must also meet the chosen minimum. An orange-tail reference additionally requires its earlier orange forecast to meet that minimum. Counts and 95% Wilson intervals appear on hover; small tail groups are exploratory.")
+string nyProbabilityCohort = input.string("All eligible NY forecasts", "NY preceding tail event", options = ["All eligible NY forecasts", "04:30 double break - second U", "04:30 double break - second D", "03:00-05:00 both orange boxes - second U", "03:00-05:00 both orange boxes - second D", "05:00-08:30 both orange boxes - second U", "05:00-08:30 both orange boxes - second D"], group = "NY extension probabilities", tooltip = "Manually select a pre-08:30 event that actually completed. U/D here is the SECOND side of the earlier tail event, not the later NY breakout direction. The orange event means both outer AVR-expansion targets touched; a new high and new low alone is insufficient. Unknown same-candle second-side order does not qualify. These historical slices do not automatically detect or refit today's event.")
 bool rangeLevelLabels = input.bool(true, "Label orange multiples", group = "SessionPath range multiples", tooltip = "1.10 and 1.15 share prices with the purple 10% and 15% tolerance lines. Turn those orange levels off to keep purple visible.")
 
 bool showForecast = input.bool(true, "Show imported mean U/D box", group = "Historical estimate")
@@ -573,6 +577,48 @@ f_firstBoxBreach(int start, int finish, float upper, float lower) =>
 [secondBoxSide, secondBoxBreachTime] = f_firstBoxBreach(secondWindowStart, secondWindowEnd, secondWindowPrice + secondWindowUp, secondWindowPrice - secondWindowDown)
 [nyBoxSide, nyBoxBreachTime] = f_firstBoxBreach(drawNYStart, drawNYEnd, drawNYPrice + estimateUpNY, drawNYPrice - estimateDownNY)
 
+// NY state uses only chart candles at/before the selected visible/replay cursor.
+// The opening timestamp identifies a candle; its breach confirms at time_close.
+f_nyProbabilityState(int start, int finish, float upper, float lower) =>
+    var int activeStart = na
+    var int firstSide = 0
+    var int breachTime = na
+    var int previousEnd = na
+    var bool hasStart = false
+    var bool contiguous = true
+    var bool breachConfirmed = false
+    var float seenHigh = na
+    var float seenLow = na
+    if not na(start) and (na(activeStart) or start != activeStart)
+        activeStart := start
+        firstSide := 0
+        breachTime := na
+        previousEnd := na
+        hasStart := false
+        contiguous := true
+        breachConfirmed := false
+        seenHigh := na
+        seenLow := na
+    if withinForecastCursor and not na(upper) and not na(lower) and time >= start and time < finish
+        if na(previousEnd)
+            hasStart := time == start
+        else if time != previousEnd
+            contiguous := false
+        seenHigh := na(seenHigh) ? high : math.max(seenHigh, high)
+        seenLow := na(seenLow) ? low : math.min(seenLow, low)
+        if firstSide == 0
+            bool upBreach = high > upper + 0.000000001
+            bool downBreach = low < lower - 0.000000001
+            if upBreach or downBreach
+                firstSide := upBreach and downBreach ? 2 : upBreach ? 1 : -1
+                breachTime := time
+        if firstSide != 0 and (time > breachTime or barstate.isconfirmed)
+            breachConfirmed := true
+        previousEnd := time_close
+    [firstSide, breachTime, breachConfirmed, seenHigh, seenLow, hasStart and contiguous]
+
+[nyProbabilitySide, nyProbabilityBreachTime, nyProbabilityConfirmed, nyProbabilityHigh, nyProbabilityLow, nyProbabilityComplete] = f_nyProbabilityState(drawNYStart, drawNYEnd, drawNYPrice + estimateUpNY, drawNYPrice - estimateDownNY)
+
 var array<line> forecastStatLines = array.new<line>()
 var array<label> rangeExtensionLabels = array.new<label>()
 // Pine drawing objects reproduce Fibonacci extension levels; native mouse-drawn Fib objects are separate.
@@ -591,24 +637,123 @@ f_meanOuterLines(int start, int finish, float price, float meanUp, float meanDow
                     array.push(forecastStatLines, line.new(start, lowerLevel, finish, lowerLevel, xloc = xloc.bar_time, color = color.rgb(173, 95, 230), style = line.style_dotted, width = 1))
 
 // Audited Q7 first-side counts: 2022-2026 retrospective Mean forecast boxes.
-// Rows: three U/D, five U/D, NY Own Exact U/D, Own Wide U/D, Prior Exact U/D, Prior Wide U/D.
-var array<int> q7SampleCounts = array.from(482, 462, 474, 449, 463, 422, 468, 430, 464, 434, 463, 430)
-var array<int> q7HitCounts = array.from(424, 374, 322, 277, 211, 125, 54, 28, 427, 388, 354, 308, 243, 146, 70, 37, 429, 377, 330, 282, 218, 118, 64, 28, 401, 359, 317, 284, 236, 139, 80, 47, 413, 359, 306, 272, 204, 117, 57, 27, 376, 339, 309, 277, 224, 144, 64, 38, 410, 348, 306, 266, 196, 111, 56, 25, 381, 338, 308, 273, 228, 144, 62, 37, 419, 357, 318, 269, 202, 107, 48, 23, 385, 346, 311, 285, 231, 150, 64, 35, 417, 363, 319, 269, 202, 111, 50, 25, 387, 349, 311, 285, 235, 151, 65, 36)
+// Rows: 03:00-05:00 U/D, then 05:00-08:30 U/D only.
+var array<int> q7SampleCounts = array.from(482, 462, 474, 449)
+var array<int> q7HitCounts = array.from(424, 374, 322, 277, 211, 125, 54, 28, 427, 388, 354, 308, 243, 146, 70, 37, 429, 377, 330, 282, 218, 118, 64, 28, 401, 359, 317, 284, 236, 139, 80, 47)
 
-f_q7Label(int start, int finish, int levelIndex, int direction, bool ambiguous, bool beforeBreach) =>
+// NY directional counts from ny-sessionpath-extension-data.json. No pooled rates.
+// Flattening: method, fit, preceding cohort, multiple, basis, U/D, k/n.
+// Chunked to keep each array.from call below 100 literal arguments.
+var array<int> nyExtensionCounts = array.new<int>()
+if barstate.isfirst
+    array.concat(nyExtensionCounts, array.from(88, 366, 79, 366, 82, 134, 72, 124, 74, 126, 67, 118, 64, 366, 64, 366, 60, 134, 58, 124, 57, 131, 55, 120, 49, 366, 57, 366, 45, 134, 51, 124, 43, 132, 50, 122, 39, 366, 42, 366, 35, 134, 37, 124, 33, 132, 37, 123, 6, 27, 6, 27, 5, 9, 6, 8, 5, 9, 6, 8, 3, 27, 5, 27, 3, 9, 5, 8, 3, 9, 5, 8, 2, 27, 5, 27, 2, 9, 5, 8, 2, 9, 5, 8, 2, 27, 4, 27, 2, 9, 4, 8, 2, 9, 4, 8))
+    array.concat(nyExtensionCounts, array.from(2, 13, 2, 13, 2, 3, 2, 3, 1, 2, 2, 3, 2, 13, 2, 13, 2, 3, 2, 3, 2, 3, 2, 3, 1, 13, 2, 13, 1, 3, 2, 3, 1, 3, 2, 3, 0, 13, 1, 13, 0, 3, 1, 3, 0, 3, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 271, 1150, 299, 1150, 257, 448, 277, 418, 239, 430, 256, 396, 208, 1150, 241, 1150, 198, 448, 225, 418, 190, 440, 219, 411, 159, 1150, 207, 1150, 151, 448, 193, 418, 147, 444, 190, 414, 118, 1150, 160, 1150, 111, 448, 151, 418, 108, 445, 151, 417))
+    array.concat(nyExtensionCounts, array.from(15, 59, 15, 59, 14, 25, 14, 18, 14, 25, 14, 18, 10, 59, 13, 59, 10, 25, 12, 18, 10, 25, 12, 18, 7, 59, 13, 59, 7, 25, 12, 18, 7, 25, 12, 18, 5, 59, 11, 59, 5, 25, 11, 18, 5, 25, 11, 18, 8, 51, 18, 51, 8, 14, 18, 24, 5, 11, 16, 22, 7, 51, 14, 51, 7, 14, 14, 24, 6, 13, 14, 24, 5, 51, 13, 51, 5, 14, 13, 24, 4, 13, 13, 24, 3, 51, 10, 51, 3, 14, 10, 24, 2, 13, 10, 24))
+    array.concat(nyExtensionCounts, array.from(2, 7, 1, 7, 2, 4, 1, 2, 2, 4, 1, 2, 2, 7, 0, 7, 2, 4, 0, 2, 2, 4, 0, 2, 2, 7, 0, 7, 2, 4, 0, 2, 2, 4, 0, 2, 1, 7, 0, 7, 1, 4, 0, 2, 1, 4, 0, 2, 7, 15, 4, 15, 7, 8, 4, 6, 6, 7, 4, 6, 5, 15, 3, 15, 5, 8, 3, 6, 4, 7, 3, 6, 3, 15, 3, 15, 3, 8, 3, 6, 2, 7, 3, 6, 3, 15, 3, 15, 3, 8, 3, 6, 2, 7, 3, 6))
+    array.concat(nyExtensionCounts, array.from(3, 7, 2, 7, 3, 4, 2, 2, 3, 4, 2, 2, 2, 7, 2, 7, 2, 4, 2, 2, 2, 4, 2, 2, 0, 7, 2, 7, 0, 4, 2, 2, 0, 4, 2, 2, 0, 7, 1, 7, 0, 4, 1, 2, 0, 4, 1, 2, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 0, 2, 0, 2, 0, 1, 0, 1, 0, 1, 0, 1))
+    array.concat(nyExtensionCounts, array.from(140, 598, 144, 598, 134, 234, 127, 206, 121, 221, 118, 196, 105, 598, 123, 598, 101, 234, 109, 206, 95, 228, 105, 201, 85, 598, 96, 598, 81, 234, 85, 206, 78, 231, 84, 204, 67, 598, 79, 598, 63, 234, 71, 206, 61, 232, 71, 205, 8, 37, 10, 37, 8, 13, 9, 12, 8, 13, 9, 12, 6, 37, 9, 37, 6, 13, 8, 12, 6, 13, 8, 12, 4, 37, 9, 37, 4, 13, 8, 12, 4, 13, 8, 12, 4, 37, 8, 37, 4, 13, 8, 12, 4, 13, 8, 12))
+    array.concat(nyExtensionCounts, array.from(4, 25, 7, 25, 4, 4, 7, 10, 2, 2, 5, 8, 4, 25, 6, 25, 4, 4, 6, 10, 3, 3, 5, 9, 3, 25, 6, 25, 3, 4, 6, 10, 2, 3, 6, 10, 2, 25, 6, 25, 2, 4, 6, 10, 1, 3, 6, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 266, 1154, 296, 1154, 256, 455, 274, 420, 237, 436, 255, 400, 209, 1154, 248, 1154, 201, 455, 230, 420, 192, 446, 223, 412, 159, 1154, 199, 1154, 153, 455, 186, 420, 150, 452, 183, 416, 120, 1154, 163, 1154, 114, 455, 153, 420, 112, 453, 153, 419))
+    array.concat(nyExtensionCounts, array.from(15, 59, 14, 59, 15, 25, 13, 18, 15, 25, 13, 18, 12, 59, 13, 59, 12, 25, 12, 18, 12, 25, 12, 18, 7, 59, 13, 59, 7, 25, 12, 18, 7, 25, 12, 18, 6, 59, 12, 59, 6, 25, 12, 18, 6, 25, 12, 18, 8, 52, 17, 52, 8, 12, 17, 24, 5, 9, 14, 21, 7, 52, 14, 52, 7, 12, 14, 24, 6, 11, 13, 23, 5, 52, 13, 52, 5, 12, 13, 24, 4, 11, 13, 24, 3, 52, 11, 52, 3, 12, 11, 24, 2, 11, 11, 24))
+    array.concat(nyExtensionCounts, array.from(2, 7, 1, 7, 2, 3, 1, 3, 2, 3, 1, 3, 2, 7, 1, 7, 2, 3, 1, 3, 2, 3, 1, 3, 2, 7, 0, 7, 2, 3, 0, 3, 2, 3, 0, 3, 1, 7, 0, 7, 1, 3, 0, 3, 1, 3, 0, 3, 7, 15, 3, 15, 7, 7, 3, 6, 6, 6, 3, 6, 6, 15, 3, 15, 6, 7, 3, 6, 5, 6, 3, 6, 3, 15, 3, 15, 3, 7, 3, 6, 2, 6, 3, 6, 3, 15, 3, 15, 3, 7, 3, 6, 2, 6, 3, 6))
+    array.concat(nyExtensionCounts, array.from(3, 7, 2, 7, 3, 4, 2, 2, 3, 4, 2, 2, 2, 7, 2, 7, 2, 4, 2, 2, 2, 4, 2, 2, 0, 7, 2, 7, 0, 4, 2, 2, 0, 4, 2, 2, 0, 7, 2, 7, 0, 4, 2, 2, 0, 4, 2, 2, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 0, 2, 0, 2, 0, 1, 0, 1, 0, 1, 0, 1))
+    array.concat(nyExtensionCounts, array.from(41, 180, 46, 180, 41, 80, 41, 60, 37, 76, 38, 56, 32, 180, 41, 180, 32, 80, 36, 60, 29, 77, 36, 59, 27, 180, 36, 180, 27, 80, 31, 60, 25, 78, 31, 59, 20, 180, 29, 180, 20, 80, 26, 60, 18, 78, 26, 59, 1, 10, 1, 10, 1, 4, 1, 1, 1, 4, 1, 1, 1, 10, 1, 10, 1, 4, 1, 1, 1, 4, 1, 1, 1, 10, 1, 10, 1, 4, 1, 1, 1, 4, 1, 1, 0, 10, 1, 10, 0, 4, 1, 1, 0, 4, 1, 1))
+    array.concat(nyExtensionCounts, array.from(0, 3, 0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 3, 0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 284, 1130, 303, 1130, 262, 430, 283, 433, 251, 418, 259, 408, 213, 1130, 254, 1130, 197, 430, 235, 433, 190, 422, 227, 424, 162, 1130, 204, 1130, 150, 430, 191, 433, 146, 425, 187, 428, 120, 1130, 161, 1130, 111, 430, 152, 433, 107, 425, 149, 429))
+    array.concat(nyExtensionCounts, array.from(14, 57, 14, 57, 12, 23, 13, 16, 12, 22, 13, 16, 11, 57, 11, 57, 10, 23, 10, 16, 10, 22, 10, 16, 9, 57, 8, 57, 8, 23, 8, 16, 8, 22, 8, 16, 4, 57, 7, 57, 4, 23, 7, 16, 4, 22, 7, 16, 10, 49, 18, 49, 8, 12, 18, 24, 7, 11, 14, 20, 6, 49, 16, 49, 6, 12, 16, 24, 5, 11, 14, 22, 4, 49, 14, 49, 4, 12, 14, 24, 3, 11, 14, 24, 3, 49, 10, 49, 3, 12, 10, 24, 2, 11, 10, 24))
+    array.concat(nyExtensionCounts, array.from(1, 6, 1, 6, 1, 2, 1, 2, 1, 2, 1, 2, 1, 6, 1, 6, 1, 2, 1, 2, 1, 2, 1, 2, 0, 6, 1, 6, 0, 2, 1, 2, 0, 2, 1, 2, 0, 6, 1, 6, 0, 2, 1, 2, 0, 2, 1, 2, 7, 15, 4, 15, 7, 7, 4, 5, 6, 6, 4, 5, 6, 15, 4, 15, 6, 7, 4, 5, 5, 6, 4, 5, 4, 15, 3, 15, 4, 7, 3, 5, 3, 6, 3, 5, 3, 15, 3, 15, 3, 7, 3, 5, 2, 6, 3, 5))
+    array.concat(nyExtensionCounts, array.from(2, 7, 2, 7, 2, 4, 2, 2, 2, 4, 2, 2, 1, 7, 1, 7, 1, 4, 1, 2, 1, 4, 1, 2, 1, 7, 1, 7, 1, 4, 1, 2, 1, 4, 1, 2, 0, 7, 1, 7, 0, 4, 1, 2, 0, 4, 1, 2, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 0, 2, 0, 2, 0, 1, 0, 1, 0, 1, 0, 1))
+    array.concat(nyExtensionCounts, array.from(74, 308, 76, 308, 72, 127, 68, 104, 65, 120, 62, 97, 58, 308, 66, 308, 57, 127, 60, 104, 52, 122, 59, 102, 45, 308, 56, 308, 45, 127, 51, 104, 41, 123, 51, 103, 37, 308, 46, 308, 37, 127, 43, 104, 33, 123, 43, 103, 2, 17, 4, 17, 2, 7, 3, 4, 2, 7, 3, 4, 2, 17, 4, 17, 2, 7, 3, 4, 2, 7, 3, 4, 2, 17, 3, 17, 2, 7, 3, 4, 2, 7, 3, 4, 1, 17, 3, 17, 1, 7, 3, 4, 1, 7, 3, 4))
+    array.concat(nyExtensionCounts, array.from(2, 12, 1, 12, 2, 4, 1, 2, 1, 3, 0, 1, 2, 12, 1, 12, 2, 4, 1, 2, 1, 3, 0, 1, 2, 12, 1, 12, 2, 4, 1, 2, 1, 3, 1, 2, 2, 12, 1, 12, 2, 4, 1, 2, 1, 3, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(1, 2, 0, 2, 1, 1, 0, 0, 1, 1, 0, 0, 1, 2, 0, 2, 1, 1, 0, 0, 1, 1, 0, 0, 0, 2, 0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 279, 1138, 311, 1138, 258, 432, 290, 431, 246, 419, 263, 403, 212, 1138, 254, 1138, 196, 432, 236, 431, 190, 425, 227, 421, 162, 1138, 206, 1138, 151, 432, 193, 431, 147, 427, 188, 425, 126, 1138, 160, 1138, 117, 432, 151, 431, 113, 427, 149, 428))
+    array.concat(nyExtensionCounts, array.from(14, 59, 16, 59, 12, 24, 15, 19, 12, 23, 15, 19, 11, 59, 13, 59, 10, 24, 12, 19, 10, 23, 12, 19, 9, 59, 11, 59, 8, 24, 11, 19, 8, 23, 11, 19, 4, 59, 8, 59, 4, 24, 8, 19, 4, 23, 8, 19, 10, 49, 18, 49, 9, 12, 18, 23, 8, 11, 13, 18, 7, 49, 15, 49, 7, 12, 15, 23, 6, 11, 13, 21, 4, 49, 14, 49, 4, 12, 14, 23, 3, 11, 14, 23, 4, 49, 10, 49, 4, 12, 10, 23, 3, 11, 10, 23))
+    array.concat(nyExtensionCounts, array.from(2, 7, 1, 7, 2, 3, 1, 2, 2, 3, 1, 2, 2, 7, 1, 7, 2, 3, 1, 2, 2, 3, 1, 2, 1, 7, 1, 7, 1, 3, 1, 2, 1, 3, 1, 2, 0, 7, 1, 7, 0, 3, 1, 2, 0, 3, 1, 2, 7, 15, 4, 15, 7, 7, 4, 5, 6, 6, 4, 5, 6, 15, 3, 15, 6, 7, 3, 5, 5, 6, 3, 5, 4, 15, 3, 15, 4, 7, 3, 5, 3, 6, 3, 5, 4, 15, 3, 15, 4, 7, 3, 5, 3, 6, 3, 5))
+    array.concat(nyExtensionCounts, array.from(2, 7, 2, 7, 2, 4, 2, 2, 2, 4, 2, 2, 1, 7, 2, 7, 1, 4, 2, 2, 1, 4, 2, 2, 1, 7, 1, 7, 1, 4, 1, 2, 1, 4, 1, 2, 0, 7, 1, 7, 0, 4, 1, 2, 0, 4, 1, 2, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 2, 1, 1, 0, 1, 1, 1, 0, 1))
+
+f_nyExtensionLabel(int start, int finish, float multiple, int direction, float target) =>
+    string side = direction == 1 ? "U" : "D"
+    string suffix = ""
+    string explanation = ""
+    int referenceIndex = nyQ7Reference == "Own Exact" ? 0 : nyQ7Reference == "Own Wide" ? 1 : nyQ7Reference == "Prior Exact" ? 2 : nyQ7Reference == "Prior Wide" ? 3 : -1
+    int level = math.abs(multiple - 1.20) < 0.000001 ? 0 : math.abs(multiple - 1.30) < 0.000001 ? 1 : math.abs(multiple - 1.40) < 0.000001 ? 2 : math.abs(multiple - 1.50) < 0.000001 ? 3 : -1
+    int fit = nyProbabilityFit == "50+ earlier matches" ? 0 : 1
+    int minimumFit = fit == 0 ? 50 : 1
+    int cohort = nyProbabilityCohort == "All eligible NY forecasts" ? 0 : nyProbabilityCohort == "04:30 double break - second U" ? 1 : nyProbabilityCohort == "04:30 double break - second D" ? 2 : nyProbabilityCohort == "03:00-05:00 both orange boxes - second U" ? 3 : nyProbabilityCohort == "03:00-05:00 both orange boxes - second D" ? 4 : nyProbabilityCohort == "05:00-08:30 both orange boxes - second U" ? 5 : 6
+    int basis = nyProbabilityBasis == "Whole-window directional" ? 0 : nyProbabilityBasis == "First breakout side" ? 1 : 2
+    int observedAsOf = barstate.isconfirmed ? time_close : time
+    bool reached = direction == 1 ? nyProbabilityHigh >= target - 0.000000001 : nyProbabilityLow <= target + 0.000000001
+    bool isFirstDirection = nyProbabilitySide == direction
+    if showRangeHitRates
+        if referenceIndex < 0
+            suffix := " | " + side + " Hist n/a"
+            explanation := "Select the NY research reference matching the website's Own/Prior and Exact/Wide method. The code does not identify that method."
+        else if level < 0
+            suffix := " | " + side + " Hist n/a"
+            explanation := "New earlier-only NY research covers 1.20, 1.30, 1.40 and 1.50 only. This level has no matching new NY probability. No legacy NY percentage is substituted."
+        else if estimateNNY < minimumFit
+            suffix := " | " + side + " fit n/a"
+            explanation := "This imported NY forecast has fewer earlier matches than the selected historical fit minimum. Use a matching fit threshold; sensitivity fits may be sparse."
+        else if basis > 0 and not nyProbabilityComplete
+            suffix := " | " + side + " state n/a"
+            explanation := "The chart lacks a continuous 08:30-to-observation candle sequence. First-breakout order and pending-target state cannot be verified from the loaded chart."
+        else if basis > 0 and nyProbabilitySide == 2
+            suffix := " | " + side + " order n/a"
+            explanation := "Both initial Mean-box boundaries broke in the same five-minute candle. Their order is unknown; first-side and pending samples exclude these cases."
+        else if basis > 0 and nyProbabilitySide != 0 and not isFirstDirection
+            suffix := " | " + side + " not first"
+            explanation := "The opposite side already broke first. A first-" + side + " probability does not apply to this observed sequence. Whole-window directional frequencies remain available under NY probability basis."
+        else if basis == 2 and reached
+            suffix := " | " + side + " reached"
+            explanation := "This target was already touched at or before the selected chart observation, including any trigger-candle or next-open hit. A pending-target reference does not apply after a hit."
+        else if basis == 2 and observedAsOf >= finish
+            suffix := " | " + side + " ended"
+            explanation := "The NY window has ended. There are no remaining candles for a pending target."
+        else if basis == 2 and not na(nyProbabilityBreachTime) and nyProbabilityBreachTime + 300000 >= finish
+            suffix := " | " + side + " no time"
+            explanation := "The first breakout candle confirms at the window endpoint, leaving no eligible later candle. Such cases are excluded from pending-target denominators."
+        else if basis == 2 and not nyProbabilityConfirmed
+            suffix := " | " + side + (nyProbabilitySide == 0 ? " await break" : " await close")
+            explanation := "The default pending reference is shown only for the direction of a confirmed first breakout. Wait for a strict Mean-box boundary breach and completion of that five-minute candle. The target must still be untouched and at least one candle must remain. No pre-confirmation percentage is shown."
+        else
+            int index = (((((referenceIndex * 2 + fit) * 7 + cohort) * 4 + level) * 3 + basis) * 2 + (direction == 1 ? 0 : 1)) * 2
+            int k = array.get(nyExtensionCounts, index)
+            int n = array.get(nyExtensionCounts, index + 1)
+            if n == 0
+                suffix := " | " + side + " Hist n/a"
+                explanation := "No eligible historical cases for this selected NY method, minimum fit, earlier tail event, direction and probability basis. Unavailable is not a 0% forecast."
+            else
+                float probability = float(k) / n
+                float z2 = 3.841458820694
+                float center = (probability + z2 / (2 * n)) / (1 + z2 / n)
+                float half = 1.95996398454 * math.sqrt(probability * (1 - probability) / n + z2 / (4 * n * n)) / (1 + z2 / n)
+                bool beforeConfirmation = nyProbabilitySide == 0 or not nyProbabilityConfirmed
+                string condition = basis == 0 ? " Hist " : basis == 1 ? (beforeConfirmation ? " if " + side + " first " : " first Hist ") : " UNREACHED @conf "
+                suffix := " | " + (basis == 1 and beforeConfirmation ? "" : side) + condition + "R " + str.tostring(100 * probability, "0.0") + "% / M " + str.tostring(100 * (1 - probability), "0.0") + "%"
+                explanation := "NY 08:30-16:00 " + nyQ7Reference + " Mean / " + side + " / " + nyProbabilityBasis + ": " + str.tostring(k) + "/" + str.tostring(n) + ". 95% Wilson interval " + str.tostring(100 * math.max(0, center - half), "0.0") + "%-" + str.tostring(100 * math.min(1, center + half), "0.0") + "%. Earlier-only 2022-2026 reconstructed forecasts. Fit minimum: " + str.tostring(minimumFit) + ". Preceding condition: " + nyProbabilityCohort + ". Upper and lower counts remain separate. "
+                explanation += "R = historical reached percentage; M = historical missed/unreached percentage in the same denominator. "
+                explanation += basis == 0 ? "Denominator: every eligible NY forecast in this cohort, including no-break days. Numerator: a wick touched this directional target anywhere in [08:30,16:00). The two sides may overlap." : basis == 1 ? "Denominator: resolved first strict wick breakouts on this side. Target touches anywhere through 16:00, including the trigger candle. No-break and same-candle unknown-order cases excluded." : "UNREACHED is the actual chart target state at the selected observation. Denominator: resolved first breaks on this side with target untouched through the trigger candle AND the next opening price, and at least one later candle. Numerator: a later wick touched the target before 16:00. This reference is measured at first confirmation; it is NOT recalculated for elapsed time or current distance as later candles pass. Only the confirmed first-breakout direction receives this pending percentage."
+                explanation += n < 30 ? " Small sample: exploratory only." : ""
+                explanation += " The selected tail event must actually have completed before 08:30. Rates are historical reference frequencies, not today's refitted probability or trade win rates."
+    [suffix, explanation]
+
+f_q7Label(int start, int finish, float multiple, int direction, bool ambiguous, bool beforeBreach) =>
     int duration = finish - start
     int variant = hour(start, TZ) == 3 and minute(start, TZ) == 0 and duration == 7200000 ? 0 : hour(start, TZ) == 5 and minute(start, TZ) == 0 and duration == 12600000 ? 1 : -1
-    if hour(start, TZ) == 8 and minute(start, TZ) == 30 and duration == 27000000
-        variant := nyQ7Reference == "Own Exact" ? 2 : nyQ7Reference == "Own Wide" ? 3 : nyQ7Reference == "Prior Exact" ? 4 : nyQ7Reference == "Prior Wide" ? 5 : -1
+    int levelIndex = math.abs(multiple - 1.05) < 0.000001 ? 0 : math.abs(multiple - 1.10) < 0.000001 ? 1 : math.abs(multiple - 1.15) < 0.000001 ? 2 : math.abs(multiple - 1.20) < 0.000001 ? 3 : math.abs(multiple - 1.30) < 0.000001 ? 4 : math.abs(multiple - 1.50) < 0.000001 ? 5 : math.abs(multiple - 1.75) < 0.000001 ? 6 : math.abs(multiple - 2.00) < 0.000001 ? 7 : -1
     string suffix = ""
     string explanation = ""
     if showRangeHitRates
         if ambiguous
             suffix := " | Hist n/a"
             explanation := "First UP and DOWN breach share one candle; order is unknown. These cases were excluded from the first-side research denominator."
-        else if variant < 0
+        else if variant < 0 or levelIndex < 0
             suffix := " | Hist n/a"
-            explanation := "No matching Q7 reference selected for this window. For NY 08:30-16:00 choose the matching NY Q7 research reference in Inputs. Other window durations and moving templates have no audited rate here."
+            explanation := "No matching legacy early-window reference exists for this duration or level. The added 1.40 level is available in the new NY research only."
         else
             int row = variant * 2 + (direction == 1 ? 0 : 1)
             int n = array.get(q7SampleCounts, row)
@@ -618,9 +763,16 @@ f_q7Label(int start, int finish, int levelIndex, int direction, bool ambiguous, 
             float center = (probability + z2 / (2 * n)) / (1 + z2 / n)
             float half = 1.95996398454 * math.sqrt(probability * (1 - probability) / n + z2 / (4 * n * n)) / (1 + z2 / n)
             suffix := " | Hist " + str.tostring(100 * probability, "0.0") + "%" + (beforeBreach ? " if first" : "")
-            string reference = variant == 0 ? "03:00-05:00 Mean" : variant == 1 ? "05:00-08:30 Mean" : "NY " + nyQ7Reference + " Mean"
+            string reference = variant == 0 ? "03:00-05:00 Mean" : "05:00-08:30 Mean"
             explanation := reference + (direction == 1 ? " / first UP breach" : " / first DOWN breach") + ": " + str.tostring(k) + "/" + str.tostring(n) + " eligible breached days reached this level by the window endpoint. 95% Wilson interval " + str.tostring(100 * (center - half), "0.0") + "%-" + str.tostring(100 * (center + half), "0.0") + "%. Historical 2022-2026 reconstructed boxes; reference frequency, not today's fitted probability. Includes hits during the breach candle. No-break and same-bar two-sided first breaches excluded. Not a trade win rate or a remaining-chance estimate."
     [suffix, explanation]
+
+f_extensionLabel(int start, int finish, float multiple, int direction, float target, bool ambiguous, bool beforeBreach) =>
+    bool nyWindow = hour(start, TZ) == 8 and minute(start, TZ) == 30 and finish - start == 27000000
+    if nyWindow
+        f_nyExtensionLabel(start, finish, multiple, direction, target)
+    else
+        f_q7Label(start, finish, multiple, direction, ambiguous, beforeBreach)
 
 f_rangeExtensions(int start, int finish, float price, float meanUp, float meanDown, int firstSide, int breachTime) =>
     float upper = price + meanUp
@@ -630,21 +782,21 @@ f_rangeExtensions(int start, int finish, float price, float meanUp, float meanDo
     bool ready = both or (rangeExtensionMode == "First breached side" and firstSide != 0 and not na(breachTime))
     int lineStart = both ? start : math.max(start, breachTime)
     if rangeExtensionMode != "Off" and ready and fullWidth > 0 and lineStart < finish
-        array<float> multiples = array.from(1.05, 1.10, 1.15, 1.20, 1.30, 1.50, 1.75, 2.00)
-        array<bool> selected = array.from(range105, range110, range115, range120, range130, range150, range175, range200)
+        array<float> multiples = array.from(1.05, 1.10, 1.15, 1.20, 1.30, 1.40, 1.50, 1.75, 2.00)
+        array<bool> selected = array.from(range105, range110, range115, range120, range130, range140, range150, range175, range200)
         for i = 0 to array.size(multiples) - 1
             if array.get(selected, i)
                 float multiple = array.get(multiples, i)
                 string caption = str.tostring(multiple, "0.00") + "x" + (not both and firstSide == 2 ? " ?" : "")
                 if both or firstSide == 1 or firstSide == 2
                     float levelUp = lower + multiple * fullWidth
-                    [upSuffix, upExplanation] = f_q7Label(followForecast ? na : start, finish, i, 1, firstSide == 2, both)
+                    [upSuffix, upExplanation] = f_extensionLabel(followForecast ? na : start, finish, multiple, 1, levelUp, firstSide == 2, both)
                     array.push(forecastStatLines, line.new(lineStart, levelUp, finish, levelUp, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
                     if rangeLevelLabels
                         array.push(rangeExtensionLabels, label.new(finish, levelUp, caption + upSuffix, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.orange, 100), textcolor = color.rgb(156, 75, 0), size = size.small, tooltip = "Upward full-box multiple: lower + multiple x (upper - lower).\n" + upExplanation))
                 if both or firstSide == -1 or firstSide == 2
                     float levelDown = upper - multiple * fullWidth
-                    [downSuffix, downExplanation] = f_q7Label(followForecast ? na : start, finish, i, -1, firstSide == 2, both)
+                    [downSuffix, downExplanation] = f_extensionLabel(followForecast ? na : start, finish, multiple, -1, levelDown, firstSide == 2, both)
                     array.push(forecastStatLines, line.new(lineStart, levelDown, finish, levelDown, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
                     if rangeLevelLabels
                         array.push(rangeExtensionLabels, label.new(finish, levelDown, caption + downSuffix, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.orange, 100), textcolor = color.rgb(156, 75, 0), size = size.small, tooltip = "Downward full-box multiple: upper - multiple x (upper - lower).\n" + downExplanation))

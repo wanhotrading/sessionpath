@@ -1,8 +1,8 @@
 import {mountMarketEmblem} from './market-emblem.mjs';
 // Market configuration is resolved once per page load; switching reloads isolated state.
 export const instruments = Object.freeze({
- CL: Object.freeze({id:'CL',name:'Crude oil',roots:['CL','MCL'],tickSize:.01,forecastPrefix:'SP5',expansionPrefix:'SP6',snapshotPrefix:'SPI1',returnPrefix:'BPR1',indicatorLabel:'CL / MCL v6.7',indicatorFile:'session-path-v5.pine',indicatorDownload:'SessionPath-CL-v6.7.pine'}),
- NQ: Object.freeze({id:'NQ',name:'Nasdaq-100',roots:['NQ','MNQ'],tickSize:.25,forecastPrefix:'SPNQ1',expansionPrefix:'SPNQ2',snapshotPrefix:'NSPI1',returnPrefix:'NBPR1',indicatorLabel:'NQ / MNQ v1.1',indicatorFile:'data/nq/session-path-nq.pine',indicatorDownload:'SessionPath-NQ-v1.1.pine'})
+ CL: Object.freeze({id:'CL',name:'Crude oil',roots:['CL','MCL'],tickSize:.01,forecastPrefix:'SP5',expansionPrefix:'SP6',snapshotPrefix:'SPI1',returnPrefix:'BPR1',indicatorLabel:'CL / MCL v6.8',indicatorFile:'session-path-cl-v6.8.pine',indicatorDownload:'SessionPath-CL-v6.8.pine'}),
+ NQ: Object.freeze({id:'NQ',name:'Nasdaq-100',roots:['NQ','MNQ'],tickSize:.25,forecastPrefix:'SPNQ1',expansionPrefix:'SPNQ2',snapshotPrefix:'NSPI1',returnPrefix:'NBPR1',indicatorLabel:'NQ / MNQ v1.2',indicatorFile:'data/nq/session-path-nq-v1.2.pine',indicatorDownload:'SessionPath-NQ-v1.2.pine'})
 });
 export function resolveInstrument(value){return Object.hasOwn(instruments,value)?instruments[value]:instruments.CL;}
 const selected=typeof location==='undefined'?'CL':new URL(location.href).searchParams.get('instrument');
