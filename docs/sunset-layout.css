@@ -5,6 +5,22 @@ body:before{
 body:after{background:linear-gradient(180deg,rgba(8,14,30,.05),rgba(7,16,34,.16))}
 .meteor-layer{display:none}
 
+/* Independently scrolling panels should not retile a filtered wallpaper. */
+#workspace>section{
+ background:linear-gradient(135deg,rgba(32,49,83,.88),rgba(12,22,45,.94))!important;
+ backdrop-filter:none;
+ -webkit-backdrop-filter:none;
+ scroll-snap-align:none;
+ scrollbar-gutter:stable;
+ overscroll-behavior-y:contain;
+}
+/* Keep native wheel/trackpad movement free of automatic snap corrections. */
+main#workspace,
+body[data-device-view="desktop"] #workspace{
+ scroll-snap-type:none;
+ scroll-behavior:auto;
+}
+
 body[data-device-view="mobile"]{
  padding-bottom:calc(102px + env(safe-area-inset-bottom,0px));
 }
