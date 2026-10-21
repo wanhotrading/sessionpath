@@ -6,11 +6,11 @@ export function tint(el,value,baseline,label='Same-market, same-window earlier h
  el.dataset.relative=Math.abs(value-baseline)<1e-9?'equal':value<baseline?'below':'above';
  el.title=`${label}: ${baseline.toFixed(4)}. ${el.dataset.relative} baseline. Colours compare magnitude, not trade direction.`;
 }
-export function reveal(host,nodes,gap=100){
+export function reveal(host,nodes,gap=160){
  if(!host)return;
  host.querySelectorAll(':scope > .forecast-shine').forEach(x=>x.remove());
  if(quiet())return;
- const items=[...nodes].filter(Boolean),duration=150,step=Math.min(gap,items.length>1?800/(items.length-1):gap);
+ const items=[...nodes].filter(Boolean),duration=150,step=gap;
  items.forEach((el,i)=>{el.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration,delay:i*step,fill:'backwards',easing:'ease-out'});});
  host.classList.add('forecast-motion-surface');
  const shine=document.createElement('span');shine.className='forecast-shine';shine.setAttribute('aria-hidden','true');host.append(shine);
@@ -26,6 +26,6 @@ export function moveMarker(host,percent){
 export function revealContext(host){
  const grid=host.closest('.forecast-context-grid,.ny-forecast-context-grid');
  const context=[...host.querySelectorAll('.context-metric,.context-target')];
- if(host.id==='forecast-context')reveal(grid,[...grid.querySelectorAll('#forecast .metric,#forecast .range-chart'),...context],100);
- else reveal(host,context,100);
+ if(host.id==='forecast-context')reveal(grid,[...grid.querySelectorAll('#forecast .metric,#forecast .range-chart'),...context],160);
+ else reveal(host,context,160);
 }
