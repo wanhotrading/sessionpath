@@ -1,9 +1,19 @@
 import {instrument} from './instrument.mjs';
 
-const endpoint='https://raw.githubusercontent.com/wanhotrading/sessionpath/live-data/context.json';
 const $=id=>document.getElementById(id);
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
 const value=id=>$(id)?.value??'';
+let requestSequence=0;
+
+export function buildAutoFillURL(endpoint,{market,date,cutoff,nonce=Date.now()}){
+ if(typeof endpoint!=='string'||!endpoint.trim())throw Error('Auto-fill’s live-data service is not configured. Please try again after it is connected.');
+ let url;try{url=new URL(endpoint.trim());}catch{throw Error('Auto-fill’s live-data service URL is invalid.');}
+ const host=url.hostname.toLowerCase().replace(/\.$/,''),ip=/^\d+\.\d+\.\d+\.\d+$/.test(host)?host.split('.').map(Number):null;
+ const privateHost=!host.includes('.')||host.startsWith('[')||/(^|\.)(localhost|local|internal|invalid)$/.test(host)||ip&&(ip[0]===0||ip[0]===10||ip[0]===127||ip[0]>=224||ip[0]===169&&ip[1]===254||ip[0]===172&&ip[1]>=16&&ip[1]<=31||ip[0]===192&&ip[1]===168||ip[0]===100&&ip[1]>=64&&ip[1]<=127);
+ if(url.protocol!=='https:'||url.username||url.password||url.hash||privateHost)throw Error('Auto-fill requires a public HTTPS live-data service URL.');
+ url.searchParams.set('market',market);url.searchParams.set('date',date);url.searchParams.set('cutoff',cutoff);url.searchParams.set('v',String(nonce));
+ return url.href;
+}
 
 let bellContext;
 function prepareBell(){
@@ -37,11 +47,15 @@ function playBell(context){
  }catch{/* Sound is optional; a successful fill must still complete. */}
 }
 
-export function validateAutoFill(result,{date,cutoff,market,now=Date.now()}){
- if(!result||result.status!=='ready')throw Error(result?.error||'Delayed data is not ready. Try again later.');
- if(result.date!==date||result.cutoff!==cutoff||result.market!==market)throw Error('The feed does not match this market, date and cutoff.');
+export function validateAutoFill(result,{date,cutoff,market,now=Date.now(),requestStartedAt}){
+ if(!result||typeof result!=='object')throw Error('Delayed data is not ready. Try again later.');
+ if(result.market!==market)throw Error(`The data service returned a different market. Select ${market} and try auto-fill again.`);
+ if(result.date!==date)throw Error(`The data service returned a different trading date. Expected ${date} in New York.`);
+ if(result.cutoff!==cutoff)throw Error(`The data service returned a different cutoff. Expected ${cutoff} New York.`);
+ if(result.status!=='ready')throw Error(typeof result.error==='string'&&result.error?result.error:'Delayed candles are not complete for this cutoff yet. Try again later.');
  if(result.source!=='Yahoo Finance'||result.continuous!==false||!new RegExp('^'+market+'[FGHJKMNQUVXZ]\\d{4}$').test(result.contract||''))throw Error('The front-month contract could not be verified.');
- if(!Number.isFinite(Date.parse(result.generatedAt))||Date.parse(result.generatedAt)>now+60000||now-Date.parse(result.generatedAt)>24*3600000)throw Error('The delayed-data snapshot is stale.');
+ const generatedAt=Date.parse(result.generatedAt);
+ if(!Number.isFinite(generatedAt)||generatedAt>now+60000||now-generatedAt>120000||Number.isFinite(requestStartedAt)&&generatedAt<requestStartedAt-60000)throw Error('The data service returned an old response. Click auto-fill to fetch fresh delayed candles.');
  const data=result.values;
  if(!data||!['priorLow','priorHigh','open1930','rangeHigh','rangeLow','up','down'].every(k=>typeof data[k]==='number'&&Number.isFinite(data[k])))throw Error('The source returned incomplete prices.');
  if(!(data.priorHigh>data.priorLow&&data.rangeHigh>=data.open1930&&data.rangeLow<=data.open1930&&data.rangeHigh>=data.rangeLow&&data.up>=0&&data.down>=0))throw Error('The source returned inconsistent session prices.');
@@ -75,19 +89,26 @@ export function mountAutoFill(){
  button.addEventListener('click',async()=>{
   if(reading)return;
   if($('analyze-btn')?.disabled){notify('Wait for the research data to load, then try again.',true);return;}
+  if($('replay-toggle')?.checked){notify('Auto-fill uses today’s front-month contract. Turn Replay off.',true);return;}
+  const currentDate=today();
+  if($('trading-date'))$('trading-date').value=currentDate;
+  if($('date-label'))$('date-label').textContent='Today · '+currentDate;
   const date=value('trading-date'),cutoff=value('asof'),units=value('ud-units'),avr=value('avr');
-  if(date!==today()||$('replay-toggle')?.checked){notify('Auto-fill uses today’s front-month contract. Turn Replay off.',true);return;}
   if(units==='percent'&&!(Number(avr)>0)){notify('Enter a positive AVR before filling U/D percentages.',true);return;}
+  const requestStartedAt=Date.now();let endpoint;
+  try{endpoint=buildAutoFillURL(document.querySelector('meta[name="sessionpath-context-endpoint"]')?.content,{market:instrument.id,date,cutoff,nonce:String(requestStartedAt)+String(++requestSequence).padStart(4,'0')});}
+  catch(error){notify(error.message,true);return;}
   const sound=prepareBell();
   reading=true;button.disabled=true;button.textContent='Reading…';
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
   try{
-   const response=await fetch(endpoint+'?v='+Date.now(),{signal:controller.signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
-   if(!response.ok)throw Error('Could not read the delayed-data source. Try again later.');
-   const snapshot=await response.json();
-   if(snapshot.schema!=='sessionpath.autofill.v1')throw Error('The delayed-data source is unavailable.');
-   const result=snapshot.markets?.[instrument.id]?.[cutoff];
-   const data=validateAutoFill(result,{date,cutoff,market:instrument.id});
+   const response=await fetch(endpoint,{signal:controller.signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
+   let payload;try{payload=await response.json();}catch{throw Error('Could not read the live-data service. Try again later.');}
+   if(payload?.schema!=='sessionpath.autofill.v2')throw Error('The live-data service is unavailable. Try again later.');
+   const result=payload.result;
+   if(!response.ok&&result?.status==='ready')throw Error('Could not read the delayed-data source. Try again later.');
+   const data=validateAutoFill(result,{date,cutoff,market:instrument.id,requestStartedAt});
+   if(today()!==date)throw Error('The New York trading date changed while reading. Refresh the date and click auto-fill again.');
    if(value('trading-date')!==date||value('asof')!==cutoff||value('ud-units')!==units||value('avr')!==avr||$('replay-toggle')?.checked)throw Error('Inputs changed while reading. Click auto-fill again.');
    const multiplier=units==='percent'?100/Number(avr):1;
    const updates={'prior-low':data.priorLow,'prior-high':data.priorHigh,open1930:data.open1930,'range-high':data.rangeHigh,'range-low':data.rangeLow,up:data.up*multiplier,down:data.down*multiplier};
