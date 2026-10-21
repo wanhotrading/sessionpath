@@ -55,6 +55,6 @@ export async function renderBBoxReturn(){
   const baseline=bboxReturnStats(data.days,{...q,group:null});
   tint(host.querySelector('.br-hero>div>strong'),r.p,baseline.remaining.p,'Same side, checkpoint, deadline and no-return filter; either outside condition, once per date');
   host.querySelectorAll('.br-bars>div>b').forEach((el,i)=>tint(el,curves[i].p,baseline.curve.find(x=>x.minute===curves[i].minute)?.p,'Same checkpoint and deadline; either outside condition'));
-  reveal(host,[...host.querySelectorAll('.br-hero>div'),host.querySelector('.br-bars')],230);
+  reveal(host,[...host.querySelectorAll('.br-hero>div'),host.querySelector('.br-bars')],250);
  }catch(e){if(rev===revision)host.innerHTML=`<p class="notice" role="alert">${esc(e.message)}</p>`;}
 }

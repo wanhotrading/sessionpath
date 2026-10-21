@@ -34,5 +34,5 @@ export function revealContext(host){
  const grid=host.closest('.forecast-context-grid,.ny-forecast-context-grid');
  const context=[...host.querySelectorAll('.context-metric,.context-target')];
  if(host.id==='forecast-context')reveal(grid,[...grid.querySelectorAll('#forecast .metric,#forecast .range-chart'),...context],250);
- else reveal(host,context,250);
+ else reveal(grid,[...grid.querySelectorAll('#ny-results .movement-grid>.metric'),...context],250);
 }
