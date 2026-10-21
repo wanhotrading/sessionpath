@@ -14,7 +14,7 @@ export function reveal(host,nodes,gap=160){
  items.forEach((el,i)=>{el.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration,delay:i*step,fill:'backwards',easing:'ease-out'});});
  host.classList.add('forecast-motion-surface');
  const shine=document.createElement('span');shine.className='forecast-shine';shine.setAttribute('aria-hidden','true');host.append(shine);
- const a=shine.animate([{opacity:0,backgroundPosition:'140% 140%'},{opacity:.6,offset:.22},{opacity:0,backgroundPosition:'-40% -40%'}],{duration:850,easing:'ease-out'});
+ const a=shine.animate([{opacity:0,backgroundPosition:'140% 140%'},{opacity:.6,offset:.22},{opacity:0,backgroundPosition:'-40% -40%'}],{duration:1700,easing:'ease-out'});
  a.onfinish=()=>shine.remove();
 }
 export function moveMarker(host,percent){
