@@ -105,3 +105,13 @@
 }
 @media(prefers-reduced-motion:reduce){#news-alert-toast:popover-open{animation:none}}
 .motion-paused #news-alert-toast:popover-open{animation:none}
+
+/* Catalyst details keep uncertainty adjacent to the headline. */
+#news-desk .news-event-summary{display:grid;gap:5px;margin-top:12px;padding:11px 12px;border-left:3px solid #b9a4ff;background:#c9b8ff09;border-radius:6px;font-size:12px;line-height:1.5}
+#news-desk .news-event-summary[data-priority="P1"]{border-color:#f4b66f}
+#news-desk .news-event-summary>span{color:#cfbddf}
+#news-desk .news-event-summary p{margin:2px 0;color:#c2cfe3}
+#news-desk .news-event-details{font-size:11px;line-height:1.6;margin-top:10px;color:#b9c8dd;overflow-wrap:anywhere}
+#news-desk .news-event-details summary{cursor:pointer;min-height:30px;display:list-item}
+#news-desk .news-event-details p{margin:5px 0}
+@media(max-width:650px){#news-desk .news-source-status{display:none}#news-desk .news-desk-controls{padding-top:9px}#news-desk .news-topic-pills{margin-bottom:9px}#news-desk .news-desk-header{padding-block:12px}}

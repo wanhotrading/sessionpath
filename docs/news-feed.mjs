@@ -1,3 +1,4 @@
+import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=catalysts-20261022';
 // Public publisher feeds only. No account, proxy, article body, or stored credentials.
 export const NEWS_SOURCES = Object.freeze([
   Object.freeze({id: 'financialjuice', name: 'FinancialJuice', url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
@@ -16,7 +17,7 @@ export function classifyNews(text) {
   const categories = [];
   if (OIL.test(value) || !NON_PETROLEUM_OIL.test(value) && OIL_CONTEXT.test(value)) categories.push('oil');
   if (GEO_DIRECT.test(value) || GEO_PLACE.test(value) && GEO_ACTION.test(value)) categories.push('geopolitics');
-  return categories;
+  return [...new Set([...categories, ...extraNewsCategories(value)])];
 }
 
 function decodeEntities(text) {
@@ -69,7 +70,7 @@ export function normalizeFinancialJuiceRecords(records, {now = Date.now()} = {})
     const publishedAt = normalizeNewsDate(record.pubDate, now);
     const categories = classifyNews(title);
     if (!title || !url || !publishedAt || !categories.length) return [];
-    return [{id: `financialjuice:${record.guid || url}`, source: 'financialjuice', title, url, publishedAt, categories}];
+    return [{id: `financialjuice:${record.guid || url}`, source: 'financialjuice', title, url, publishedAt, categories, raw_text: title, receivedAt: new Date(now).toISOString(), analysis: analyzeNews({title, categories, publishedAt, url, source: 'financialjuice'}, {now})}];
   });
 }
 
@@ -94,7 +95,7 @@ export function normalizeWallstreetCN(payload, {now = Date.now()} = {}) {
     const publishedAt = normalizeNewsDate(record.display_time, now);
     const categories = classifyNews(title);
     if (!title || !url || !publishedAt || !categories.length) return [];
-    return [{id: `wallstreetcn:${record.id || url}`, source: 'wallstreetcn', title, url, publishedAt, categories}];
+    return [{id: `wallstreetcn:${record.id || url}`, source: 'wallstreetcn', title, url, publishedAt, categories, raw_text: title, receivedAt: new Date(now).toISOString(), analysis: analyzeNews({title, categories, publishedAt, url, source: 'wallstreetcn'}, {now})}];
   });
 }
 

@@ -1,4 +1,4 @@
-import {safeNewsURL} from './news-feed.mjs';
+import {safeNewsURL} from './news-feed.mjs?v=catalysts-20261022';
 
 export const NEWS_ALERT_MAX_AGE_MS = 10 * 60_000;
 export const NEWS_ALERT_MAX_SEEN = 600;
@@ -29,12 +29,12 @@ function validSeenEntry(value, now) {
   const url = urlKey(value.url, value.source);
   const title = titleKey(value.titleKey);
   if (!publishedAt || !url || !title) return null;
-  return {id: value.id.trim(), source: value.source, publishedAt, url, titleKey: title};
+  return {id: value.id.trim(), source: value.source, publishedAt, url, titleKey: title, priority: ['P1','P2','P3'].includes(value.priority) ? value.priority : null, version: Math.max(1, Math.min(999, Number(value.version) || 1)), history: (Array.isArray(value.history) ? value.history : []).filter(v => typeof v === 'string').slice(-5).map(v => v.slice(0,400))};
 }
 
 function seenForItem(item, now) {
-  if (!item || !Array.isArray(item.categories) || !item.categories.some(category => category === 'oil' || category === 'geopolitics')) return null;
-  return validSeenEntry({...item, titleKey: item.title}, now);
+  if (!item || !Array.isArray(item.categories) || !item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category))) return null;
+  return validSeenEntry({...item, titleKey: item.title, priority: item.analysis?.priority}, now);
 }
 
 function readSaved(saved) {
@@ -88,7 +88,7 @@ export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEW
   const urls = new Set(next.seen.map(entry => entry.url));
   const titles = new Set(next.seen.map(entry => entry.titleKey));
   const newItems = [];
-  const items = (Array.isArray(feed?.items) ? feed.items : []).map(item => ({item, entry: seenForItem(item, now)})).filter(value => value.entry).sort((a, b) => a.entry.publishedAt.localeCompare(b.entry.publishedAt));
+  const items = (Array.isArray(feed?.items) ? feed.items : []).map(raw => { const item = raw?.analysis ? {...raw, analysis: {...raw.analysis}} : raw; return {item, entry: seenForItem(item, now)}; }).filter(value => value.entry).sort((a, b) => a.entry.publishedAt.localeCompare(b.entry.publishedAt));
 
   for (const id of SOURCE_IDS) {
     const report = Array.isArray(feed?.sources) ? feed.sources.find(source => source?.id === id) : null;
@@ -104,9 +104,15 @@ export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEW
     for (const {item, entry} of items) {
       if (entry.source !== id) continue;
       const key = `${entry.source}\n${entry.id}`;
-      const known = ids.has(key) || urls.has(entry.url) || titles.has(entry.titleKey);
+      const previous = entries.get(key) || [...entries.values()].find(v => v.url === entry.url);
+      const revised = previous && previous.titleKey !== entry.titleKey && !previous.history.includes(entry.titleKey);
+      const known = !revised && (ids.has(key) || urls.has(entry.url) || titles.has(entry.titleKey));
+      entry.version = revised ? previous.version + 1 : previous?.version || 1;
+      entry.history = revised ? [...previous.history, previous.titleKey].slice(-5) : previous?.history || [];
+      if (revised && item.analysis?.is_correction && previous.priority === 'P1') { item.analysis.priority = 'P1'; entry.priority = 'P1'; }
+      if (item.analysis) { item.analysis.event_version = entry.version; item.analysis.previous_headlines = entry.history; item.analysis.novelty = revised ? 'Updated headline' : known ? 'Already seen' : 'New headline'; }
       const stamp = Date.parse(entry.publishedAt);
-      if (!baseline && !known && (!previousWatermark || entry.publishedAt >= previousWatermark) && stamp >= now - age) newItems.push(item);
+      if (!baseline && !known && (revised || !previousWatermark || entry.publishedAt >= previousWatermark) && (stamp >= now - age || revised && item.analysis?.is_correction) && (!item.analysis || ['P1','P2'].includes(item.analysis.priority))) newItems.push(item);
       ids.add(key); urls.add(entry.url); titles.add(entry.titleKey);
       entries.delete(key); entries.set(key, entry);
       watermark = laterDate(watermark, entry.publishedAt);
@@ -119,5 +125,5 @@ export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEW
   }
   next.seen = [...entries.values()].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt)).slice(-NEWS_ALERT_MAX_SEEN);
   newItems.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-  return {state: next, newItems};
+  return {state: next, newItems, items: items.map(value => value.item)};
 }

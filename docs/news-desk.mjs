@@ -1,5 +1,6 @@
-import {loadNews, filterNews, formatNewsTime} from './news-feed.mjs';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs';
+import {directionLabel} from './news-analysis.mjs?v=catalysts-20261022';
+import {loadNews, filterNews, formatNewsTime} from './news-feed.mjs?v=catalysts-20261022';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=catalysts-20261022';
 import {createNewsWhistle} from './news-whistle.mjs';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
@@ -8,7 +9,7 @@ const ALERT_STATE_KEY = 'sessionpath-news-alert-seen-v1';
 const REFRESH_MS = 120_000;
 const STALE_MS = 20 * 60_000;
 const SOURCE_NAMES = {financialjuice: 'FinancialJuice', wallstreetcn: 'WallstreetCN · 华尔街见闻'};
-const TOPICS = new Set(['all', 'oil', 'geopolitics']);
+const TOPICS = new Set(['all', 'oil', 'geopolitics', 'indices', 'trump']);
 const SOURCES = new Set(['all', ...Object.keys(SOURCE_NAMES)]);
 
 function element(tag, className, text) {
@@ -60,11 +61,15 @@ export function setupNewsDesk() {
 
   const filters = readFilters();
   const savedPreferences = storedJSON(ALERT_PREFS_KEY);
-  const preferences = {alerts: savedPreferences?.alerts !== false, sound: savedPreferences?.sound !== false};
+  const preferences = {alerts: savedPreferences?.alerts !== false, sound: savedPreferences?.sound === true};
   let alertState = createNewsAlertState(storedJSON(ALERT_STATE_KEY));
   const whistle = createNewsWhistle();
   let toastTimer = null;
   let toastHovered = false;
+  let persistentToast = false;
+  let queuedAlerts = [];
+  const storedAudit = storedJSON('sessionpath-news-audit-v1');
+  let audit = Array.isArray(storedAudit) ? storedAudit.slice(-300) : [];
   let feed = null;
   let controller = null;
   let refreshTimer = null;
@@ -79,7 +84,7 @@ export function setupNewsDesk() {
   trigger.setAttribute('aria-haspopup', 'dialog');
   trigger.setAttribute('aria-controls', 'news-desk');
   trigger.setAttribute('aria-expanded', 'false');
-  trigger.title = 'Crude oil & geopolitical headlines';
+  trigger.title = 'Oil, US indices & policy headlines';
   host.prepend(trigger);
 
   const dialog = element('dialog', 'news-desk');
@@ -90,9 +95,9 @@ export function setupNewsDesk() {
   const header = element('header', 'news-desk-header');
   const heading = element('div', 'news-desk-heading');
   heading.append(element('span', 'eyebrow', 'SESSIONPATH / NEWS'));
-  const title = element('h2', '', 'Oil & geopolitics');
+  const title = element('h2', '', 'Market catalysts');
   title.id = 'news-desk-title';
-  const description = element('p', 'news-desk-description', 'Public headlines · may be delayed');
+  const description = element('p', 'news-desk-description', 'Oil · US indices · Trump policy | Public feeds, not real-time');
   description.id = 'news-desk-description';
   heading.append(title, description);
   const close = element('button', 'news-desk-close', '×');
@@ -105,7 +110,7 @@ export function setupNewsDesk() {
   topics.setAttribute('role', 'group');
   topics.setAttribute('aria-label', 'Headline topics');
   const topicButtons = new Map();
-  for (const [value, label] of [['all', 'All relevant'], ['oil', 'Crude oil'], ['geopolitics', 'Geopolitics']]) {
+  for (const [value, label] of [['all', 'All relevant'], ['oil', 'Crude oil'], ['geopolitics', 'Geopolitics'], ['indices', 'US indices'], ['trump', 'Trump policy']]) {
     const button = element('button', 'news-topic-pill', label);
     button.type = 'button';
     button.dataset.topic = value;
@@ -135,7 +140,7 @@ export function setupNewsDesk() {
   const search = element('input');
   search.id = 'news-search';
   search.type = 'search';
-  search.placeholder = 'Oil, OPEC, tensions…';
+  search.placeholder = 'Oil, CPI, tariffs…';
   search.maxLength = 160;
   search.value = filters.search;
   search.autocomplete = 'off';
@@ -153,7 +158,13 @@ export function setupNewsDesk() {
   const alertHelp = element('p', 'news-alert-help');
   alertHelp.id = 'news-alert-help';
   for (const button of [alertsToggle, soundToggle, testAlert]) button.setAttribute('aria-describedby', alertHelp.id);
-  alertControls.append(alertsToggle, soundToggle, testAlert);
+  const exportLog = element('button', 'news-alert-control', 'Export alert log');
+  exportLog.type = 'button';
+  exportLog.addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify({format:'sessionpath-news-audit-v1', records:audit}, null, 2)], {type:'application/json'}));
+    const link = element('a'); link.href = url; link.download = 'SessionPath-news-alert-log.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  alertControls.append(alertsToggle, soundToggle, testAlert, exportLog);
   controls.append(topics, fields, alertControls, alertHelp);
 
   const sourceStatus = element('div', 'news-source-status');
@@ -169,7 +180,7 @@ export function setupNewsDesk() {
   notice.hidden = true;
   const listArea = element('div', 'news-desk-list-area');
   listArea.setAttribute('aria-label', 'Filtered headlines');
-  const footer = element('p', 'news-desk-footer', 'English / 中文 headline filters · forecasts stay unchanged.');
+  const footer = element('p', 'news-desk-footer', 'Rule-based interpretation · not a trading signal. Original statements and live speech are not independently monitored.');
   dialog.append(header, controls, sourceStatus, toolbar, notice, listArea, footer);
   document.body.append(dialog);
 
@@ -219,9 +230,9 @@ export function setupNewsDesk() {
     soundToggle.textContent = preferences.sound ? 'Whistle on' : 'Whistle muted';
     soundToggle.setAttribute('aria-pressed', String(preferences.sound));
     trigger.classList.toggle('has-news-alerts', preferences.alerts);
-    trigger.title = 'Crude oil & geopolitical headlines' + (preferences.alerts ? ' · alerts on' : '');
+    trigger.title = 'Oil, US indices & policy headlines' + (preferences.alerts ? ' · alerts on' : '');
     alertHelp.textContent = preferences.alerts
-      ? 'Popups follow your filters. Checks every 2 min while this page is visible.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
+      ? 'P1 stays until dismissed; P2 fades; commentary stays in the feed. Checks every 2 min while visible.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -233,6 +244,7 @@ export function setupNewsDesk() {
   }
 
   function hideToast() {
+    persistentToast = false;
     clearTimeout(toastTimer);
     toastTimer = null;
     if (typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) toast.hidePopover();
@@ -241,7 +253,7 @@ export function setupNewsDesk() {
 
   function dismissLater() {
     clearTimeout(toastTimer);
-    if (!toastHovered && !toast.contains(document.activeElement)) toastTimer = setTimeout(hideToast, 9000);
+    if (!persistentToast && !toastHovered && !toast.contains(document.activeElement)) toastTimer = setTimeout(hideToast, 9000);
   }
 
   function positionToast() {
@@ -262,21 +274,23 @@ export function setupNewsDesk() {
 
   function showAlert(items, {test = false} = {}) {
     if (!test && (!preferences.alerts || !items.length || document.hidden)) return;
-    const item = items[0];
-    toastHeading.textContent = test ? 'Test news alert' : items.length > 1 ? `${items.length} new matching headlines` : 'New matching headline';
-    toastHeadline.textContent = test ? 'Your oil & geopolitics alerts are ready.' : item.title;
+    if (!test && !toast.hidden && persistentToast && !items.some(item => item.url === toastHeadline.href && item.analysis?.event_version > 1)) { queuedAlerts = [...queuedAlerts, ...items].slice(-50); return; }
+    const item = [...items].sort((a,b) => (a.analysis?.priority || 'P2').localeCompare(b.analysis?.priority || 'P2'))[0];
+    persistentToast = !test && item?.analysis?.priority === 'P1';
+    toastHeading.textContent = test ? 'Test news alert' : items.length > 1 ? `${items.length} new matching headlines` : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}`;
+    toastHeadline.textContent = test ? 'Your market catalyst alerts are ready.' : item.title;
     const url = test ? null : safeHeadlineUrl(item.url);
     if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
     toastDetail.textContent = test
       ? (whistle.ready && preferences.sound ? 'Listen for the short whistle.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Whistle is muted. Popups still work.')
-      : `${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${items.length > 1 ? ` · +${items.length - 1} more in News` : ''}`;
+      : `${item.analysis ? directionLabel(item.analysis.direction) + ' · ' + item.analysis.rationale + ' ' : ''}${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${items.length > 1 ? ` · +${items.length - 1} more in News` : ''}`;
     toast.hidden = false;
     positionToast();
     if (preferences.sound) whistle.play();
     dismissLater();
   }
 
-  toastDismiss.addEventListener('click', hideToast);
+  toastDismiss.addEventListener('click', () => { hideToast(); if (queuedAlerts.length) { const pending = queuedAlerts; queuedAlerts = []; showAlert(pending); } });
   toastOpen.addEventListener('click', () => { hideToast(); openNews(); });
   toast.addEventListener('mouseenter', () => { toastHovered = true; clearTimeout(toastTimer); });
   toast.addEventListener('mouseleave', () => { toastHovered = false; dismissLater(); });
@@ -286,7 +300,7 @@ export function setupNewsDesk() {
     preferences.alerts = !preferences.alerts;
     silenceBaseline();
     savePreferences();
-    if (!preferences.alerts) hideToast();
+    if (!preferences.alerts) { queuedAlerts = []; hideToast(); }
     else unlockSound();
     if (!controller) refreshNews();
   });
@@ -401,7 +415,7 @@ export function setupNewsDesk() {
     listArea.replaceChildren();
 
     if (!feed && loading) {
-      emptyState('Checking the news desk', 'Looking for crude oil and geopolitical headlines.');
+      emptyState('Checking the news desk', 'Looking for oil, geopolitical, US-index and Trump-policy headlines.');
       return;
     }
     if (!items.length) {
@@ -419,7 +433,7 @@ export function setupNewsDesk() {
           render();
         });
         listArea.firstElementChild.append(clear);
-      } else emptyState('No relevant headlines right now', 'This desk only shows crude oil and geopolitical news. Refresh to check again.');
+      } else emptyState('No relevant headlines right now', 'This desk shows oil, geopolitical, US-index and Trump-policy news. Refresh to check again.');
       return;
     }
 
@@ -440,10 +454,21 @@ export function setupNewsDesk() {
       arrow.setAttribute('aria-hidden', 'true');
       link.append(arrow);
       const categories = element('div', 'news-headline-categories');
-      for (const category of ['oil', 'geopolitics']) if (item.categories.includes(category)) {
-        categories.append(element('span', 'news-category news-category-' + category, category === 'oil' ? 'Crude oil' : 'Geopolitics'));
+      for (const category of ['oil', 'geopolitics', 'indices', 'trump']) if (item.categories.includes(category)) {
+        categories.append(element('span', 'news-category news-category-' + category, ({oil:'Crude oil',geopolitics:'Geopolitics',indices:'US indices',trump:'Trump policy'})[category]));
       }
       row.append(meta, link, categories);
+      const a = item.analysis;
+      if (a) {
+        const summary = element('div', 'news-event-summary');
+        summary.dataset.priority = a.priority;
+        summary.append(element('strong', '', `${a.priority} · ${a.event_type}`), element('span', '', `${directionLabel(a.direction)} · ${a.policy_status}${a.delayed ? ' · Delayed' : ''}`), element('p', '', a.rationale));
+        if (a.numbers) summary.append(element('p', 'news-event-numbers', `Actual ${a.numbers.actual} / expected ${a.numbers.consensus ?? 'unavailable'} / surprise ${a.numbers.surprise ?? 'unavailable'} ${a.numbers.unit}`));
+        const details = element('details', 'news-event-details');
+        details.append(element('summary', '', 'Evidence & uncertainty'));
+        for (const value of [`Assets: ${Object.entries(a.direction_by_asset).map(([asset, direction]) => asset + ': ' + directionLabel(direction)).join('; ')}`, `Source: ${a.source_authenticity}`, `Evidence: ${a.evidence_excerpt}`, `Received: ${newsTime(a.received_at_utc)}`, `Version: ${a.event_version || 1} · ${a.novelty || 'Publisher headline'}`, `Missing: ${a.missing_fields.join('; ')}`, ...a.invalidation_checks, ...(a.previous_headlines || []).map(v => 'Previous wording: ' + v)]) details.append(element('p', '', value));
+        row.append(summary, details);
+      }
       list.append(row);
     }
     listArea.append(list);
@@ -476,8 +501,19 @@ export function setupNewsDesk() {
       failed = false;
       const receivedAlerts = collectNewsAlerts(alertState, next);
       alertState = receivedAlerts.state;
+      feed.items = [...receivedAlerts.items, ...retained];
       saveSeen();
-      showAlert(filterNews(receivedAlerts.newItems, filters).filter(item => safeHeadlineUrl(item.url)));
+      const matchedAlerts = filterNews(receivedAlerts.newItems, filters).filter(item => safeHeadlineUrl(item.url));
+      const eligible = new Set(matchedAlerts.map(item => item.id));
+      for (const item of receivedAlerts.items) {
+        const previous = audit.findLast(entry => entry.story_id === item.id);
+        if (previous?.headline === item.title) continue;
+        audit.push({story_id:item.id, headline:item.title, recorded_at_utc:new Date().toISOString(), analysis:item.analysis,
+          popup_eligible:preferences.alerts && eligible.has(item.id), decision:eligible.has(item.id) ? (preferences.alerts ? 'Eligible for popup' : 'Alerts disabled') : item.analysis?.priority === 'P3' ? 'Feed only: commentary / insufficient event detail' : 'Silent baseline, already seen, stale or filtered out'});
+      }
+      audit = audit.slice(-300);
+      try { localStorage.setItem('sessionpath-news-audit-v1', JSON.stringify(audit)); } catch {}
+      showAlert(matchedAlerts);
     } catch (error) {
       if (controller !== currentController || currentController.signal.aborted || error?.name === 'AbortError') return;
       failed = true;
@@ -524,7 +560,7 @@ export function setupNewsDesk() {
   search.addEventListener('input', () => { filters.search = search.value; saveFilters(); render(); });
   refresh.addEventListener('click', refreshNews);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { hideToast(); interruptRefresh(); silenceBaseline(); }
+    if (document.hidden) { queuedAlerts = []; hideToast(); interruptRefresh(); silenceBaseline(); }
     else if (dialog.open || preferences.alerts) {
       render();
       if (!feed || Date.now() - lastAttempt >= REFRESH_MS) refreshNews();
