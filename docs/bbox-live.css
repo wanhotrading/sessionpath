@@ -1,0 +1,4 @@
+.br-live,.br-decay{border:1px solid #b39be644;border-radius:13px;padding:16px;margin:16px 0;background:#a58bdd09}
+.br-live strong{font-size:14px;color:#d5c6ff;font-variant-numeric:tabular-nums}.br-live .button-row{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.br-live button{min-height:40px;font-size:12px}
+.br-decay svg{display:block;width:100%;height:auto;overflow:visible}.br-decay svg text{fill:#c0cce2;font:18px system-ui}.br-decay h3{margin-top:0}.br-table-scroll{max-height:300px;overflow:auto}.br-table-scroll table{min-width:440px}.br-table-scroll td{white-space:nowrap}.br-context{grid-template-columns:1fr 1fr}.br-context label:first-child{grid-column:1/-1}
+@media(max-width:760px){.br-context{grid-template-columns:1fr}.br-live{padding:12px}.br-live .button-row button{flex:1 1 120px}.br-decay{padding:10px}.br-decay svg text{font-size:20px}}
