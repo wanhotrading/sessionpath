@@ -67,7 +67,7 @@
   #news-desk .news-desk-footer{padding:12px 17px}
   #news-desk :is(input,select){font-size:16px}
 }
-@media(max-height:620px){
+@media(max-height:850px){
   #news-desk[open]{display:block;overflow-y:auto}
   #news-desk .news-desk-list-area{overflow:visible;min-height:130px}
   #news-desk .news-desk-header{padding-top:14px;padding-bottom:12px}
@@ -115,3 +115,5 @@
 #news-desk .news-event-details summary{cursor:pointer;min-height:30px;display:list-item}
 #news-desk .news-event-details p{margin:5px 0}
 @media(max-width:650px){#news-desk .news-source-status{display:none}#news-desk .news-desk-controls{padding-top:9px}#news-desk .news-topic-pills{margin-bottom:9px}#news-desk .news-desk-header{padding-block:12px}}
+
+@media(max-height:850px){#news-desk .news-desk-header{position:sticky;top:0;z-index:2;background:#1c263bed;backdrop-filter:blur(10px)}}
