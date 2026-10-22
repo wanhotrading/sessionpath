@@ -15,7 +15,8 @@ export function createNewsPoller({
   for (const source of sources) {
     if (!source || typeof source.id !== 'string' || !source.id || entries.has(source.id)) throw new TypeError('News source IDs must be unique.');
     const pollMs = Number.isFinite(source.pollMs) && source.pollMs > 0 ? Math.max(MIN_PAUSE_MS, source.pollMs) : 10_000;
-    entries.set(source.id, {source, pollMs, failures: 0, timer: null, controller: null, nextAt: null, retryNotBefore: null, startedAt: null, lastCompletedAt: null, status: null});
+    const paused = source.paused === true;
+    entries.set(source.id, {source, pollMs, paused, failures: 0, timer: null, controller: null, nextAt: null, retryNotBefore: null, startedAt: null, lastCompletedAt: null, status: paused ? 'paused' : null});
   }
   let running = false;
   let generation = 0;
@@ -40,7 +41,7 @@ export function createNewsPoller({
   }
 
   async function request(entry) {
-    if (!running || entry.controller) return;
+    if (!running || entry.paused || entry.controller) return;
     // Publisher rate limits survive manual refreshes and visibility restarts.
     if (entry.retryNotBefore > now()) {
       schedule(entry, entry.retryNotBefore, generation);
@@ -96,11 +97,11 @@ export function createNewsPoller({
   }
   function refresh() {
     if (!running) return;
-    for (const entry of entries.values()) if (!entry.controller && !(entry.retryNotBefore > now())) request(entry);
+    for (const entry of entries.values()) if (!entry.paused && !entry.controller && !(entry.retryNotBefore > now())) request(entry);
   }
   function snapshot() {
     return {running, pending: pending(), sources: [...entries.values()].map(entry => ({
-      id: entry.source.id, pollMs: entry.pollMs, pending: Boolean(entry.controller), failures: entry.failures,
+      id: entry.source.id, pollMs: entry.pollMs, paused: entry.paused, pending: Boolean(entry.controller), failures: entry.failures,
       nextAt: entry.nextAt, retryNotBefore: entry.retryNotBefore, startedAt: entry.startedAt, lastCompletedAt: entry.lastCompletedAt, status: entry.status
     }))};
   }

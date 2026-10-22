@@ -20,7 +20,15 @@ export function setupWorkspace(){
  assistant.querySelector('h2').hidden=true;
  const openDialog=dialog=>{for(const open of document.querySelectorAll('dialog[open]'))if(open!==dialog)open.close();if(!dialog.open)dialog.showModal();};
  wrench.onclick=()=>{openDialog(tools);wrench.setAttribute('aria-expanded','true');};
- tools.addEventListener('close',()=>wrench.setAttribute('aria-expanded','false'));
+ // Native dialog methods remain synchronous for the tools that open another
+ // modal. CSS keeps the closing drawer on screen only for its slide transition.
+ const syncToolsExpanded=()=>wrench.setAttribute('aria-expanded',String(tools.open));
+ new MutationObserver(syncToolsExpanded).observe(tools,{attributes:true,attributeFilter:['open']});
+ tools.addEventListener('close',syncToolsExpanded);
+ const outsideTools=e=>{const r=tools.getBoundingClientRect();return e.target===tools&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom);};
+ let backdropStart=false;
+ tools.addEventListener('pointerdown',e=>{backdropStart=outsideTools(e);});
+ tools.addEventListener('click',e=>{if(backdropStart&&outsideTools(e))tools.close();backdropStart=false;});
  $('workspace-tools-close').onclick=()=>tools.close();
  $('tools-open-reader').onclick=()=>openDialog(reader);
  $('choose-tags').onclick=()=>openDialog($('tags-dialog'));$('evidence-btn').onclick=()=>openDialog($('evidence-dialog'));$('assistant-dictionary').onclick=()=>$('dictionary-btn').click();

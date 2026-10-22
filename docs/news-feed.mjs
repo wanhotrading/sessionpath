@@ -1,7 +1,7 @@
 import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=fast-news-20261022';
 // Public publisher feeds only. No account, proxy, article body, or stored credentials.
 export const NEWS_SOURCES = Object.freeze([
-  Object.freeze({id: 'financialjuice', name: 'FinancialJuice', pollMs: 10000, kind:'rss', hosts:['financialjuice.com','www.financialjuice.com'], url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
+  Object.freeze({id: 'financialjuice', name: 'FinancialJuice', paused:true, pauseReason:'Automatic requests paused while access is checked', pollMs: 60000, kind:'rss', hosts:['financialjuice.com','www.financialjuice.com'], url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
   Object.freeze({id: 'wallstreetcn', name: 'WallstreetCN · 华尔街见闻', pollMs: 10000, kind:'json', hosts:['wallstreetcn.com','www.wallstreetcn.com','wallstcn.com','www.wallstcn.com'], url: 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=100'}),
   Object.freeze({id:'cnbc',name:'CNBC · Top news',pollMs:30000,kind:'rss',hosts:['cnbc.com','www.cnbc.com'],url:'https://www.cnbc.com/id/100003114/device/rss/rss.html'}),
   Object.freeze({id:'abcnews',name:'ABC News · World',pollMs:60000,kind:'rss',retentionMs:7*86400000,hosts:['abcnews.go.com','abcnews.com','www.abcnews.com'],url:'https://abcnews.com/abcnews/internationalheadlines'})

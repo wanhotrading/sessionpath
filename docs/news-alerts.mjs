@@ -1,4 +1,4 @@
-import {safeNewsURL, NEWS_SOURCES} from './news-feed.mjs?v=fast-news-20261022';
+import {safeNewsURL, NEWS_SOURCES} from './news-feed.mjs?v=juice-paused-20261022';
 
 export const NEWS_ALERT_MAX_AGE_MS = 10 * 60_000;
 export const NEWS_ALERT_MAX_SEEN = 600;

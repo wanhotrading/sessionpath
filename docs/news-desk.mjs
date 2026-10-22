@@ -1,8 +1,8 @@
-import {createNewsPoller} from './news-poller.mjs?v=fast-news-20261022';
+import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
-import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=fast-news-20261022';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=fast-news-20261022';
-import {createNewsWhistle} from './news-whistle.mjs';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=juice-paused-20261022';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=juice-paused-20261022';
+import {createNewsWhistle} from './news-whistle.mjs?v=twitter-chirp-150';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
@@ -10,6 +10,7 @@ const ALERT_STATE_KEY = 'sessionpath-news-alert-seen-v1';
 const REFRESH_MS = 10_000;
 const STALE_MS = 20 * 60_000;
 const SOURCE_NAMES = Object.fromEntries(NEWS_SOURCES.map(source => [source.id,source.name]));
+const ACTIVE_SOURCE_COUNT = NEWS_SOURCES.filter(source => !source.paused).length;
 const TOPICS = new Set(['all', 'oil', 'geopolitics', 'indices', 'trump']);
 const SOURCES = new Set(['all', ...Object.keys(SOURCE_NAMES)]);
 
@@ -235,7 +236,7 @@ export function setupNewsDesk() {
     trigger.classList.toggle('has-news-alerts', preferences.alerts);
     trigger.title = 'Oil, US indices & policy headlines' + (preferences.alerts ? ' · alerts on' : '');
     alertHelp.textContent = preferences.alerts
-      ? 'Fast checks: 10s · CNBC: 30s · ABC: 60s while visible. New alerts appear and whistle immediately when received; publishers may be delayed.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
+      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s while visible. FinancialJuice requests are paused. Turn Whistle on for the notification chirp.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -296,7 +297,7 @@ export function setupNewsDesk() {
     const url = test ? null : safeHeadlineUrl(item.url);
     if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
     toastDetail.textContent = test
-      ? (whistle.ready && preferences.sound ? 'Listen for the short whistle.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Whistle is muted. Popups still work.')
+      ? (whistle.ready && preferences.sound ? 'Listen for the bird chirp.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Whistle is muted. Popups still work.')
       : `${item.analysis ? directionLabel(item.analysis.direction) + ' · ' + item.analysis.rationale + ' ' : ''}${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${ordered.length>1 ? ` · +${ordered.length-1} new in News` : ''}`;
     toast.hidden = false;
     positionToast();
@@ -358,6 +359,8 @@ export function setupNewsDesk() {
     sourceStatus.replaceChildren();
     for (const [id, name] of Object.entries(SOURCE_NAMES)) {
       const source = feed?.sources?.find(entry => entry.id === id);
+      const config = NEWS_SOURCES.find(entry => entry.id === id);
+      const paused = config?.paused === true;
       const checkedMs = Date.parse(source?.fetchedAt || '');
       const old = Number.isFinite(checkedMs) && Date.now() - checkedMs > STALE_MS;
       const unavailable = source?.status === 'error';
@@ -365,13 +368,15 @@ export function setupNewsDesk() {
       const card = element('div', 'news-source-card' + (stale ? ' is-stale' : ''));
       card.append(element('span', 'news-source-name', name));
       let label;
-      if (unavailable || failed) label = 'Refresh unavailable';
+      if (paused) label = 'Paused · no requests';
+      else if (unavailable || failed) label = 'Refresh unavailable';
       else if (!source) label = loading ? 'Checking…' : 'Not checked yet';
       else if (old) label = 'Last checked over 20 min ago';
       else label = source.status === 'ok' ? 'Connected' : 'Not available';
       card.append(element('span', 'news-source-state', label));
-      if (unavailable && source.error) card.title=source.error;
-      card.append(element('span','news-source-time',`Checks every ${(NEWS_SOURCES.find(entry => entry.id === id)?.pollMs || 10000)/1000}s`));
+      if (paused) card.title=config.pauseReason;
+      else if (unavailable && source.error) card.title=source.error;
+      card.append(element('span','news-source-time',paused?'Automatic requests stopped':`Checks every ${(config?.pollMs || 10000)/1000}s`));
       if (source?.latestAt) card.append(element('span', 'news-source-time', 'Latest match ' + newsTime(source.latestAt)));
       if (source?.fetchedAt) card.append(element('span','news-source-time','Checked '+new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(source.fetchedAt))+' ET'));
       sourceStatus.append(card);
@@ -393,7 +398,7 @@ export function setupNewsDesk() {
 
   function render() {
     renderSources();
-    refresh.disabled = poller?.snapshot().pending.length === NEWS_SOURCES.length;
+    refresh.disabled = poller?.snapshot().pending.length === ACTIVE_SOURCE_COUNT;
     refresh.textContent = refresh.disabled ? 'Checking…' : 'Refresh';
     listArea.setAttribute('aria-busy', String(loading));
     const allFailed = feed?.sources?.length > 0 && feed.sources.every(source => source.status === 'error');
@@ -550,7 +555,7 @@ export function setupNewsDesk() {
   });
   poller = createNewsPoller({sources:NEWS_SOURCES,loadSource:loadNewsSource,onResult:receiveSource,onActivity:pending=>{
     loading=pending.length>0;
-    refresh.disabled=pending.length===NEWS_SOURCES.length; refresh.textContent=refresh.disabled?'Checking…':'Refresh';
+    refresh.disabled=pending.length===ACTIVE_SOURCE_COUNT; refresh.textContent=refresh.disabled?'Checking…':'Refresh';
     listArea.setAttribute('aria-busy',String(loading));
   }});
   if (preferences.alerts && !document.hidden) refreshNews();
