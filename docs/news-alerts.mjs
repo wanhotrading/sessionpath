@@ -1,4 +1,4 @@
-import {safeNewsURL} from './news-feed.mjs?v=catalysts-20261022';
+import {safeNewsURL} from './news-feed.mjs?v=catalysts-20261022-r2';
 
 export const NEWS_ALERT_MAX_AGE_MS = 10 * 60_000;
 export const NEWS_ALERT_MAX_SEEN = 600;

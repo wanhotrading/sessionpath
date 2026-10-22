@@ -1,6 +1,6 @@
-import {directionLabel} from './news-analysis.mjs?v=catalysts-20261022';
-import {loadNews, filterNews, formatNewsTime} from './news-feed.mjs?v=catalysts-20261022';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=catalysts-20261022';
+import {directionLabel} from './news-analysis.mjs?v=catalysts-20261022-r2';
+import {loadNews, filterNews, formatNewsTime} from './news-feed.mjs?v=catalysts-20261022-r2';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=catalysts-20261022-r2';
 import {createNewsWhistle} from './news-whistle.mjs';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
@@ -404,7 +404,7 @@ export function setupNewsDesk() {
       : 'One source is unavailable. Headlines from the other source are still shown.';
 
     const rawItems = Array.isArray(feed?.items) ? feed.items : [];
-    const relevantItems = rawItems.filter(item => Array.isArray(item.categories) && item.categories.some(category => category === 'oil' || category === 'geopolitics'));
+    const relevantItems = rawItems.filter(item => Array.isArray(item.categories) && item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category)));
     const items = filterNews(relevantItems, filters)
       .filter(item => safeHeadlineUrl(item.url))
       .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));

@@ -1,4 +1,4 @@
-import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=catalysts-20261022';
+import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=catalysts-20261022-r2';
 // Public publisher feeds only. No account, proxy, article body, or stored credentials.
 export const NEWS_SOURCES = Object.freeze([
   Object.freeze({id: 'financialjuice', name: 'FinancialJuice', url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
