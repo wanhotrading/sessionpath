@@ -1,6 +1,10 @@
 import {loadNews, filterNews, formatNewsTime} from './news-feed.mjs';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs';
+import {createNewsWhistle} from './news-whistle.mjs';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
+const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
+const ALERT_STATE_KEY = 'sessionpath-news-alert-seen-v1';
 const REFRESH_MS = 120_000;
 const STALE_MS = 20 * 60_000;
 const SOURCE_NAMES = {financialjuice: 'FinancialJuice', wallstreetcn: 'WallstreetCN · 华尔街见闻'};
@@ -27,6 +31,10 @@ function readFilters() {
   }
 }
 
+function storedJSON(key) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+
 function safeHeadlineUrl(value) {
   try {
     const url = new URL(value);
@@ -51,6 +59,12 @@ export function setupNewsDesk() {
   if (!host) return;
 
   const filters = readFilters();
+  const savedPreferences = storedJSON(ALERT_PREFS_KEY);
+  const preferences = {alerts: savedPreferences?.alerts !== false, sound: savedPreferences?.sound !== false};
+  let alertState = createNewsAlertState(storedJSON(ALERT_STATE_KEY));
+  const whistle = createNewsWhistle();
+  let toastTimer = null;
+  let toastHovered = false;
   let feed = null;
   let controller = null;
   let refreshTimer = null;
@@ -127,7 +141,20 @@ export function setupNewsDesk() {
   search.autocomplete = 'off';
   searchLabel.append(search);
   fields.append(sourceLabel, searchLabel);
-  controls.append(topics, fields);
+  const alertControls = element('div', 'news-alert-controls');
+  const alertsToggle = element('button', 'news-alert-control');
+  alertsToggle.type = 'button';
+  alertsToggle.id = 'news-alerts-toggle';
+  const soundToggle = element('button', 'news-alert-control');
+  soundToggle.type = 'button';
+  soundToggle.id = 'news-sound-toggle';
+  const testAlert = element('button', 'news-alert-control', 'Test alert');
+  testAlert.type = 'button';
+  const alertHelp = element('p', 'news-alert-help');
+  alertHelp.id = 'news-alert-help';
+  for (const button of [alertsToggle, soundToggle, testAlert]) button.setAttribute('aria-describedby', alertHelp.id);
+  alertControls.append(alertsToggle, soundToggle, testAlert);
+  controls.append(topics, fields, alertControls, alertHelp);
 
   const sourceStatus = element('div', 'news-source-status');
   sourceStatus.setAttribute('aria-label', 'Source freshness');
@@ -146,6 +173,151 @@ export function setupNewsDesk() {
   dialog.append(header, controls, sourceStatus, toolbar, notice, listArea, footer);
   document.body.append(dialog);
 
+  // A manual popover sits above open dialogs without stealing keyboard focus.
+  const toast = element('aside', 'news-alert-toast');
+  toast.id = 'news-alert-toast';
+  toast.hidden = true;
+  toast.setAttribute('popover', 'manual');
+  const toastMessage = element('div', 'news-alert-message');
+  toastMessage.setAttribute('role', 'status');
+  toastMessage.setAttribute('aria-live', 'polite');
+  toastMessage.setAttribute('aria-atomic', 'true');
+  const toastHeading = element('strong', 'news-alert-heading');
+  const toastHeadline = element('a', 'news-alert-headline');
+  toastHeadline.target = '_blank';
+  toastHeadline.rel = 'noopener noreferrer';
+  toastHeadline.dir = 'auto';
+  const toastDetail = element('p', 'news-alert-detail');
+  toastMessage.append(toastHeading, toastHeadline, toastDetail);
+  const toastActions = element('div', 'news-alert-actions');
+  const toastOpen = element('button', '', 'Open news');
+  toastOpen.type = 'button';
+  const toastDismiss = element('button', '', 'Dismiss');
+  toastDismiss.type = 'button';
+  toastDismiss.setAttribute('aria-label', 'Dismiss news alert');
+  toastActions.append(toastOpen, toastDismiss);
+  toast.append(toastMessage, toastActions);
+  document.body.append(toast);
+  const modalOrder = [...document.querySelectorAll('dialog[open]')];
+
+  function savePreferences() {
+    try { localStorage.setItem(ALERT_PREFS_KEY, JSON.stringify(preferences)); } catch {}
+    renderAlertControls();
+  }
+
+  function saveSeen() {
+    try { localStorage.setItem(ALERT_STATE_KEY, JSON.stringify(serializeNewsAlertState(alertState))); } catch {}
+  }
+
+  function silenceBaseline() {
+    alertState = createNewsAlertState(serializeNewsAlertState(alertState));
+  }
+
+  function renderAlertControls() {
+    alertsToggle.textContent = preferences.alerts ? 'Alerts on' : 'Alerts off';
+    alertsToggle.setAttribute('aria-pressed', String(preferences.alerts));
+    soundToggle.textContent = preferences.sound ? 'Whistle on' : 'Whistle muted';
+    soundToggle.setAttribute('aria-pressed', String(preferences.sound));
+    trigger.classList.toggle('has-news-alerts', preferences.alerts);
+    trigger.title = 'Crude oil & geopolitical headlines' + (preferences.alerts ? ' · alerts on' : '');
+    alertHelp.textContent = preferences.alerts
+      ? 'Popups follow your filters. Checks every 2 min while this page is visible.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
+      : 'Alerts are paused. Open News or refresh to read headlines.';
+  }
+
+  async function unlockSound() {
+    if (!preferences.sound) return false;
+    const ready = await whistle.unlock();
+    renderAlertControls();
+    return ready;
+  }
+
+  function hideToast() {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+    if (typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) toast.hidePopover();
+    toast.hidden = true;
+  }
+
+  function dismissLater() {
+    clearTimeout(toastTimer);
+    if (!toastHovered && !toast.contains(document.activeElement)) toastTimer = setTimeout(hideToast, 9000);
+  }
+
+  function positionToast() {
+    if (toast.hidden) return;
+    // A visible popover outside a modal is still inert. Keep it inside the
+    // active dialog so its links and dismiss button remain usable.
+    const focusedModal = document.activeElement?.closest?.('dialog[open]');
+    const toastHost = focusedModal || modalOrder.filter(node => node.open).at(-1) || document.body;
+    const popovers = typeof toast.showPopover === 'function';
+    if (toast.parentElement !== toastHost) {
+      if (popovers && toast.matches(':popover-open')) toast.hidePopover();
+      toastHost.append(toast);
+    }
+    if (popovers) {
+      try { if (!toast.matches(':popover-open')) toast.showPopover(); } catch {}
+    }
+  }
+
+  function showAlert(items, {test = false} = {}) {
+    if (!test && (!preferences.alerts || !items.length || document.hidden)) return;
+    const item = items[0];
+    toastHeading.textContent = test ? 'Test news alert' : items.length > 1 ? `${items.length} new matching headlines` : 'New matching headline';
+    toastHeadline.textContent = test ? 'Your oil & geopolitics alerts are ready.' : item.title;
+    const url = test ? null : safeHeadlineUrl(item.url);
+    if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
+    toastDetail.textContent = test
+      ? (whistle.ready && preferences.sound ? 'Listen for the short whistle.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Whistle is muted. Popups still work.')
+      : `${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${items.length > 1 ? ` · +${items.length - 1} more in News` : ''}`;
+    toast.hidden = false;
+    positionToast();
+    if (preferences.sound) whistle.play();
+    dismissLater();
+  }
+
+  toastDismiss.addEventListener('click', hideToast);
+  toastOpen.addEventListener('click', () => { hideToast(); openNews(); });
+  toast.addEventListener('mouseenter', () => { toastHovered = true; clearTimeout(toastTimer); });
+  toast.addEventListener('mouseleave', () => { toastHovered = false; dismissLater(); });
+  toast.addEventListener('focusin', () => clearTimeout(toastTimer));
+  toast.addEventListener('focusout', () => queueMicrotask(dismissLater));
+  alertsToggle.addEventListener('click', () => {
+    preferences.alerts = !preferences.alerts;
+    silenceBaseline();
+    savePreferences();
+    if (!preferences.alerts) hideToast();
+    else unlockSound();
+    if (!controller) refreshNews();
+  });
+  soundToggle.addEventListener('click', () => {
+    preferences.sound = !preferences.sound;
+    savePreferences();
+    if (preferences.sound) unlockSound();
+  });
+  testAlert.addEventListener('click', async () => {
+    await unlockSound();
+    showAlert([], {test: true});
+  });
+  // A normal user interaction unlocks browser audio; no microphone is used.
+  function gestureSound(event) {
+    if (!preferences.alerts || !preferences.sound || whistle.ready) return;
+    if (event.type === 'keydown' && !['Enter', ' ', 'Tab'].includes(event.key)) return;
+    unlockSound();
+  }
+  document.addEventListener('pointerdown', gestureSound, {passive: true});
+  document.addEventListener('keydown', gestureSound);
+  const modalObserver = new MutationObserver(records => {
+    for (const record of records) if (record.target.tagName === 'DIALOG') {
+      const index = modalOrder.indexOf(record.target);
+      if (index !== -1) modalOrder.splice(index, 1);
+      if (record.target.open) modalOrder.push(record.target);
+    }
+    if (!toast.hidden) positionToast();
+  });
+  modalObserver.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['open']});
+  renderAlertControls();
+
   function saveFilters() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
   }
@@ -157,7 +329,7 @@ export function setupNewsDesk() {
 
   function scheduleRefresh() {
     stopRefresh();
-    if (!dialog.open || document.hidden) return;
+    if ((!dialog.open && !preferences.alerts) || document.hidden) return;
     refreshTimer = setTimeout(() => {
       refreshTimer = null;
       refreshNews();
@@ -278,7 +450,7 @@ export function setupNewsDesk() {
   }
 
   async function refreshNews() {
-    if (controller || !dialog.open || document.hidden) return;
+    if (controller || (!dialog.open && !preferences.alerts) || document.hidden) return;
     stopRefresh();
     const currentController = new AbortController();
     controller = currentController;
@@ -302,6 +474,10 @@ export function setupNewsDesk() {
           : source)
       };
       failed = false;
+      const receivedAlerts = collectNewsAlerts(alertState, next);
+      alertState = receivedAlerts.state;
+      saveSeen();
+      showAlert(filterNews(receivedAlerts.newItems, filters).filter(item => safeHeadlineUrl(item.url)));
     } catch (error) {
       if (controller !== currentController || currentController.signal.aborted || error?.name === 'AbortError') return;
       failed = true;
@@ -315,7 +491,8 @@ export function setupNewsDesk() {
     }
   }
 
-  trigger.addEventListener('click', () => {
+  function openNews() {
+    unlockSound();
     for (const openDialog of document.querySelectorAll('dialog[open]')) if (openDialog !== dialog) openDialog.close();
     if (!dialog.open) dialog.showModal();
     trigger.setAttribute('aria-expanded', 'true');
@@ -323,11 +500,13 @@ export function setupNewsDesk() {
     close.focus({preventScroll: true});
     if (!feed || Date.now() - lastAttempt >= REFRESH_MS) refreshNews();
     else scheduleRefresh();
-  });
+  }
+  trigger.addEventListener('click', openNews);
   close.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => {
     trigger.setAttribute('aria-expanded', 'false');
-    interruptRefresh();
+    positionToast();
+    if (preferences.alerts) scheduleRefresh(); else interruptRefresh();
   });
   // The backdrop's event target is the dialog itself. Use its rectangle so a
   // click on the drawer's padding does not accidentally close the drawer.
@@ -345,14 +524,18 @@ export function setupNewsDesk() {
   search.addEventListener('input', () => { filters.search = search.value; saveFilters(); render(); });
   refresh.addEventListener('click', refreshNews);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) interruptRefresh();
-    else if (dialog.open) {
+    if (document.hidden) { hideToast(); interruptRefresh(); silenceBaseline(); }
+    else if (dialog.open || preferences.alerts) {
       render();
       if (!feed || Date.now() - lastAttempt >= REFRESH_MS) refreshNews();
       else scheduleRefresh();
     }
   });
-  window.addEventListener('pagehide', interruptRefresh);
+  window.addEventListener('pagehide', () => { hideToast(); interruptRefresh(); silenceBaseline(); });
+  window.addEventListener('pageshow', event => {
+    if (event.persisted && (dialog.open || preferences.alerts)) refreshNews();
+  });
+  if (preferences.alerts && !document.hidden) refreshNews();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupNewsDesk, {once: true});
