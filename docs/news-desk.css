@@ -1,0 +1,81 @@
+/* A separate news drawer keeps headlines within reach without moving forecasts. */
+.top-actions #news-desk-toggle{width:auto;min-width:68px;min-height:44px;height:44px;padding:9px 15px;border-radius:14px;white-space:nowrap;color:#f1ebff;border-color:#bba7f06b;background:linear-gradient(135deg,#b699ee22,#f8b66e17);font-size:14px;flex:0 0 auto}
+.top-actions #news-desk-toggle:hover,.top-actions #news-desk-toggle[aria-expanded="true"]{background:linear-gradient(135deg,#b699ee3b,#f8b66e2b);border-color:#d0bfff9c}
+#news-desk{--news-muted:#b8c6dd;position:fixed;inset:12px 12px 12px auto;width:min(650px,calc(100vw - 24px));height:calc(100dvh - 24px);max-width:none;max-height:none;margin:0;padding:0;border-radius:26px!important;overflow:hidden;background:linear-gradient(155deg,rgba(43,43,68,.98),rgba(13,24,46,.98))!important;border:1px solid #e2eaff3d!important;backdrop-filter:blur(18px);box-shadow:0 20px 90px #0008;color:#f1f5ff;overscroll-behavior:contain}
+#news-desk[open]{display:flex;flex-direction:column;animation:news-drawer-in .22s ease-out}
+#news-desk::backdrop{background:rgba(2,6,17,.48);backdrop-filter:blur(3px)}
+#news-desk *{box-sizing:border-box}
+#news-desk .news-desk-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:25px 24px 18px;border-bottom:1px solid #dce9ff1f;flex:0 0 auto}
+#news-desk .news-desk-heading{min-width:0}
+#news-desk .eyebrow{font-size:11px;letter-spacing:.12em;color:#d1c5ed;line-height:1.5}
+#news-desk h2{font-size:26px;font-weight:550;line-height:1.2;letter-spacing:-.65px;margin:8px 0}
+#news-desk .news-desk-description{font-size:13px;line-height:1.5;color:var(--news-muted);margin:0}
+#news-desk .news-desk-close{display:flex;align-items:center;justify-content:center;flex:0 0 44px;width:44px;min-height:44px;padding:0;border:1px solid #dce9ff2d;border-radius:13px;background:#dce9ff09;color:#eaf0fb;font-size:27px;line-height:1}
+#news-desk .news-desk-controls{padding:18px 24px 0;flex:0 0 auto}
+#news-desk .news-topic-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:17px}
+#news-desk .news-topic-pill{min-height:44px;padding:9px 15px;border:1px solid #dbe7ff30;border-radius:24px;background:#d4e4ff07;color:#c9d5e9;font-size:13px;line-height:1.3}
+#news-desk .news-topic-pill[aria-pressed="true"]{background:linear-gradient(135deg,#b8a2ed35,#d4c0fb20);border-color:#c4acf59c;color:#f1eaff;box-shadow:inset 0 1px 0 #e9dfff12}
+#news-desk .news-desk-fields{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1fr);gap:12px}
+#news-desk label{display:flex;flex-direction:column;gap:7px;font-size:12px;line-height:1.35;color:#bccce3;min-width:0}
+#news-desk :is(input,select){width:100%;min-width:0;max-width:100%;height:44px;min-height:44px;padding:10px 12px;border-radius:12px;border:1px solid #d2e1ff2c;background:#0c142b66;color:#edf3ff;font-size:14px;box-shadow:none}
+#news-desk input::placeholder{color:#95a8c7}
+#news-desk select option{background:#17213c}
+#news-desk :is(button,a,input,select):focus-visible{outline:2px solid #bfadff;outline-offset:3px}
+#news-desk .news-source-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 24px 0;flex:0 0 auto}
+#news-desk .news-source-card{display:flex;flex-direction:column;gap:4px;min-width:0;border:1px solid #b7d3eb1f;border-radius:13px;background:#b4d7ec07;padding:11px 12px;line-height:1.4}
+#news-desk .news-source-name{font-size:12px;font-weight:600;color:#e0eaf6;overflow-wrap:anywhere}
+#news-desk .news-source-state{font-size:11px;color:#9ce3cc}
+#news-desk .news-source-time{font-size:10px;color:#afc0d9;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#news-desk .news-source-card.is-stale{border-color:#edb47a59;background:#e1a06009}
+#news-desk .is-stale .news-source-state{color:#ffd29f}
+#news-desk .news-desk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 24px 12px;flex:0 0 auto}
+#news-desk .news-desk-status{margin:0;font-size:11px;line-height:1.5;color:var(--news-muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#news-desk .news-refresh{min-height:44px;flex:0 0 auto;font-size:12px;padding:9px 13px;border-radius:12px}
+#news-desk .news-desk-notice{margin:0 24px 12px;padding:11px 13px;border:1px solid #edb47a50;border-radius:12px;background:#e9b0790d;color:#f4d3ac;font-size:12px;line-height:1.5;flex:0 0 auto}
+#news-desk .news-desk-list-area{min-height:0;flex:1 1 auto;overflow:auto;overscroll-behavior:contain;padding:0 24px 16px;scrollbar-width:thin;scrollbar-color:#7e8ba270 transparent}
+#news-desk .news-headline-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+#news-desk .news-headline{min-width:0;padding:16px;border:1px solid #d7e5ff21;border-radius:16px;background:linear-gradient(125deg,#d9e4ff08,#08152b14)}
+#news-desk .news-headline-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:9px;font-size:10px;line-height:1.5}
+#news-desk .news-headline-source{font-weight:550;color:#b9cbed}
+#news-desk .news-headline-time{color:#aabbd5;font-variant-numeric:tabular-nums}
+#news-desk .news-headline-link{display:block;color:#f0f3fc;font-size:15px;font-weight:500;line-height:1.6;overflow-wrap:anywhere;text-decoration:none;border-radius:3px}
+#news-desk .news-headline-link:hover{color:#e0d2ff;text-decoration:underline;text-underline-offset:4px}
+#news-desk .news-headline-arrow{font-size:13px;white-space:nowrap;color:#bda8ea;margin-inline-start:7px}
+#news-desk .news-headline-categories{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+#news-desk .news-category{font-size:10px;line-height:1.4;padding:4px 8px;border-radius:10px;border:1px solid #c5a5f547;background:#b895f013;color:#d8c3fa}
+#news-desk .news-category-oil{border-color:#ecc08c40;background:#f2ae7010;color:#f4c79b}
+#news-desk .news-desk-empty{min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 24px;border:1px dashed #cddcff2c;border-radius:17px;background:#b7cbef03}
+#news-desk .news-desk-empty h3{font-size:18px;font-weight:500;line-height:1.4;margin:0 0 8px;color:#e9edf7}
+#news-desk .news-desk-empty p{max-width:340px;margin:0;color:#b4c4dd;font-size:13px;line-height:1.65}
+#news-desk .news-desk-empty button{min-height:44px;margin-top:17px}
+#news-desk .news-desk-footer{flex:0 0 auto;margin:0;border-top:1px solid #d9e5ff16;padding:13px 24px;color:#a9b9d2;font-size:11px;line-height:1.5;text-align:center}
+@keyframes news-drawer-in{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:650px){
+  #news-desk,body[data-device-view="mobile"] #news-desk{inset:8px;width:calc(100vw - 16px)!important;height:calc(100dvh - 16px);max-width:none!important;max-height:none!important;padding:0;border-radius:22px!important;overflow:hidden}
+  #news-desk .news-desk-header{padding:20px 17px 16px;gap:12px}
+  #news-desk h2{font-size:23px}
+  #news-desk .news-desk-controls{padding:15px 17px 0}
+  #news-desk .news-topic-pills{gap:6px;margin-bottom:14px}
+  #news-desk .news-topic-pill{padding:9px 12px;font-size:12px}
+  #news-desk .news-source-status{padding:12px 17px 0;gap:8px}
+  #news-desk .news-source-card{padding:10px}
+  #news-desk .news-desk-toolbar{padding:12px 17px 10px;gap:9px}
+  #news-desk .news-desk-notice{margin-left:17px;margin-right:17px}
+  #news-desk .news-desk-list-area{padding:0 17px 14px}
+  #news-desk .news-headline{padding:13px}
+  #news-desk .news-headline-link{font-size:15px}
+  #news-desk .news-desk-footer{padding:12px 17px}
+  #news-desk :is(input,select){font-size:16px}
+}
+@media(max-height:620px){
+  #news-desk[open]{display:block;overflow-y:auto}
+  #news-desk .news-desk-list-area{overflow:visible;min-height:130px}
+  #news-desk .news-desk-header{padding-top:14px;padding-bottom:12px}
+  #news-desk .news-desk-controls{padding-top:10px}
+  #news-desk .news-source-status{padding-top:9px}
+  #news-desk .news-source-card{padding:7px 10px}
+  #news-desk .news-source-time{display:none}
+  #news-desk .news-desk-empty{min-height:130px;padding:20px}
+}
+@media(prefers-reduced-motion:reduce){#news-desk[open]{animation:none}}
+.motion-paused #news-desk[open]{animation:none}
