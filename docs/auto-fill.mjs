@@ -60,6 +60,7 @@ export function validateAutoFill(result,{date,cutoff,market,now=Date.now(),reque
  if(!data||!['priorLow','priorHigh','open1930','rangeHigh','rangeLow','up','down'].every(k=>typeof data[k]==='number'&&Number.isFinite(data[k])))throw Error('The source returned incomplete prices.');
  if(!(data.priorHigh>data.priorLow&&data.rangeHigh>=data.open1930&&data.rangeLow<=data.open1930&&data.rangeHigh>=data.rangeLow&&data.up>=0&&data.down>=0))throw Error('The source returned inconsistent session prices.');
  if(Math.abs(data.up-(data.rangeHigh-data.open1930))>1e-6||Math.abs(data.down-(data.open1930-data.rangeLow))>1e-6)throw Error('The 19:30 excursions could not be verified.');
+ if(cutoff==='08:30'&&!Number.isFinite(data.decisionOpen))throw Error('The delayed source has not supplied the 08:30 opening price yet. Try again later.');
  return data;
 }
 
@@ -122,6 +123,51 @@ export function mountAutoFill(){
   }catch(error){notify(error.name==='AbortError'?'The delayed-data source timed out. Try again.':error.message||'Auto-fill failed. Try again.',true);}
   finally{clearTimeout(timeout);reading=false;button.disabled=false;button.textContent='auto-fill';}
  });
+
+ function mountNYAutoFill(){
+  const controls=document.querySelector('#ny-reference .ny-numeric-inputs');
+  if(!controls||!$('ny-date'))return false;
+  if($('ny-auto-fill'))return true;
+  const row=document.createElement('div');row.className='context-auto-fill-row';
+  const nyButton=document.createElement('button');nyButton.id='ny-auto-fill';nyButton.type='button';nyButton.className='quiet';nyButton.textContent='auto-fill · 08:30';
+  nyButton.title='Fill the 08:30 open and 19:30–08:30 high/low from delayed front-month data. Printed % uses your entered AVR. Session conditions remain your selections.';
+  row.append(nyButton);controls.before(row);
+  let busy=false;
+  nyButton.addEventListener('click',async()=>{
+   if(busy)return;
+   const date=value('ny-date'),cutoff='08:30',market=instrument.id;
+   if(date!==today()){notify('08:30 auto-fill reads today’s New York session. Select today’s date first.',true);return;}
+   const ids=['ny-date','ny-avr','ny-price','ny-range-high','ny-range-low','ny-printed'],before=ids.map(value);
+   const started=Date.now();let endpoint;
+   try{endpoint=buildAutoFillURL(document.querySelector('meta[name="sessionpath-context-endpoint"]')?.content,{market,date,cutoff,nonce:String(started)+String(++requestSequence).padStart(4,'0')});}
+   catch(e){notify(e.message,true);return;}
+   const sound=prepareBell(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+   busy=true;nyButton.disabled=true;nyButton.textContent='Reading…';
+   try{
+    const response=await fetch(endpoint,{signal:controller.signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
+    const payload=await response.json();
+    if(payload?.schema!=='sessionpath.autofill.v2')throw Error('The live-data service is unavailable. Try again later.');
+    if(!response.ok&&payload.result?.status==='ready')throw Error('Could not read the delayed-data source.');
+    const data=validateAutoFill(payload.result,{date,cutoff,market,requestStartedAt:started});
+    if(today()!==date||ids.some((id,i)=>value(id)!==before[i]))throw Error('NY inputs changed while reading. Click auto-fill again.');
+    const updates={'ny-price':data.decisionOpen,'ny-range-high':data.rangeHigh,'ny-range-low':data.rangeLow};
+    const targets=Object.keys(updates).map($);if(targets.some(x=>!x))throw Error('NY inputs are not ready. Reload and try again.');
+    for(const [id,number]of Object.entries(updates))$(id).value=String(Number(number.toFixed(6)));
+    $('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
+    if(value('ny-printed')!=='')targets.push($('ny-printed'));
+    highlightFilled(targets);playBell(sound);
+    nyButton.title=`${payload.result.contract} · ${date} · 08:30 NY open; high/low exclude the 08:30 candle. Delayed data. AVR and session conditions retain your inputs.`;
+    notify(`Done! ${payload.result.contract} · 08:30 NY`);
+   }catch(e){notify(e.name==='AbortError'?'The delayed-data source timed out. Try again.':e.message||'08:30 auto-fill failed. Try again.',true);}
+   finally{clearTimeout(timeout);busy=false;nyButton.disabled=false;nyButton.textContent='auto-fill · 08:30';}
+  });
+  return true;
+ }
+ if(!mountNYAutoFill()){
+  const observer=new MutationObserver(()=>{if(mountNYAutoFill()){observer.disconnect();clearTimeout(expiry);}});
+  observer.observe(document.body,{childList:true,subtree:true});
+  const expiry=setTimeout(()=>observer.disconnect(),30000);
+ }
 }
 
 if(typeof document!=='undefined')mountAutoFill();

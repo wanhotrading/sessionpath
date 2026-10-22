@@ -3,6 +3,12 @@
 [data-relative="above"],[data-relative="above"] .probability-value{color:#f4b66f!important;-webkit-text-fill-color:#f4b66f!important}
 [data-relative="equal"]{color:#e5edf8!important}
 .motion-paused .forecast-shine{display:none}
+[data-expansion-percentile="low"]{--expansion-ink:#b9a4ff}
+[data-expansion-percentile="lower-middle"]{--expansion-ink:#d7ccfa}
+[data-expansion-percentile="middle"]{--expansion-ink:#f5f7fc}
+[data-expansion-percentile="upper-middle"]{--expansion-ink:#f4d7b5}
+[data-expansion-percentile="high"]{--expansion-ink:#f4b66f}
+[data-expansion-percentile],[data-expansion-percentile] .probability-value{color:var(--expansion-ink)!important;-webkit-text-fill-color:var(--expansion-ink)!important}
 @media(prefers-reduced-motion:reduce){.forecast-shine{display:none}}
 
 .context-meter{background:linear-gradient(to right,#b9a4ff 0 25%,#4b7378 25% 75%,#f4b66f 75%)}
