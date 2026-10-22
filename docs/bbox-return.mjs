@@ -7,7 +7,7 @@ import {flashCopyStatus} from './copy-feedback.mjs';
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pc=x=>raised(x===null?'—':(100*x).toFixed(1)+'%');
-let dataPromise,revision=0,live=false,trackingMinute=null,onlineClock;
+let dataPromise,revision=0,live=false,trackingMinute=null,onlineClock,liveAttempt=0,returnRecorded=false;
 const groupName=g=>({0:'Legacy BBOX only · mixed states',1:'Outside both · same direction',2:'Outside both · opposite directions',3:'Outside BBOX · inside SessionPath'}[g]);
 const load=()=>dataPromise??=fetch(assetPath('bbox-return-v2.json')).then(r=>{if(!r.ok)throw Error('BBOX history could not be loaded. Try again.');return r.json();}).catch(e=>{dataPromise=null;throw e;});
 const options=(from,to,step,selected)=>Array.from({length:(to-from)/step+1},(_,i)=>from+i*step).map(m=>`<option value="${m}" ${m===selected?'selected':''}>${clock(m)}</option>`).join('');
@@ -21,7 +21,7 @@ function decayGraph(points,end,current){
  const at=points.find(p=>p.minute===current),ticks=points.filter(p=>p.minute===start||p.minute===end||p.minute%(span>180?60:30)===0);
  return `<div class="br-decay"><h3>Remaining chance of return by ${clock(end)}</h3><p class="compact-note">At each time: assuming no completed close has returned yet. The original observation stays fixed.</p><svg viewBox="0 0 640 235" role="img" aria-label="Conditional remaining BBOX return probability by ${clock(end)}. Table of every point follows.">${[0,.25,.5,.75,1].map(p=>`<line x1="48" x2="588" y1="${y(p)}" y2="${y(p)}" stroke="#ffffff19"/><text x="40" y="${y(p)+4}" text-anchor="end">${100*p}%</text>`).join('')}${ticks.map(p=>`<text x="${x(p.minute)}" y="215" text-anchor="middle">${clock(p.minute)}</text>`).join('')}<path d="${path}" fill="none" stroke="#b49bff" stroke-width="3"/>${at?`<line x1="${x(at.minute)}" x2="${x(at.minute)}" y1="24" y2="190" stroke="#fff" stroke-dasharray="3 4"/>${at.p!==null?`<circle cx="${x(at.minute)}" cy="${y(at.p)}" r="5" fill="#fff"/>`:''}`:''}</svg><details><summary>Counts and uncertainty at each five-minute close</summary><div class="br-table-scroll"><table class="strength-table"><thead><tr><th>NY time</th><th>Remaining probability</th><th>Returned / still eligible</th><th>95% interval</th></tr></thead><tbody>${points.map(p=>`<tr><td>${clock(p.minute)}</td><td>${pc(p.p)}</td><td>${p.k}/${p.n}</td><td>${p.minute===end?"Window ended":pc(p.lo)+"–"+pc(p.hi)}</td></tr>`).join('')}</tbody></table></div></details></div>`;
 }
-function stopTracking(message){live=false;$('br-live-start').textContent='Start live tracking';$('br-live-note').textContent=message;}
+function stopTracking(message){liveAttempt++;live=false;$('br-live-start').textContent='Start live tracking';$('br-live-note').textContent=message;}
 function updateClock(){
  const t=onlineClock.read();$('br-clock').textContent=`${t.clock} NY · ${t.online?'online clock':'device clock · not synced'}`;
  if(!live)return;
@@ -54,22 +54,23 @@ export function mountBBoxReturn(){
  $('br-live-start').onclick=async()=>{
   if(live){stopTracking('Live tracking paused at the last completed close.');return;}
   if(!$('br-survival').checked){$('br-live-note').textContent='First confirm “No completed close has returned” in the update section above.';return;}
+  const attempt=++liveAttempt;
   try{
-   await onlineClock.sync();const t=onlineClock.read();
+   await onlineClock.sync();if(attempt!==liveAttempt)return;const t=onlineClock.read();
    if(t.date!==$('trading-date').value)throw Error('Select today’s NY trading date before live tracking. Replay remains available manually.');
    if(!$('br-observed').value)$('br-observed').value=clock(t.completed);
    const observation=observedMinute(),end=Number($('br-end').value);
    if(observation===null||observation<185||observation>505||observation>t.completed||end<=t.completed)throw Error('Use an observation from 03:05–08:25, no later than now, and a future deadline through 08:30.');
    $('br-mode').value='exact';$('br-anchor').value=Math.floor(observation/30)*30;
-   syncTimes();trackingMinute=t.completed;$('br-now').value=String(trackingMinute);live=true;$('br-live-start').textContent='Pause live tracking';$('br-live-note').textContent='Tracking the original observation, assuming no return yet. Click “Price returned · stop” when a completed close returns.';renderBBoxReturn();updateClock();
-  }catch(e){$('br-live-note').textContent=e.message;}
+   syncTimes();returnRecorded=false;trackingMinute=t.completed;$('br-now').value=String(trackingMinute);live=true;$('br-live-start').textContent='Pause live tracking';$('br-live-note').textContent='Tracking the original observation, assuming no return yet. Click “Price returned · stop” when a completed close returns.';renderBBoxReturn();updateClock();
+  }catch(e){if(attempt===liveAttempt)$('br-live-note').textContent=e.message;}
  };
- $('br-returned').onclick=()=>{stopTracking('Return recorded by you. This remaining-chance scenario has ended. Start a new observation for a new event.');trackingMinute=null;$('br-code').value='';$('br-copy').disabled=true;$('br-result').innerHTML='<p class="notice">Returned · tracking stopped. The prior “still no return” estimate no longer applies.</p>';revision++;};
+ $('br-returned').onclick=()=>{stopTracking('Return recorded by you. This remaining-chance scenario has ended. Start a new observation for a new event.');returnRecorded=true;trackingMinute=null;$('br-survival').checked=false;$('br-code').value='';$('br-copy').disabled=true;$('br-result').innerHTML='<p class="notice">Returned · tracking stopped. The prior “still no return” estimate no longer applies.</p>';revision++;};
  setInterval(()=>{if(!document.hidden)updateClock();},1000);
  setInterval(()=>{if(!document.hidden)syncClock();},5*60000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncClock();});syncClock();
- host.addEventListener('change',e=>{stopTracking('Inputs updated. Review the observation and restart live tracking if needed.');trackingMinute=null;if(e.target.id==='br-observed'&&e.target.value){const m=checkpointMinute(e.target.value);if(m===null){revision++;$('br-code').value='';$('br-copy').disabled=true;$('br-copy-status').textContent='';$('br-result').innerHTML='<p class="notice">Choose an observation from 03:00 through 08:29 NY time.</p>';return;}$('br-anchor').value=m;syncTimes();}else if(e.target.id==='br-anchor'){ $('br-observed').value='';syncTimes();}else if(e.target.id==='br-mode')syncTimes();renderBBoxReturn();});
- document.addEventListener('change',e=>{if(['trading-date','year','replay-date','replay-toggle'].includes(e.target.id)){stopTracking('Date or archive changed. Review and restart tracking.');trackingMinute=null;queueMicrotask(renderBBoxReturn);}});
+ host.addEventListener('change',e=>{returnRecorded=false;stopTracking('Inputs updated. Review the observation and restart live tracking if needed.');trackingMinute=null;if(e.target.id==='br-observed'&&e.target.value){const m=checkpointMinute(e.target.value);if(m===null){revision++;$('br-code').value='';$('br-copy').disabled=true;$('br-copy-status').textContent='';$('br-result').innerHTML='<p class="notice">Choose an observation from 03:00 through 08:29 NY time.</p>';return;}$('br-anchor').value=m;syncTimes();}else if(e.target.id==='br-anchor'){ $('br-observed').value='';syncTimes();}else if(e.target.id==='br-mode')syncTimes();renderBBoxReturn();});
+ document.addEventListener('change',e=>{if(['trading-date','year','replay-date','replay-toggle'].includes(e.target.id)){returnRecorded=false;stopTracking('Date or archive changed. Review and restart tracking.');trackingMinute=null;queueMicrotask(renderBBoxReturn);}});
  $('scenario-form').addEventListener('submit',()=>queueMicrotask(renderBBoxReturn));
  renderBBoxReturn();
 }
@@ -77,6 +78,7 @@ export async function renderBBoxReturn({tick=false}={}){
  const host=$('br-result');if(!host)return;
  const rev=++revision,date=$('trading-date').value,year=$('year').value;
  $('br-code').value='';$('br-copy').disabled=true;$('br-copy-status').textContent='';
+ if(returnRecorded){host.innerHTML='<p class="notice">Returned · tracking stopped. Set a new observation and confirm no return to begin again.</p>';return;}
  if(!date){host.innerHTML='<p class="compact-note">Uses the trading date in Session inputs.</p>';return;}
  const anchor=Number($('br-anchor').value),end=Number($('br-end').value),side=Number($('br-side').value),group=Number($('br-group').value),now=trackingMinute??($('br-survival').checked?Number($('br-now').value):null),exact=$('br-mode').value==='exact',observation=exact?observedMinute():null;
  $('br-now').disabled=now===null||live;
