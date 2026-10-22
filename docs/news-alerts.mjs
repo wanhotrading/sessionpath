@@ -1,10 +1,10 @@
-import {safeNewsURL} from './news-feed.mjs?v=catalysts-20261022-r2';
+import {safeNewsURL, NEWS_SOURCES} from './news-feed.mjs?v=fast-news-20261022';
 
 export const NEWS_ALERT_MAX_AGE_MS = 10 * 60_000;
 export const NEWS_ALERT_MAX_SEEN = 600;
 
 const VERSION = 1;
-const SOURCE_IDS = ['financialjuice', 'wallstreetcn'];
+const SOURCE_IDS = NEWS_SOURCES.map(source => source.id);
 const FUTURE_ALLOWANCE_MS = 5 * 60_000;
 
 function dateValue(value, now) {
@@ -28,7 +28,7 @@ function validSeenEntry(value, now) {
   const publishedAt = dateValue(value.publishedAt, now);
   const url = urlKey(value.url, value.source);
   const title = titleKey(value.titleKey);
-  if (!publishedAt || !url || !title) return null;
+  if (!publishedAt || !url || !title || value.source === 'abcnews' && Date.parse(publishedAt) < now - 7*86400000) return null;
   return {id: value.id.trim(), source: value.source, publishedAt, url, titleKey: title, priority: ['P1','P2','P3'].includes(value.priority) ? value.priority : null, version: Math.max(1, Math.min(999, Number(value.version) || 1)), history: (Array.isArray(value.history) ? value.history : []).filter(v => typeof v === 'string').slice(-5).map(v => v.slice(0,400))};
 }
 

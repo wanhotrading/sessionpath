@@ -1,14 +1,15 @@
-import {directionLabel} from './news-analysis.mjs?v=catalysts-20261022-r2';
-import {loadNews, filterNews, formatNewsTime} from './news-feed.mjs?v=catalysts-20261022-r2';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=catalysts-20261022-r2';
+import {createNewsPoller} from './news-poller.mjs?v=fast-news-20261022';
+import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=fast-news-20261022';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=fast-news-20261022';
 import {createNewsWhistle} from './news-whistle.mjs';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
 const ALERT_STATE_KEY = 'sessionpath-news-alert-seen-v1';
-const REFRESH_MS = 120_000;
+const REFRESH_MS = 10_000;
 const STALE_MS = 20 * 60_000;
-const SOURCE_NAMES = {financialjuice: 'FinancialJuice', wallstreetcn: 'WallstreetCN · 华尔街见闻'};
+const SOURCE_NAMES = Object.fromEntries(NEWS_SOURCES.map(source => [source.id,source.name]));
 const TOPICS = new Set(['all', 'oil', 'geopolitics', 'indices', 'trump']);
 const SOURCES = new Set(['all', ...Object.keys(SOURCE_NAMES)]);
 
@@ -69,10 +70,12 @@ export function setupNewsDesk() {
   let persistentToast = false;
   let queuedAlerts = [];
   const storedAudit = storedJSON('sessionpath-news-audit-v1');
-  let audit = Array.isArray(storedAudit) ? storedAudit.slice(-300) : [];
+  let audit = Array.isArray(storedAudit) ? storedAudit.filter(entry => entry.analysis?.source_name !== 'abcnews').slice(-300) : [];
   let feed = null;
-  let controller = null;
-  let refreshTimer = null;
+  let poller = null;
+  let activeItem = null;
+  let lastWhistleAt = 0;
+  let lastListSignature = null;
   let lastAttempt = 0;
   let loading = false;
   let failed = false;
@@ -129,7 +132,7 @@ export function setupNewsDesk() {
   const sourceLabel = element('label', '', 'Source');
   const sourceSelect = element('select');
   sourceSelect.id = 'news-source';
-  for (const [value, label] of [['all', 'Both sources'], ...Object.entries(SOURCE_NAMES)]) {
+  for (const [value, label] of [['all', 'All sources'], ...Object.entries(SOURCE_NAMES)]) {
     const option = element('option', '', label);
     option.value = value;
     sourceSelect.append(option);
@@ -161,7 +164,7 @@ export function setupNewsDesk() {
   const exportLog = element('button', 'news-alert-control', 'Export alert log');
   exportLog.type = 'button';
   exportLog.addEventListener('click', () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify({format:'sessionpath-news-audit-v1', records:audit}, null, 2)], {type:'application/json'}));
+    const url = URL.createObjectURL(new Blob([JSON.stringify({format:'sessionpath-news-audit-v1', records:audit.filter(entry => entry.analysis?.source_name !== 'abcnews')}, null, 2)], {type:'application/json'}));
     const link = element('a'); link.href = url; link.download = 'SessionPath-news-alert-log.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   alertControls.append(alertsToggle, soundToggle, testAlert, exportLog);
@@ -232,7 +235,7 @@ export function setupNewsDesk() {
     trigger.classList.toggle('has-news-alerts', preferences.alerts);
     trigger.title = 'Oil, US indices & policy headlines' + (preferences.alerts ? ' · alerts on' : '');
     alertHelp.textContent = preferences.alerts
-      ? 'P1 stays until dismissed; P2 fades; commentary stays in the feed. Checks every 2 min while visible.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
+      ? 'Fast checks: 10s · CNBC: 30s · ABC: 60s while visible. New alerts appear and whistle immediately when received; publishers may be delayed.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -253,7 +256,7 @@ export function setupNewsDesk() {
 
   function dismissLater() {
     clearTimeout(toastTimer);
-    if (!persistentToast && !toastHovered && !toast.contains(document.activeElement)) toastTimer = setTimeout(hideToast, 9000);
+    if (!persistentToast && !toastHovered && !toast.contains(document.activeElement)) toastTimer = setTimeout(nextQueuedAlert, 9000);
   }
 
   function positionToast() {
@@ -272,26 +275,36 @@ export function setupNewsDesk() {
     }
   }
 
-  function showAlert(items, {test = false} = {}) {
+  function nextQueuedAlert() {
+    hideToast(); activeItem = null;
+    if (queuedAlerts.length) { const pending = queuedAlerts; queuedAlerts = []; showAlert(pending, {replay:true}); }
+  }
+  function showAlert(items, {test = false, replay = false} = {}) {
     if (!test && (!preferences.alerts || !items.length || document.hidden)) return;
-    if (!test && !toast.hidden && persistentToast && !items.some(item => item.url === toastHeadline.href && item.analysis?.event_version > 1)) { queuedAlerts = [...queuedAlerts, ...items].slice(-50); return; }
-    const item = [...items].sort((a,b) => (a.analysis?.priority || 'P2').localeCompare(b.analysis?.priority || 'P2'))[0];
+    const ordered = [...items].sort((a,b) => (a.analysis?.priority || 'P2').localeCompare(b.analysis?.priority || 'P2'));
+    const item = ordered[0];
+    if (!test) {
+      if (!replay && !toast.hidden && activeItem && activeItem.id !== item.id) queuedAlerts.push(activeItem);
+      queuedAlerts.push(...ordered.slice(1));
+      // Keep unresolved major alerts, with bounded deduplication by story version.
+      queuedAlerts = [...new Map(queuedAlerts.filter(previous => previous.id !== item.id).map(previous => [previous.id,previous])).values()].slice(-50);
+      activeItem = item;
+    }
     persistentToast = !test && item?.analysis?.priority === 'P1';
-    toastHeading.textContent = test ? 'Test news alert' : items.length > 1 ? `${items.length} new matching headlines` : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}`;
+    toastHeading.textContent = test ? 'Test news alert' : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}${queuedAlerts.length ? ` · ${queuedAlerts.length} earlier alerts` : ''}`;
     toastHeadline.textContent = test ? 'Your market catalyst alerts are ready.' : item.title;
     const url = test ? null : safeHeadlineUrl(item.url);
     if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
     toastDetail.textContent = test
       ? (whistle.ready && preferences.sound ? 'Listen for the short whistle.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Whistle is muted. Popups still work.')
-      : `${item.analysis ? directionLabel(item.analysis.direction) + ' · ' + item.analysis.rationale + ' ' : ''}${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${items.length > 1 ? ` · +${items.length - 1} more in News` : ''}`;
+      : `${item.analysis ? directionLabel(item.analysis.direction) + ' · ' + item.analysis.rationale + ' ' : ''}${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${ordered.length>1 ? ` · +${ordered.length-1} new in News` : ''}`;
     toast.hidden = false;
     positionToast();
-    if (preferences.sound) whistle.play();
+    if (preferences.sound && !replay && (test || Date.now()-lastWhistleAt >= 3000)) { if (whistle.play()) lastWhistleAt = Date.now(); }
     dismissLater();
   }
-
-  toastDismiss.addEventListener('click', () => { hideToast(); if (queuedAlerts.length) { const pending = queuedAlerts; queuedAlerts = []; showAlert(pending); } });
-  toastOpen.addEventListener('click', () => { hideToast(); openNews(); });
+  toastDismiss.addEventListener('click', nextQueuedAlert);
+  toastOpen.addEventListener('click', () => { queuedAlerts=[]; activeItem=null; hideToast(); openNews(); });
   toast.addEventListener('mouseenter', () => { toastHovered = true; clearTimeout(toastTimer); });
   toast.addEventListener('mouseleave', () => { toastHovered = false; dismissLater(); });
   toast.addEventListener('focusin', () => clearTimeout(toastTimer));
@@ -302,7 +315,7 @@ export function setupNewsDesk() {
     savePreferences();
     if (!preferences.alerts) { queuedAlerts = []; hideToast(); }
     else unlockSound();
-    if (!controller) refreshNews();
+    refreshNews();
   });
   soundToggle.addEventListener('click', () => {
     preferences.sound = !preferences.sound;
@@ -336,27 +349,11 @@ export function setupNewsDesk() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
   }
 
-  function stopRefresh() {
-    if (refreshTimer !== null) clearTimeout(refreshTimer);
-    refreshTimer = null;
-  }
-
   function scheduleRefresh() {
-    stopRefresh();
-    if ((!dialog.open && !preferences.alerts) || document.hidden) return;
-    refreshTimer = setTimeout(() => {
-      refreshTimer = null;
-      refreshNews();
-    }, Math.max(1000, REFRESH_MS - (Date.now() - lastAttempt)));
+    if (!document.hidden && (dialog.open || preferences.alerts)) poller?.start();
+    else poller?.stop();
   }
-
-  function interruptRefresh() {
-    stopRefresh();
-    if (controller) controller.abort();
-    controller = null;
-    loading = false;
-  }
-
+  function interruptRefresh() { poller?.stop(); loading = false; }
   function renderSources() {
     sourceStatus.replaceChildren();
     for (const [id, name] of Object.entries(SOURCE_NAMES)) {
@@ -373,7 +370,10 @@ export function setupNewsDesk() {
       else if (old) label = 'Last checked over 20 min ago';
       else label = source.status === 'ok' ? 'Connected' : 'Not available';
       card.append(element('span', 'news-source-state', label));
+      if (unavailable && source.error) card.title=source.error;
+      card.append(element('span','news-source-time',`Checks every ${(NEWS_SOURCES.find(entry => entry.id === id)?.pollMs || 10000)/1000}s`));
       if (source?.latestAt) card.append(element('span', 'news-source-time', 'Latest match ' + newsTime(source.latestAt)));
+      if (source?.fetchedAt) card.append(element('span','news-source-time','Checked '+new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(source.fetchedAt))+' ET'));
       sourceStatus.append(card);
     }
   }
@@ -393,25 +393,30 @@ export function setupNewsDesk() {
 
   function render() {
     renderSources();
-    refresh.disabled = loading;
-    refresh.textContent = loading ? 'Refreshing…' : 'Refresh';
+    refresh.disabled = poller?.snapshot().pending.length === NEWS_SOURCES.length;
+    refresh.textContent = refresh.disabled ? 'Checking…' : 'Refresh';
     listArea.setAttribute('aria-busy', String(loading));
     const allFailed = feed?.sources?.length > 0 && feed.sources.every(source => source.status === 'error');
     const partialFailure = feed?.sources?.some(source => source.status === 'error');
     notice.hidden = !failed && !partialFailure;
     notice.textContent = failed || allFailed
       ? 'Headlines could not be refreshed. Any saved headlines below may be out of date.'
-      : 'One source is unavailable. Headlines from the other source are still shown.';
+      : 'Some sources are unavailable. Headlines from connected sources are still shown.';
 
-    const rawItems = Array.isArray(feed?.items) ? feed.items : [];
+    const rawItems = (Array.isArray(feed?.items) ? feed.items : []).filter(item => item.source !== 'abcnews' || Date.parse(item.publishedAt) >= Date.now()-7*86400000);
     const relevantItems = rawItems.filter(item => Array.isArray(item.categories) && item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category)));
     const items = filterNews(relevantItems, filters)
       .filter(item => safeHeadlineUrl(item.url))
       .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
     const updated = feed?.fetchedAt ? ' · Checked ' + newsTime(feed.fetchedAt) : '';
-    const availability = failed || allFailed ? 'Refresh unavailable · ' : partialFailure ? 'One source unavailable · ' : '';
+    const availability = failed || allFailed ? 'Refresh unavailable · ' : partialFailure ? 'Some sources unavailable · ' : '';
     status.textContent = loading && !feed ? 'Loading relevant headlines…'
       : `${availability}${items.length} ${items.length === 1 ? 'headline' : 'headlines'}${updated}`;
+    const signature = JSON.stringify([items.map(item=>[item.id,item.title,item.analysis?.event_version]),filters,Boolean(feed),failed,allFailed]);
+    if (lastListSignature === signature) return;
+    lastListSignature = signature;
+    const oldScroll = listArea.scrollTop;
+    const expanded = new Set([...listArea.querySelectorAll('li[data-story-id]')].filter(row=>row.querySelector('details[open]')).map(row=>row.dataset.storyId));
     listArea.replaceChildren();
 
     if (!feed && loading) {
@@ -439,7 +444,7 @@ export function setupNewsDesk() {
 
     const list = element('ol', 'news-headline-list');
     for (const item of items) {
-      const row = element('li', 'news-headline');
+      const row = element('li', 'news-headline'); row.dataset.storyId = item.id;
       const meta = element('div', 'news-headline-meta');
       meta.append(element('span', 'news-headline-source', SOURCE_NAMES[item.source] || 'News source'));
       const time = element('time', 'news-headline-time', newsTime(item.publishedAt));
@@ -464,69 +469,41 @@ export function setupNewsDesk() {
         summary.dataset.priority = a.priority;
         summary.append(element('strong', '', `${a.priority} · ${a.event_type}`), element('span', '', `${directionLabel(a.direction)} · ${a.policy_status}${a.delayed ? ' · Delayed' : ''}`), element('p', '', a.rationale));
         if (a.numbers) summary.append(element('p', 'news-event-numbers', `Actual ${a.numbers.actual} / expected ${a.numbers.consensus ?? 'unavailable'} / surprise ${a.numbers.surprise ?? 'unavailable'} ${a.numbers.unit}`));
-        const details = element('details', 'news-event-details');
+        const details = element('details', 'news-event-details'); details.open = expanded.has(item.id);
         details.append(element('summary', '', 'Evidence & uncertainty'));
         for (const value of [`Assets: ${Object.entries(a.direction_by_asset).map(([asset, direction]) => asset + ': ' + directionLabel(direction)).join('; ')}`, `Source: ${a.source_authenticity}`, `Evidence: ${a.evidence_excerpt}`, `Received: ${newsTime(a.received_at_utc)}`, `Version: ${a.event_version || 1} · ${a.novelty || 'Publisher headline'}`, `Missing: ${a.missing_fields.join('; ')}`, ...a.invalidation_checks, ...(a.previous_headlines || []).map(v => 'Previous wording: ' + v)]) details.append(element('p', '', value));
+        if (item.source === 'abcnews') summary.append(element('p','','Headlines supplied by ABCNEWS.com. Copyright © ABC, Inc.'));
         row.append(summary, details);
       }
       list.append(row);
     }
-    listArea.append(list);
+    listArea.append(list); listArea.scrollTop = oldScroll;
   }
 
-  async function refreshNews() {
-    if (controller || (!dialog.open && !preferences.alerts) || document.hidden) return;
-    stopRefresh();
-    const currentController = new AbortController();
-    controller = currentController;
-    lastAttempt = Date.now();
-    loading = true;
-    render();
-    try {
-      const next = await loadNews({signal: currentController.signal});
-      if (controller !== currentController || currentController.signal.aborted) return;
-      if (!next || !Array.isArray(next.items) || !Array.isArray(next.sources)) throw new Error('Invalid news response');
-      // Keep the last successful headlines for a source that temporarily fails.
-      // Their source card remains visibly unavailable instead of implying freshness.
-      const failedSources = new Set(next.sources.filter(source => source.status === 'error').map(source => source.id));
-      const received = new Set(next.items.map(item => item.source + ':' + item.id));
-      const retained = (feed?.items || []).filter(item => failedSources.has(item.source) && !received.has(item.source + ':' + item.id));
-      feed = {
-        ...next,
-        items: [...next.items, ...retained],
-        sources: next.sources.map(source => source.status === 'error'
-          ? {...source, latestAt: source.latestAt || feed?.sources?.find(previous => previous.id === source.id)?.latestAt}
-          : source)
-      };
-      failed = false;
-      const receivedAlerts = collectNewsAlerts(alertState, next);
-      alertState = receivedAlerts.state;
-      feed.items = [...receivedAlerts.items, ...retained];
-      saveSeen();
-      const matchedAlerts = filterNews(receivedAlerts.newItems, filters).filter(item => safeHeadlineUrl(item.url));
-      const eligible = new Set(matchedAlerts.map(item => item.id));
-      for (const item of receivedAlerts.items) {
-        const previous = audit.findLast(entry => entry.story_id === item.id);
-        if (previous?.headline === item.title) continue;
-        audit.push({story_id:item.id, headline:item.title, recorded_at_utc:new Date().toISOString(), analysis:item.analysis,
-          popup_eligible:preferences.alerts && eligible.has(item.id), decision:eligible.has(item.id) ? (preferences.alerts ? 'Eligible for popup' : 'Alerts disabled') : item.analysis?.priority === 'P3' ? 'Feed only: commentary / insufficient event detail' : 'Silent baseline, already seen, stale or filtered out'});
-      }
-      audit = audit.slice(-300);
-      try { localStorage.setItem('sessionpath-news-audit-v1', JSON.stringify(audit)); } catch {}
-      showAlert(matchedAlerts);
-    } catch (error) {
-      if (controller !== currentController || currentController.signal.aborted || error?.name === 'AbortError') return;
-      failed = true;
-    } finally {
-      if (controller === currentController) {
-        controller = null;
-        loading = false;
-        render();
-        scheduleRefresh();
-      }
+  function receiveSource(result) {
+    const id = result.source.id;
+    const next = {items:result.items,sources:[result.source],fetchedAt:result.source.fetchedAt};
+    const retained = (feed?.items || []).filter(item => item.source !== id || result.source.status !== 'ok');
+    const receivedAlerts = collectNewsAlerts(alertState, next);
+    alertState = receivedAlerts.state; saveSeen();
+    const reports = new Map((feed?.sources || []).map(source=>[source.id,source])); reports.set(id,result.source);
+    feed = {items:[...receivedAlerts.items,...retained], sources:[...reports.values()], fetchedAt:next.fetchedAt};
+    failed=false;
+    const matchedAlerts = filterNews(receivedAlerts.newItems, filters).filter(item=>safeHeadlineUrl(item.url));
+    const eligible = new Set(matchedAlerts.map(item=>item.id));
+    for (const item of receivedAlerts.items) {
+      if (item.source === 'abcnews') continue; // Publisher permits current display, not a permanent archive.
+      const previous = audit.findLast(entry=>entry.story_id === item.id);
+      if (previous?.headline === item.title) continue;
+      audit.push({story_id:item.id,headline:item.title,recorded_at_utc:new Date().toISOString(),analysis:item.analysis,popup_eligible:preferences.alerts && eligible.has(item.id),decision:eligible.has(item.id)?'Eligible for popup':'Silent baseline, duplicate, stale, feed-only or filtered'});
     }
+    audit=audit.slice(-300);try{localStorage.setItem('sessionpath-news-audit-v1',JSON.stringify(audit));}catch{}
+    render(); showAlert(matchedAlerts);
   }
-
+  function refreshNews() {
+    if (document.hidden || (!dialog.open && !preferences.alerts)) return;
+    lastAttempt=Date.now(); poller?.start(); poller?.refresh();
+  }
   function openNews() {
     unlockSound();
     for (const openDialog of document.querySelectorAll('dialog[open]')) if (openDialog !== dialog) openDialog.close();
@@ -571,6 +548,11 @@ export function setupNewsDesk() {
   window.addEventListener('pageshow', event => {
     if (event.persisted && (dialog.open || preferences.alerts)) refreshNews();
   });
+  poller = createNewsPoller({sources:NEWS_SOURCES,loadSource:loadNewsSource,onResult:receiveSource,onActivity:pending=>{
+    loading=pending.length>0;
+    refresh.disabled=pending.length===NEWS_SOURCES.length; refresh.textContent=refresh.disabled?'Checking…':'Refresh';
+    listArea.setAttribute('aria-busy',String(loading));
+  }});
   if (preferences.alerts && !document.hidden) refreshNews();
 }
 

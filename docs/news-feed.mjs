@@ -1,12 +1,14 @@
-import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=catalysts-20261022-r2';
+import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=fast-news-20261022';
 // Public publisher feeds only. No account, proxy, article body, or stored credentials.
 export const NEWS_SOURCES = Object.freeze([
-  Object.freeze({id: 'financialjuice', name: 'FinancialJuice', url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
-  Object.freeze({id: 'wallstreetcn', name: 'WallstreetCN · 华尔街见闻', url: 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=100'})
+  Object.freeze({id: 'financialjuice', name: 'FinancialJuice', pollMs: 10000, kind:'rss', hosts:['financialjuice.com','www.financialjuice.com'], url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
+  Object.freeze({id: 'wallstreetcn', name: 'WallstreetCN · 华尔街见闻', pollMs: 10000, kind:'json', hosts:['wallstreetcn.com','www.wallstreetcn.com','wallstcn.com','www.wallstcn.com'], url: 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=100'}),
+  Object.freeze({id:'cnbc',name:'CNBC · Top news',pollMs:30000,kind:'rss',hosts:['cnbc.com','www.cnbc.com'],url:'https://www.cnbc.com/id/100003114/device/rss/rss.html'}),
+  Object.freeze({id:'abcnews',name:'ABC News · World',pollMs:60000,kind:'rss',retentionMs:7*86400000,hosts:['abcnews.go.com','abcnews.com','www.abcnews.com'],url:'https://abcnews.com/abcnews/internationalheadlines'})
 ]);
 
 const OIL = /\b(?:crude(?:\s+oil)?|wti|brent|opec\+?|petroleum|cushing|oilfield|oilfields)\b|(?:原油|石油|油價|油价|油田|油輪|油轮|油儲|油储|油庫|油库|庫欣|库欣|布倫特|布伦特|布蘭特|美油|布油)/iu;
-const OIL_CONTEXT = /\boil\b.{0,45}\b(?:prices?|market|futures?|inventor\w*|supply|output|production|exports?|imports?|refiner\w*|barrels?|tanker\w*|pipeline\w*|demand|reserve\w*|drill\w*|wells?)\b|\boil\s+(?:rises?|rose|rall\w*|gains?|climbs?|falls?|fell|drops?|declin\w*|slips?|surges?|slumps?|settles?)\b|\b(?:prices?|futures?|inventor\w*|supply|exports?|imports?|tanker\w*|pipeline\w*|demand|reserve\w*)\b.{0,30}\boil\b|\b(?:eia|api)\b.{0,35}\b(?:inventor\w*|barrels?|draw|build)\b/iu;
+const OIL_CONTEXT = /\boil\b.{0,45}\b(?:prices?|market|futures?|inventor\w*|supply|output|production|exports?|imports?|refiner\w*|barrels?|tanker\w*|pipeline\w*|demand|reserve\w*|drill\w*|wells?)\b|\boil\s+(?:rises?|rose|rall\w*|gains?|climbs?|falls?|fell|drops?|declin\w*|slips?|surges?|slumps?|settles?)\b|\b(?:prices?|futures?|barrels?|inventor\w*|supply|exports?|imports?|tanker\w*|pipeline\w*|demand|reserve\w*)\b.{0,30}\boil\b|\b(?:eia|api)\b.{0,35}\b(?:inventor\w*|barrels?|draw|build)\b/iu;
 const NON_PETROLEUM_OIL = /\b(?:olive|cooking|edible|vegetable|palm|soybean|canola|essential)\s+oil\b|\boil\s+paint\w*\b/iu;
 const GEO_DIRECT = /\b(?:geopolitic\w*|cold\s+war|(?:regional|military|border)\s+tensions?|ceasefire|airstrikes?|invasion|ballistic\s+missiles?|nuclear\s+(?:talks|deal|threat)|armed\s+conflict)\b|(?:地緣政治|地缘政治|冷戰|冷战|緊張局勢|紧张局势|停火|空襲|空袭|入侵|導彈|导弹|飛彈|飞弹|核談判|核谈判|武裝衝突|武装冲突)/iu;
 const GEO_PLACE = /\b(?:iran|israel|russia|ukraine|lebanon|gaza|yemen|syria|taiwan|china|beijing|moscow|kremlin|tehran|houthi\w*|hamas|hezbollah|hormuz|red\s+sea|middle\s+east|north\s+korea|south\s+china\s+sea|pakistan|india|nato)\b|(?:伊朗|以色列|俄羅斯|俄罗斯|烏克蘭|乌克兰|黎巴嫩|加沙|葉門|也门|敘利亞|叙利亚|台灣|台湾|中國|中国|北京|莫斯科|德黑蘭|德黑兰|胡塞|哈馬斯|哈马斯|真主黨|真主党|霍爾木茲|霍尔木兹|紅海|红海|中東|中东|朝鮮|朝鲜|南海|巴基斯坦|印度|北約|北约)/iu;
@@ -43,7 +45,7 @@ export function cleanNewsText(text) {
 export function safeNewsURL(value, source) {
   try {
     const url = new URL(String(value || ''));
-    const hosts = source === 'financialjuice' ? ['financialjuice.com', 'www.financialjuice.com'] : source === 'wallstreetcn' ? ['wallstreetcn.com', 'www.wallstreetcn.com', 'wallstcn.com', 'www.wallstcn.com'] : [];
+    const hosts = NEWS_SOURCES.find(item => item.id === source)?.hosts || [];
     if (url.protocol !== 'https:' || url.username || url.password || url.port || !hosts.includes(url.hostname.toLowerCase())) return null;
     return url.href;
   } catch { return null; }
@@ -63,26 +65,28 @@ function firstHeadline(text) {
   return first.length > 180 ? `${first.slice(0, 179).trimEnd()}…` : first;
 }
 
-export function normalizeFinancialJuiceRecords(records, {now = Date.now()} = {}) {
+export function normalizeRSSRecords(records, {now = Date.now(), source = 'financialjuice'} = {}) {
+  if (!NEWS_SOURCES.some(entry => entry.id === source && entry.kind === 'rss')) throw Error('Unknown RSS source.');
   return records.flatMap(record => {
     const title = cleanNewsText(record.title).replace(/^FinancialJuice\s*:\s*/iu, '').replace(/\s+/gu, ' ').trim() || firstHeadline(record.description);
-    const url = safeNewsURL(record.link, 'financialjuice');
+    const url = safeNewsURL(record.link, source);
     const publishedAt = normalizeNewsDate(record.pubDate, now);
     const categories = classifyNews(title);
-    if (!title || !url || !publishedAt || !categories.length) return [];
-    return [{id: `financialjuice:${record.guid || url}`, source: 'financialjuice', title, url, publishedAt, categories, raw_text: title, receivedAt: new Date(now).toISOString(), analysis: analyzeNews({title, categories, publishedAt, url, source: 'financialjuice'}, {now})}];
+    if (!title || !url || !publishedAt || !categories.length || source === 'abcnews' && (!cleanNewsText(record.title) || Date.parse(publishedAt) < now - 7*86400000)) return [];
+    return [{id: `${source}:${record.guid || url}`, source, title, url, publishedAt, categories, raw_text:title, receivedAt:new Date(now).toISOString(), analysis:analyzeNews({title,categories,publishedAt,url,source},{now})}];
   });
 }
-
-export function parseFinancialJuiceXML(xml, {now = Date.now(), parseXML} = {}) {
+export const normalizeFinancialJuiceRecords = (records, options={}) => normalizeRSSRecords(records, {...options,source:'financialjuice'});
+export function parseNewsRSS(xml, {now = Date.now(), parseXML, source = 'financialjuice'} = {}) {
   if (typeof xml !== 'string' || !xml.trim()) throw Error('The publisher returned an empty feed.');
   const parser = parseXML || (typeof DOMParser !== 'undefined' ? value => new DOMParser().parseFromString(value, 'application/xml') : null);
   if (!parser) throw Error('This browser cannot read the publisher’s RSS feed.');
   const doc = parser(xml);
   if (!doc || doc.querySelector('parsererror') || !doc.querySelector('rss, feed')) throw Error('The publisher returned an unreadable RSS feed.');
   const records = Array.from(doc.querySelectorAll('item')).map(item => Object.fromEntries(['title', 'link', 'pubDate', 'guid', 'description'].map(key => [key, item.querySelector(key)?.textContent || ''])));
-  return normalizeFinancialJuiceRecords(records, {now});
+  return normalizeRSSRecords(records, {now,source});
 }
+export const parseFinancialJuiceXML = (xml, options={}) => parseNewsRSS(xml,{...options,source:'financialjuice'});
 
 export function normalizeWallstreetCN(payload, {now = Date.now()} = {}) {
   if (payload?.code !== 20000 || !Array.isArray(payload?.data?.items)) throw Error('The publisher returned an unreadable headline feed.');
@@ -123,7 +127,9 @@ export function formatNewsTime(date) {
 
 function abortError(message = 'Request cancelled.') { const error = new Error(message); error.name = 'AbortError'; return error; }
 
-async function fetchSource(source, {signal, fetchImpl, now, timeoutMs, parseXML}) {
+export async function loadNewsSource(source, {signal, fetchImpl = globalThis.fetch, now = Date.now, timeoutMs = 8000, parseXML} = {}) {
+  if (!NEWS_SOURCES.some(entry => entry.id === source?.id && entry.url === source?.url)) throw Error('Unknown news source.');
+  let retryAfterMs = null;
   const controller = new AbortController();
   let timer, rejectStopped;
   const stopped = new Promise((_, reject) => { rejectStopped = reject; });
@@ -133,12 +139,15 @@ async function fetchSource(source, {signal, fetchImpl, now, timeoutMs, parseXML}
   timer = setTimeout(() => { controller.abort(); rejectStopped(abortError('The publisher did not respond in time.')); }, timeoutMs);
   try {
     const read = async () => {
-      const response = await fetchImpl(source.url, {signal: controller.signal, credentials: 'omit', mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer', headers: {Accept: source.id === 'financialjuice' ? 'application/rss+xml, application/xml, text/xml' : 'application/json'}});
-      if (!response.ok) throw Error(`The publisher returned HTTP ${response.status}.`);
+      const response = await fetchImpl(source.url, {signal: controller.signal, credentials: 'omit', mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer', headers: {Accept: source.kind === 'rss' ? 'application/rss+xml, application/xml, text/xml' : 'application/json'}});
+      if (!response.ok) {
+        if ([429,503].includes(response.status)) { const retry = response.headers?.get?.('retry-after'); if (retry) { const milliseconds = /^\d+(?:\.\d+)?$/.test(retry) ? Number(retry)*1000 : Date.parse(retry)-now(); if (Number.isFinite(milliseconds) && milliseconds>0) retryAfterMs=Math.min(milliseconds,3600000); } }
+        throw Error(`The publisher returned HTTP ${response.status}.`);
+      }
       const text = await response.text();
       if (text.length > 2 * 1024 * 1024) throw Error('The publisher’s feed is unexpectedly large.');
       if (controller.signal.aborted) throw abortError();
-      if (source.id === 'financialjuice') return parseFinancialJuiceXML(text, {now: now(), parseXML});
+      if (source.kind === 'rss') return parseNewsRSS(text, {now: now(), parseXML, source:source.id});
       let json; try { json = JSON.parse(text); } catch { throw Error('The publisher returned invalid JSON.'); }
       return normalizeWallstreetCN(json, {now: now()});
     };
@@ -146,11 +155,12 @@ async function fetchSource(source, {signal, fetchImpl, now, timeoutMs, parseXML}
     const latestAt = items.reduce((latest, item) => !latest || item.publishedAt > latest ? item.publishedAt : latest, null);
     return {items, source: {id: source.id, name: source.name, status: 'ok', fetchedAt: new Date(now()).toISOString(), latestAt}};
   } catch (error) {
-    return {items: [], source: {id: source.id, name: source.name, status: 'error', fetchedAt: startedAt, latestAt: null, error: signal?.aborted ? 'Request cancelled.' : error?.name === 'AbortError' ? (error.message === 'The publisher did not respond in time.' ? error.message : 'The publisher did not respond in time.') : error?.message || 'This publisher could not be reached.'}};
+    return {items: [], source: {id: source.id, name: source.name, status: 'error', fetchedAt: startedAt, latestAt: null, retryAfterMs, error: signal?.aborted ? 'Request cancelled.' : error?.name === 'AbortError' ? (error.message === 'The publisher did not respond in time.' ? error.message : 'The publisher did not respond in time.') : error?.message || 'This publisher could not be reached.'}};
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
 }
 
-export async function loadNews({signal, fetchImpl = globalThis.fetch, now = Date.now, timeoutMs = 12000, parseXML} = {}) {
-  const results = await Promise.all(NEWS_SOURCES.map(source => fetchSource(source, {signal, fetchImpl, now, timeoutMs, parseXML})));
+export async function loadNews({signal, fetchImpl = globalThis.fetch, now = Date.now, timeoutMs = 8000, parseXML, sources = NEWS_SOURCES} = {}) {
+  const results = await Promise.all(sources.map(source => loadNewsSource(source, {signal, fetchImpl, now, timeoutMs, parseXML})));
   return {items: dedupeNews(results.flatMap(result => result.items)), sources: results.map(result => result.source), fetchedAt: new Date(now()).toISOString()};
 }
+

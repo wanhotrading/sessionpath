@@ -2,11 +2,11 @@
 // Publisher text is always data. Unknown facts are never filled from assumptions.
 const match = (text, pattern) => pattern.test(text);
 const OIL = /\b(?:crude|wti|brent|opec|petroleum|oilfield|cushing)\b|原油|石油|油田|欧佩克|歐佩克/iu;
-const INDICES = /\b(?:cpi|pce|ppi|fomc|fed|federal reserve|payrolls?|nfp|unemployment|jobless|jolts|adp|gdp|ism|pmi|retail sales|nasdaq|s&p|dow jones|russell|treasur\w*|tariffs?|duties|export controls|debt ceiling|bank failure|circuit breaker)\b|美联储|美聯儲|非农|非農|失业|失業|关税|關稅|纳指|納指|标普|標普|通胀|通脹/iu;
+const INDICES = /\b(?:cpi|pce|ppi|fomc|fed|federal reserve|payrolls?|nfp|unemployment|jobless|jolts|adp|gdp|ism|pmi|retail sales|nasdaq|s&p|dow jones|russell\s*(?:2000|index)|treasur\w*|tariffs?|duties|export controls|debt ceiling|bank failure|circuit breaker)\b|美联储|美聯儲|非农|非農|失业|失業|关税|關稅|纳指|納指|标普|標普|通胀|通脹/iu;
 const TRUMP = /\btrump\b|特朗普|川普/iu;
 const POLICY = /\b(?:tariffs?|duties|trade|sanctions?|iran|oil|fed|rates?|tax|military|ceasefire|china|export|budget|spending|troops|blockade|chips)\b|关税|關稅|制裁|伊朗|石油|利率|贸易|貿易|停火|中国|中國|军|軍|税|稅/iu;
 export function extraNewsCategories(text) {
-  const foreign = /\b(?:china|chinese|russia|russian|uk|britain|eurozone|germany|japan|canada|australia)\b|中国|中國|日本|欧元区|歐元區/iu.test(text) && !/\b(?:us|u\.s\.|united states|fed|fomc|nasdaq|tariffs?|duties|export controls)\b|美国|美國|美联储|美聯儲|关税|關稅/iu.test(text);
+  const foreign = /\b(?:china|chinese|russia|russian|uk|britain|eurozone|germany|german|japan|japanese|canada|canadian|australia|australian|snb|swiss)\b|中国|中國|日本|欧元区|歐元區/iu.test(text) && !/\b(?:us|u\.s\.|united states|fed|fomc|nasdaq|tariffs?|duties|export controls)\b|美国|美國|美联储|美聯儲|关税|關稅/iu.test(text);
   const genericMacro = /^(?:retail sales|gdp|pmi|ism)$/iu.test(text.trim());
   return [...(INDICES.test(text) && !foreign && !genericMacro ? ['indices'] : []), ...(TRUMP.test(text) && POLICY.test(text) ? ['trump'] : [])];
 }
@@ -35,7 +35,7 @@ export function analyzeNews(item, {now = Date.now()} = {}) {
   const apply = (id, label, p, d, why) => { rules.push(id); event = label; priority = p; direction = d; rationale = why; };
   const oil = OIL.test(text) || categories.includes('oil');
   const trump = TRUMP.test(text);
-  const forecast = (/\b(?:expects?|forecasts?|preview|ahead of|due tomorrow|analyst|could|may|might|considering|proposes?)\b|预计|預計|可能|拟议|擬議/iu.test(text) || /\bexpected\b/iu.test(text) && !/\b(?:actual|comes? in|draw|build|cuts?|raises?|holds?|hikes?|rose|fell|beat|miss)\b/iu.test(text));
+  const forecast = !/\bactual\b|\bcomes? in\b/iu.test(text) && (/\b(?:expects?|forecasts?|preview|ahead of|due tomorrow|analyst|could|may|might|considering|proposes?)\b|预计|預計|可能|拟议|擬議|将公布|將公布|提醒[:：]/iu.test(text) || /\bexpected\b/iu.test(text) && !/\b(?:actual|comes? in|draw|build|cuts?|raises?|holds?|hikes?|rose|fell|beat|miss)\b/iu.test(text));
   const question = /\b(?:reporter|journalist)\b.{0,35}\basks?\b|\basked whether\b|记者提问|記者提問/iu.test(text);
   const historical = /\b(?:last year|last month|in 20[0-2]\d|recap|previously announced|reiterates?|repeats?)\b|去年|回顾|回顧|重申/iu.test(text);
   const correction = /\b(?:correction|corrects?|retracts?|retraction)\b|更正|纠正|糾正/iu.test(text);

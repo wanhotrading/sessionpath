@@ -21,7 +21,7 @@
 #news-desk input::placeholder{color:#95a8c7}
 #news-desk select option{background:#17213c}
 #news-desk :is(button,a,input,select):focus-visible{outline:2px solid #bfadff;outline-offset:3px}
-#news-desk .news-source-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 24px 0;flex:0 0 auto}
+#news-desk .news-source-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 24px 0;flex:0 0 auto}
 #news-desk .news-source-card{display:flex;flex-direction:column;gap:4px;min-width:0;border:1px solid #b7d3eb1f;border-radius:13px;background:#b4d7ec07;padding:11px 12px;line-height:1.4}
 #news-desk .news-source-name{font-size:12px;font-weight:600;color:#e0eaf6;overflow-wrap:anywhere}
 #news-desk .news-source-state{font-size:11px;color:#9ce3cc}
