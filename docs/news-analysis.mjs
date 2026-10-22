@@ -35,7 +35,7 @@ export function analyzeNews(item, {now = Date.now()} = {}) {
   const apply = (id, label, p, d, why) => { rules.push(id); event = label; priority = p; direction = d; rationale = why; };
   const oil = OIL.test(text) || categories.includes('oil');
   const trump = TRUMP.test(text);
-  const forecast = /\b(?:expects?|forecasts?|preview|ahead of|due tomorrow|analyst|could|may|might|considering|proposes?)\b|预计|預計|可能|拟议|擬議/iu.test(text);
+  const forecast = (/\b(?:expects?|forecasts?|preview|ahead of|due tomorrow|analyst|could|may|might|considering|proposes?)\b|预计|預計|可能|拟议|擬議/iu.test(text) || /\bexpected\b/iu.test(text) && !/\b(?:actual|comes? in|draw|build|cuts?|raises?|holds?|hikes?|rose|fell|beat|miss)\b/iu.test(text));
   const question = /\b(?:reporter|journalist)\b.{0,35}\basks?\b|\basked whether\b|记者提问|記者提問/iu.test(text);
   const historical = /\b(?:last year|last month|in 20[0-2]\d|recap|previously announced|reiterates?|repeats?)\b|去年|回顾|回顧|重申/iu.test(text);
   const correction = /\b(?:correction|corrects?|retracts?|retraction)\b|更正|纠正|糾正/iu.test(text);
@@ -43,12 +43,14 @@ export function analyzeNews(item, {now = Date.now()} = {}) {
   const rumor = /\b(?:rumou?r|unconfirmed|sources say|reportedly)\b|传闻|傳聞|据悉|據悉/iu.test(text);
   if (oil && /\b(?:eia|api|wpsr)\b|能源信息署|能源資訊署/iu.test(text) && /stocks?|inventor|\bdraw\b|\bbuild\b|库存|庫存/iu.test(text)) {
     const eia = /\beia\b|能源信息署|能源資訊署/iu.test(text);
-    numbers = inventoryNumbers(text);
-    apply('inventory', eia ? 'EIA inventories' : 'API inventories', numbers && !forecast ? (eia ? 'P1' : 'P2') : 'P3', 'unknown', 'Reported inventory change; comparable consensus is unavailable. A draw alone does not establish bullish surprise.');
+    const crudeOnly = /\bcrude\b|原油/iu.test(text) && !/gasoline|distillate|diesel|\bspr\b|汽油|馏分|餾分|柴油|战略|戰略/iu.test(text);
+    numbers = crudeOnly ? inventoryNumbers(text) : null;
+    apply('inventory', eia ? 'EIA inventories' : 'API inventories', !forecast && /[0-9]/u.test(text) ? (eia ? 'P1' : 'P2') : 'P3', 'unknown', 'Reported inventory change; comparable consensus is unavailable. A draw alone does not establish bullish surprise.');
     if (numbers?.surprise != null) {
       direction = numbers.surprise < 0 ? 'bullish_conditional' : numbers.surprise > 0 ? 'bearish_conditional' : 'neutral';
       rationale = numbers.surprise === 0 ? 'Reported crude change matches reported consensus.' : numbers.surprise > 0 ? 'Stocks are higher than the reported expectation—even if the headline reports a draw.' : 'Stocks are lower than the reported expectation—even if the headline reports a build.';
     }
+    if (!crudeOnly) rationale = 'Inventory components must be read separately; no crude surprise is calculated from product or strategic-reserve figures.';
     missing.push('Comparable release period and pre-release consensus verification', 'Products, refinery runs and API comparator');
   } else if (oil && /demand.{0,35}(?:forecast|outlook|growth)|需求.{0,20}(?:预期|預期|增长|增長)/iu.test(text)) {
     apply('oil-demand', 'Oil demand outlook', 'P2', /cut|lower|downgrad|下调|下調/iu.test(text) ? 'bearish_conditional' : /rais|upgrad|上调|上調/iu.test(text) ? 'bullish_conditional' : 'unknown', 'A demand-growth revision is not a production cut. Compare with the previous forecast.');
