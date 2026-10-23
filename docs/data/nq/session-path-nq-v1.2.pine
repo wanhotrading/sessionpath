@@ -816,7 +816,7 @@ f_lockedWindow(int start, int finish, float price, float up, float down, float m
     box upper = box.new(left = start, top = price + up, right = finish, bottom = price, xloc = xloc.bar_time, border_color = color.teal, bgcolor = color.new(color.teal, 87))
     box lower = box.new(left = start, top = price, right = finish, bottom = price - down, xloc = xloc.bar_time, border_color = color.maroon, bgcolor = color.new(color.red, 90))
     f_statLines(start, finish, price, meanUp, meanDown, medianUp, medianDown, firstSide, breachTime)
-    label tag = label.new(x = finish, y = price + up, text = heading + (ended ? " | ENDED" : " | LOCKED") + "\nOpen " + f_price(price) + " | Mean U +" + f_price(up) + " / D -" + f_price(down) + "\n" + sourceNote, xloc = xloc.bar_time, style = label.style_label_left, color = color.new(color.navy, 10), textcolor = color.white, size = size.small)
+    label tag = na // Session/Open/Mean text label removed.
     [upper, lower, tag]
 
 var box firstUpperBox = na
@@ -886,7 +886,7 @@ if forecastRenderBar
         estimateLowerBox := box.new(left = drawEstimateStart, top = drawEstimatePrice, right = drawEstimateEnd, bottom = drawEstimatePrice - estimateDown, xloc = xloc.bar_time, border_color = color.maroon, bgcolor = color.new(color.red, 90))
         f_statLines(drawEstimateStart, drawEstimateEnd, drawEstimatePrice, estimateUp, estimateDown, estimateMedianUp, estimateMedianDown, followForecast ? 0 : firstBoxSide, followForecast ? na : firstBoxBreachTime)
         string estimateDescription = followForecast ? "FOLLOWING CANDLE - imported distances\nU +" + f_price(estimateUp) + " / D -" + f_price(estimateDown) + " pt\nRepositioned template; NOT recalculated" : "Matched average U +" + f_price(estimateUp) + " / D -" + f_price(estimateDown) + " pt\nHistorical containment " + f_percent(containment) + " | n=" + str.tostring(estimateN, "#") + "\nFixed website snapshot"
-        estimateLabel := label.new(x = drawEstimateEnd, y = drawEstimatePrice + estimateUp, text = "Mean U/D box | white median / orange mean\n" + estimateDescription + "\n" + str.format_time(drawEstimateStart, "yyyy-MM-dd HH:mm", TZ) + " to " + str.format_time(drawEstimateEnd, "yyyy-MM-dd HH:mm", TZ) + " NY", xloc = xloc.bar_time, style = label.style_label_left, color = color.new(color.navy, 10), textcolor = color.white, size = size.small)
+        estimateLabel := na // Session/Open/Mean text label removed.
 
 // Dated matched additional-AVR expansion. Anchors and distances come only
 // from the imported cutoff snapshot; chart extremes never move these boxes.
