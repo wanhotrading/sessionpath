@@ -36,3 +36,11 @@ export function curveGeometry(points,end,current) {
  const at=points.find(p=>p.minute===current&&Number.isFinite(p.p));
  return {axis,path,x,y,ticks,at,start,end};
 }
+
+// Time moves continuously; the empirical percentage is held until the next completed close.
+export function liveMarkerGeometry(points,end,completed,minute){
+ const g=curveGeometry(points,end,Math.min(completed,end));
+ if(!g.at)return null;
+ const current=Math.max(g.start,Math.min(end,minute));
+ return {x:g.x(current),y:g.y(g.at.p),minute:current,completed:g.at.minute,p:g.at.p};
+}

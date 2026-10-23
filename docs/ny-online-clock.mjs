@@ -5,7 +5,7 @@ export function nyClockParts(epoch){
 // Same-origin HTTP Date avoids a third-party clock dependency. Age accounts for CDN cache residence.
 export function createOnlineClock({fetchImpl=fetch,monotonic=()=>performance.now(),device=()=>Date.now()}={}){
  let epoch=null,at=null,lastSync=null,busy=null;
- const read=()=>({ ...nyClockParts(epoch===null?device():epoch+monotonic()-at),online:epoch!==null&&monotonic()-lastSync<15*60000 });
+ const read=()=>({ ...nyClockParts(epoch===null?device():epoch+monotonic()-at),online:epoch!==null&&monotonic()-lastSync<15*60000,source:epoch===null?'device':'server' });
  const sync=()=>busy??=(async()=>{
   const start=monotonic();
   const response=await fetchImpl(`./?sessionpath-clock=${device()}`,{method:'HEAD',cache:'no-store',signal:AbortSignal.timeout(8000)});

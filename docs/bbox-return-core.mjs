@@ -20,7 +20,7 @@ export function parseBBoxReturnCode(code){
  const a=String(code).trim().split('|'),v=a.slice(1).map(Number);
  if(a.length!==11||a[0]!==instrument.returnPrefix||a.slice(1).some(x=>!x.trim())||v.some(x=>!Number.isFinite(x)))throw Error('Invalid BBOX return code.');
  const [start,end,side,group,k,n,lo,hi,anchor,conditional]=v;
- if(![start,end,anchor,k,n].every(Number.isInteger)||start<=0||start<anchor||end<=start||end-anchor>6*3600000||![1,-1].includes(side)||![0,1].includes(group)||![0,1].includes(conditional)||n<1||k<0||k>n||lo<0||hi>100||lo>100*k/n||hi<100*k/n)throw Error('Invalid BBOX return values.');
+ if(![start,end,anchor,k,n].every(Number.isInteger)||start<=0||start<anchor||end<=start||end-anchor>6*3600000||![1,-1].includes(side)||![0,1,2,3].includes(group)||![0,1].includes(conditional)||n<1||k<0||k>n||lo<0||hi>100||lo>100*k/n||hi<100*k/n)throw Error('Invalid BBOX return values.');
  return {start,end,side,group,k,n,lo,hi,anchor,conditional};
 }
 export function matchesReturnGroup(s,group){

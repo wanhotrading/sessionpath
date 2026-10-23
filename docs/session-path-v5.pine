@@ -1,10 +1,10 @@
 //@version=6
-// Session Path v6.8. Standard 5-minute CL/MCL chart; all clocks America/New_York.
+// Session Path v6.9. Standard 5-minute CL/MCL chart; all clocks America/New_York.
 // Range and quartiles freeze at 04:30. U/D and running extremes continue through 08:30.
 // AVR = mean last 10 COMPLETE NY 09:30-16:00 high-low ranges, frozen at 19:30.
 // Forecast code comes from the local research website. No automatic website connection.
 // Quarter location selects a scenario, not an estimated success probability.
-indicator("SessionPath.By LUI v6.8 - overnight + NY + input table", overlay = true, max_boxes_count = 24, max_lines_count = 100, max_labels_count = 70, max_bars_back = 20)
+indicator("SessionPath.By LUI v6.9 - overnight + NY + input table", overlay = true, max_boxes_count = 24, max_lines_count = 100, max_labels_count = 70, max_bars_back = 20)
 
 string TZ = "America/New_York"
 float manualAvr = input.float(0.0, "AVR override in points (0 = automatic)", minval = 0, step = 0.01, group = "Range and AVR", tooltip = "Automatic uses the last ten complete NY sessions on this chart's symbol. Prefer an explicit delivery contract. A manual override is frozen for the night; change it when your baseline changes.")
@@ -1016,7 +1016,7 @@ float brHi = brHeader ? str.tonumber(array.get(brParts, 8)) : na
 int brAnchor = brHeader ? int(str.tonumber(array.get(brParts, 9))) : na
 float brConditional = brHeader ? str.tonumber(array.get(brParts, 10)) : na
 float brPercent = brCount > 0 ? 100 * brHits / brCount : na
-bool brValid = brHeader and not na(brStart) and not na(brEnd) and not na(brAnchor) and brStart > 0 and brStart >= brAnchor and brEnd > brStart and brEnd - brAnchor <= 21600000 and (brSide == 1 or brSide == -1) and (brGroup == 0 or brGroup == 1) and (brConditional == 0 or brConditional == 1) and brCount >= 1 and brCount == math.floor(brCount) and brHits >= 0 and brHits <= brCount and brHits == math.floor(brHits) and brLo >= 0 and brHi <= 100 and brLo <= brPercent and brHi >= brPercent
+bool brValid = brHeader and not na(brStart) and not na(brEnd) and not na(brAnchor) and brStart > 0 and brStart >= brAnchor and brEnd > brStart and brEnd - brAnchor <= 21600000 and (brSide == 1 or brSide == -1) and (brGroup == 0 or brGroup == 1 or brGroup == 2 or brGroup == 3) and (brConditional == 0 or brConditional == 1) and brCount >= 1 and brCount == math.floor(brCount) and brHits >= 0 and brHits <= brCount and brHits == math.floor(brHits) and brLo >= 0 and brHi <= 100 and brLo <= brPercent and brHi >= brPercent
 var float brEdge = na
 // Freeze the prior NY boundary when the encoded observation/update is reached.
 // Reading priorNyLow at the final chart candle could accidentally use a newer NY box.
@@ -1033,8 +1033,8 @@ if forecastRenderBar
         color brPurple = color.rgb(150, 55, 220)
         if brValid and not na(brEdge)
             string brWindow = str.format_time(brStart, "yyyy-MM-dd HH:mm", TZ) + " to " + str.format_time(brEnd, "HH:mm", TZ) + " NY"
-            string brState = brGroup == 1 ? "Outside BBOX + Mean SessionPath" : "Outside BBOX only"
-            string brNote = "Q6 historical close-return frequency; " + str.tostring(brHits, "#") + "/" + str.tostring(brCount, "#") + " dates. 95% interval " + str.tostring(brLo, "#.0") + "% to " + str.tostring(brHi, "#.0") + "%.\n" + brWindow + ". " + brState + ".\nObservation block " + str.format_time(brAnchor, "HH:mm", TZ) + " to " + str.format_time(brAnchor + 1740000, "HH:mm", TZ) + ". " + (brConditional == 1 ? "Conditional on no earlier close back inside by the line start." : "Original block reference; not an exact-minute model.") + "\nA later completed 5m close must be inside the whole BBOX. A wick touch is not a return. Prior complete NY 09:30-16:00 range on this contract. Retrospective Mean reference; not a trade win rate or automatic live update."
+            string brState = brGroup == 1 ? "Outside both, same direction" : brGroup == 2 ? "Outside both, opposite directions" : brGroup == 3 ? "Outside BBOX, inside SessionPath" : "Older combined opposite/inside reference"
+            string brNote = "Q6 historical close-return frequency; " + str.tostring(brHits, "#") + "/" + str.tostring(brCount, "#") + " dates. 95% interval " + str.tostring(brLo, "#.0") + "% to " + str.tostring(brHi, "#.0") + "%.\n" + brWindow + ". " + brState + ".\nObservation block " + str.format_time(brAnchor, "HH:mm", TZ) + " to " + str.format_time(brAnchor + 1740000, "HH:mm", TZ) + ". " + (brConditional == 1 ? "Conditional on no earlier close back inside by the line start." : "Original observation reference; use the matching mode shown on the website.") + "\nA later completed 5m close must be inside the whole BBOX. A wick touch is not a return. Prior complete NY 09:30-16:00 range on this contract. Retrospective Mean reference; not a trade win rate or automatic live update."
             brLine := line.new(brStart, brEdge, brEnd, brEdge, xloc = xloc.bar_time, color = brPurple, style = line.style_solid, width = 3)
             brLabel := label.new(int((brStart + brEnd) / 2), brEdge, "Hist " + str.tostring(brPercent, "#.0") + "% close back inside", xloc = xloc.bar_time, style = label.style_label_down, color = color.new(brPurple, 100), textcolor = brPurple, size = size.tiny, tooltip = brNote)
         else
