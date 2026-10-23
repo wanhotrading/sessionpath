@@ -1,3 +1,4 @@
+import {mountScreenshotMatching} from './screenshot-match.mjs?v=1';
 import { REVIEW_CHECKS, fileMetadata, filterScreenshots, validateReviewLog, reviewCSV } from './screenshot-review-core.mjs';
 import {instrument,storageKey} from './instrument.mjs';
 import { parseGoogleSheetURL, parseColumnRange, screenshotLinksFromCSV, screenshotLinkID, safeScreenshotURL } from './sheet-link-import.mjs';
@@ -49,6 +50,7 @@ export function mountScreenshotReview(research) {
   document.body.insertBefore(dialog,$('chart-reader-dialog'));
   let reviews = {}, items = [], files = [], sheetFiles = [], publicArchive = [], visible = [], index = 0, reference = null, showReference = false, zoom = 'fit', loadVersion = 0;
   let archivePromise = null, sheetImportVersion = 0, sheetController = null;
+  const matchingFilter = mountScreenshotMatching(dialog, research, () => refresh());
   let persistenceOK = true;
   try { const saved = localStorage.getItem(STORAGE); if (saved) reviews = validateReviewLog(JSON.parse(saved)); } catch { persistenceOK = false; }
   const current = () => visible[index];
@@ -116,7 +118,7 @@ export function mountScreenshotReview(research) {
   }
   function refresh(keep = current()?.id) {
     items = $('review-source').value === 'archive' ? archiveItems() : $('review-source').value === 'sheet' ? sheetFiles : files;
-    visible = filterScreenshots(items, reviews, $('review-search').value, $('review-filter').value);
+    visible = filterScreenshots(matchingFilter(items), reviews, $('review-search').value, $('review-filter').value);
     const found = visible.findIndex(item => item.id === keep); index = Math.max(0, found); renderCurrent();
   }
   function applyZoom() {

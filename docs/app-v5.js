@@ -5,7 +5,7 @@ import {setupDeviceView} from './device-view.mjs';
 import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=direction-live-20261022-r3';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
 import {mountLocalImporter} from './local-import-ui.mjs';
-import {mountScreenshotReview} from './screenshot-review.mjs?v=sheet-import-20261020';
+import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=tools-slide-20261022';
 import {mountReplayTools} from './replay-tools.mjs';
