@@ -1,9 +1,10 @@
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
-import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=juice-paused-20261022';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=resume-20261023';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=discord-20261023';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=discord-20261023';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
+import {connectDiscordNews,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-20261023';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
@@ -83,6 +84,10 @@ export function setupNewsDesk() {
   let loading = false;
   let failed = false;
   let backdropPointerDown = false;
+  let discord = null;
+  let discordReadKey = '';
+  let discordState = 'disconnected';
+  try {discordReadKey=sessionStorage.getItem(DISCORD_SESSION_KEY) || '';}catch{}
 
   const trigger = element('button', 'quiet news-desk-toggle', 'News');
   trigger.id = 'news-desk-toggle';
@@ -175,6 +180,41 @@ export function setupNewsDesk() {
   alertControls.append(alertsToggle, soundToggle, contextToggle, testAlert, exportLog);
   controls.append(topics, fields, alertControls, alertHelp);
 
+  const discordToggle=element('button','news-alert-control','Connect Discord');
+  discordToggle.type='button';discordToggle.id='news-discord-toggle';
+  discordToggle.setAttribute('aria-expanded','false');
+  alertControls.append(discordToggle);
+  const discordForm=element('form','news-discord-connect');
+  discordForm.hidden=true;discordForm.id='news-discord-connect';
+  const discordLabel=element('label','','Private connection key');
+  const discordKey=element('input');discordKey.type='password';discordKey.autocomplete='off';
+  discordKey.id='news-discord-key';discordKey.placeholder='Key from your local listener';
+  discordKey.spellcheck=false;discordLabel.append(discordKey);
+  const discordSubmit=element('button','news-alert-control','Connect');discordSubmit.type='submit';
+  const discordCancel=element('button','news-alert-control','Cancel');discordCancel.type='button';
+  const discordHelp=element('p','','Connects to the listener on this PC. Use its private connection key, not the Discord bot token. Kept for this tab.');
+  discordForm.append(discordLabel,discordSubmit,discordCancel,discordHelp);controls.append(discordForm);
+  discordToggle.setAttribute('aria-controls',discordForm.id);
+  discordCancel.addEventListener('click',()=>{discordForm.hidden=true;discordKey.value='';discordToggle.setAttribute('aria-expanded','false');discordToggle.focus();});
+  discordToggle.addEventListener('click',()=>{
+    if(discordReadKey){
+      stopDiscord();discordReadKey='';try{sessionStorage.removeItem(DISCORD_SESSION_KEY);}catch{}
+      if(feed){feed.items=feed.items.filter(item=>item.transport!=='discord');feed.sources=feed.sources.filter(source=>source.transport!=='discord');}
+      queuedAlerts=queuedAlerts.filter(item=>item.transport!=='discord');
+      if(activeItem?.transport==='discord'){activeItem=null;hideToast();nextQueuedAlert();}
+      renderAlertControls();if(dialog.open)render();return;
+    }
+    discordForm.hidden=!discordForm.hidden;discordToggle.setAttribute('aria-expanded',String(!discordForm.hidden));
+    if(!discordForm.hidden)discordKey.focus();
+  });
+  discordForm.addEventListener('submit',event=>{
+    event.preventDefault();const value=discordKey.value.trim();
+    if(value.length<32){discordHelp.textContent='Enter the private connection key from your local listener.';discordKey.focus();return;}
+    stopDiscord();discordReadKey=value;try{sessionStorage.setItem(DISCORD_SESSION_KEY,value);}catch{}
+    discordKey.value='';discordForm.hidden=true;discordToggle.setAttribute('aria-expanded','false');
+    syncDiscord();renderAlertControls();
+  });
+
   const sourceStatus = element('div', 'news-source-status');
   sourceStatus.setAttribute('aria-label', 'Source freshness');
   const toolbar = element('div', 'news-desk-toolbar');
@@ -241,8 +281,12 @@ export function setupNewsDesk() {
     soundToggle.setAttribute('aria-pressed', String(preferences.sound));
     trigger.classList.toggle('has-news-alerts', preferences.alerts);
     trigger.title = 'Oil, US indices & policy headlines' + (preferences.alerts ? ' · alerts on' : '');
+    discordToggle.textContent=discordReadKey?'Disconnect Discord':'Connect Discord';
+    const discordHint=discordReadKey
+      ? (discordState==='connected'?' FinancialJuice: Discord push on this PC.':' FinancialJuice: '+(discordState==='connecting'?'connecting to your local listener.':'start the local listener to reconnect.'))
+      : ' Connect Discord to receive FinancialJuice from your local listener.';
     alertHelp.textContent = preferences.alerts
-      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Popups stay until you close them. New headlines are kept when you switch tabs; background checks may be slowed by your browser. FinancialJuice remains paused.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
+      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Popups stay until you close them. New headlines are kept when you switch tabs; background checks may be slowed by your browser.' + discordHint + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -359,14 +403,34 @@ export function setupNewsDesk() {
   function scheduleRefresh() {
     if (preferences.alerts || !document.hidden && dialog.open) poller?.start();
     else poller?.stop();
+    syncDiscord();
   }
-  function interruptRefresh() { poller?.stop(); loading = false; }
+  function stopDiscord(){const previous=discord;discord=null;previous?.stop();}
+  function discordStatus(state){
+    discordState=state;
+    const source=feed?.sources?.find(value=>value.id==='financialjuice' && value.transport==='discord');
+    if(source){
+      source.status=state==='connected'?'ok':'error';source.fetchedAt=new Date().toISOString();
+      source.error=state==='connected'?null:'Start the SessionPath listener on this PC. If prompted, allow this site to connect to your local listener.';
+    }
+    renderAlertControls();if(dialog.open)renderSources();
+  }
+  function syncDiscord(){
+    const wanted=discordReadKey && (preferences.alerts || dialog.open && !document.hidden);
+    if(!wanted){stopDiscord();return;}
+    if(discord)return;
+    discordState='connecting';renderAlertControls();
+    try{discord=connectDiscordNews({accessKey:discordReadKey,onResult:result=>{discordState=result.source.status==='ok'?'connected':'reconnecting';receiveSource(result);renderAlertControls();},onStatus:discordStatus});}
+    catch{discordStatus('disconnected');}
+  }
+  function interruptRefresh() { poller?.stop();stopDiscord(); loading = false; }
   function renderSources() {
     sourceStatus.replaceChildren();
     for (const [id, name] of Object.entries(SOURCE_NAMES)) {
       const source = feed?.sources?.find(entry => entry.id === id);
       const config = NEWS_SOURCES.find(entry => entry.id === id);
-      const paused = config?.paused === true;
+      const push=source?.transport==='discord';
+      const paused = config?.paused === true && !push;
       const checkedMs = Date.parse(source?.fetchedAt || '');
       const old = Number.isFinite(checkedMs) && Date.now() - checkedMs > STALE_MS;
       const unavailable = source?.status === 'error';
@@ -374,15 +438,17 @@ export function setupNewsDesk() {
       const card = element('div', 'news-source-card' + (stale ? ' is-stale' : ''));
       card.append(element('span', 'news-source-name', name));
       let label;
-      if (paused) label = 'Paused · no requests';
+      if (push && source.status==='ok') label='Connected · Discord';
+      else if (push) label=discordState==='connecting'?'Connecting…':'Reconnecting';
+      else if (paused) label = discordReadKey?'Connecting…':'Connect Discord';
       else if (unavailable || failed) label = 'Refresh unavailable';
       else if (!source) label = loading ? 'Checking…' : 'Not checked yet';
       else if (old) label = 'Last checked over 20 min ago';
       else label = source.status === 'ok' ? 'Connected' : 'Not available';
       card.append(element('span', 'news-source-state', label));
-      if (paused) card.title=config.pauseReason;
+      if (paused) card.title='FinancialJuice RSS is paused. Use your local Discord listener.';
       else if (unavailable && source.error) card.title=source.error;
-      card.append(element('span','news-source-time',paused?'Automatic requests stopped':`Checks every ${(config?.pollMs || 10000)/1000}s`));
+      card.append(element('span','news-source-time',push?'Push from your PC':paused?'RSS requests stopped':`Checks every ${(config?.pollMs || 10000)/1000}s`));
       if (source?.latestAt) card.append(element('span', 'news-source-time', 'Latest match ' + newsTime(source.latestAt)));
       if (source?.fetchedAt) card.append(element('span','news-source-time','Checked '+new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(source.fetchedAt))+' ET'));
       sourceStatus.append(card);
@@ -513,7 +579,7 @@ export function setupNewsDesk() {
   }
   function refreshNews() {
     if (!preferences.alerts && (!dialog.open || document.hidden)) return;
-    lastAttempt=Date.now(); poller?.start(); poller?.refresh();
+    lastAttempt=Date.now(); poller?.start(); poller?.refresh();syncDiscord();
   }
   function openNews() {
     unlockSound();

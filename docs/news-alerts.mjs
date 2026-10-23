@@ -1,4 +1,4 @@
-import {safeNewsURL, NEWS_SOURCES} from './news-feed.mjs?v=juice-paused-20261022';
+import {safeNewsURL, newsURLKey, NEWS_SOURCES} from './news-feed.mjs?v=discord-20261023';
 
 export const NEWS_ALERT_MAX_AGE_MS = 10 * 60_000;
 export const NEWS_ALERT_MAX_SEEN = 600;
@@ -19,8 +19,7 @@ function titleKey(value) { return typeof value === 'string' ? value.normalize('N
 function urlKey(value, source) {
   const safe = safeNewsURL(value, source);
   if (!safe || safe.length > 2000) return null;
-  const url = new URL(safe); url.search = ''; url.hash = '';
-  return url.href.replace('://www.', '://');
+  return newsURLKey(safe,source);
 }
 
 function validSeenEntry(value, now) {

@@ -46,9 +46,18 @@ export function safeNewsURL(value, source) {
   try {
     const url = new URL(String(value || ''));
     const hosts = NEWS_SOURCES.find(item => item.id === source)?.hosts || [];
-    if (url.protocol !== 'https:' || url.username || url.password || url.port || !hosts.includes(url.hostname.toLowerCase())) return null;
+    const discord = source === 'financialjuice' && url.hostname === 'discord.com' && /^\/channels\/\d{17,20}\/\d{17,20}\/\d{17,20}$/.test(url.pathname) && !url.search && (!url.hash || /^#headline-\d{1,2}$/.test(url.hash));
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || !hosts.includes(url.hostname.toLowerCase()) && !discord) return null;
     return url.href;
   } catch { return null; }
+}
+
+export function newsURLKey(value,source) {
+  const safe=safeNewsURL(value,source);if(!safe)return null;
+  const url=new URL(safe);url.search='';
+  // A FinancialJuice Discord post may contain several different headlines.
+  if(!(source==='financialjuice' && url.hostname==='discord.com'))url.hash='';
+  return url.href.replace('://www.','://');
 }
 
 export function normalizeNewsDate(value, now = Date.now()) {
@@ -106,8 +115,7 @@ export function normalizeWallstreetCN(payload, {now = Date.now()} = {}) {
 export function dedupeNews(items) {
   const ids = new Set(), urls = new Set(), titles = new Set();
   return [...items].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).filter(item => {
-    const url = new URL(item.url); url.search = ''; url.hash = '';
-    const urlKey = url.href.replace('://www.', '://');
+    const urlKey = newsURLKey(item.url,item.source);
     const titleKey = item.title.toLocaleLowerCase().replace(/\s+/gu, ' ').trim();
     if (ids.has(item.id) || urls.has(urlKey) || titles.has(titleKey)) return false;
     ids.add(item.id); urls.add(urlKey); titles.add(titleKey); return true;

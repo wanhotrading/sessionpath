@@ -1,4 +1,9 @@
 /* A separate news drawer keeps headlines within reach without moving forecasts. */
+.news-discord-connect{display:flex;flex-wrap:wrap;align-items:end;gap:9px;margin:12px 0;padding:12px;border:1px solid #a596d850;border-radius:12px;background:#080f2530}
+.news-discord-connect[hidden]{display:none}
+.news-discord-connect label{display:grid;gap:6px;flex:1 1 220px;font-size:12px;color:#d5dcec}
+.news-discord-connect input{width:100%;min-width:0;min-height:40px;padding:10px;border-radius:9px;border:1px solid #dce9ff30;background:#111c33;color:#f1f5ff}
+.news-discord-connect p{width:100%;margin:0;font-size:12px;line-height:1.5;color:#b8c6dd}
 .top-actions #news-desk-toggle{width:auto;min-width:68px;min-height:44px;height:44px;padding:9px 15px;border-radius:14px;white-space:nowrap;color:#f1ebff;border-color:#bba7f06b;background:linear-gradient(135deg,#b699ee22,#f8b66e17);font-size:14px;flex:0 0 auto}
 .top-actions #news-desk-toggle:hover,.top-actions #news-desk-toggle[aria-expanded="true"]{background:linear-gradient(135deg,#b699ee3b,#f8b66e2b);border-color:#d0bfff9c}
 #news-desk{--news-muted:#b8c6dd;position:fixed;inset:12px 12px 12px auto;width:min(650px,calc(100vw - 24px));height:calc(100dvh - 24px);max-width:none;max-height:none;margin:0;padding:0;border-radius:26px!important;overflow:hidden;background:linear-gradient(155deg,rgba(43,43,68,.98),rgba(13,24,46,.98))!important;border:1px solid #e2eaff3d!important;backdrop-filter:blur(18px);box-shadow:0 20px 90px #0008;color:#f1f5ff;overscroll-behavior:contain}
