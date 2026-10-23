@@ -28,3 +28,16 @@ html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{
 #sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::before{content:"";position:absolute;pointer-events:none;z-index:-2;left:calc(clamp(48px,7vw,84px)/2);top:50%;width:260px;height:180px;transform:translate(-50%,-35%);background:radial-gradient(ellipse,rgba(114,126,148,.19) 0%,rgba(83,94,114,.10) 35%,transparent 70%)}
 #sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::after{content:"";position:absolute;pointer-events:none;z-index:-1;left:calc(clamp(48px,7vw,84px)/2);top:calc(50% + clamp(48px,7vw,84px)/2 + 7px);width:clamp(42px,6vw,72px);height:12px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.95) 0%,rgba(0,0,0,.6) 42%,transparent 74%);filter:blur(2px)}
 #sessionpath-loading #loading-coin{filter:drop-shadow(3px 6px 4px rgba(0,0,0,.75))}
+
+/* Fade layers independently: the illuminated coin shadow leaves last. */
+#sessionpath-loading{background:transparent;transition:none}
+#sessionpath-loading::before{content:"";position:absolute;inset:0;background:#000;z-index:-3;opacity:1;transition:opacity .55s ease}
+#sessionpath-loading .loading-title,#sessionpath-loading #loading-coin{opacity:1;transition:opacity .4s ease}
+#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{opacity:1;transition:opacity .3s ease .55s}
+html[data-loading-cover="fading"] #sessionpath-loading{opacity:1}
+html[data-loading-cover="fading"] #sessionpath-loading::before,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-title,
+html[data-loading-cover="fading"] #sessionpath-loading #loading-coin,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::before,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::after{opacity:0}
+@media(prefers-reduced-motion:reduce){#sessionpath-loading *,#sessionpath-loading::before,#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{transition:none!important}}

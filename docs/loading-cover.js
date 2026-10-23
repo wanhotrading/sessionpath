@@ -59,7 +59,7 @@
    if(run!==generation||navigating)return;
    // The ready panels have completed layout before they become visible behind the fade.
    root.dataset.loadingCover='fading';cover.setAttribute('aria-busy','false');
-   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:560);
+   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:900);
   })),quiet?0:Math.max(0,815-(performance.now()-began)));
  }
  function state(){

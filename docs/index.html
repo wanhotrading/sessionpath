@@ -29,6 +29,19 @@ html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{
 #sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::before{content:"";position:absolute;pointer-events:none;z-index:-2;left:calc(clamp(48px,7vw,84px)/2);top:50%;width:260px;height:180px;transform:translate(-50%,-35%);background:radial-gradient(ellipse,rgba(114,126,148,.19) 0%,rgba(83,94,114,.10) 35%,transparent 70%)}
 #sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::after{content:"";position:absolute;pointer-events:none;z-index:-1;left:calc(clamp(48px,7vw,84px)/2);top:calc(50% + clamp(48px,7vw,84px)/2 + 7px);width:clamp(42px,6vw,72px);height:12px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.95) 0%,rgba(0,0,0,.6) 42%,transparent 74%);filter:blur(2px)}
 #sessionpath-loading #loading-coin{filter:drop-shadow(3px 6px 4px rgba(0,0,0,.75))}
+
+/* Fade layers independently: the illuminated coin shadow leaves last. */
+#sessionpath-loading{background:transparent;transition:none}
+#sessionpath-loading::before{content:"";position:absolute;inset:0;background:#000;z-index:-3;opacity:1;transition:opacity .55s ease}
+#sessionpath-loading .loading-title,#sessionpath-loading #loading-coin{opacity:1;transition:opacity .4s ease}
+#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{opacity:1;transition:opacity .3s ease .55s}
+html[data-loading-cover="fading"] #sessionpath-loading{opacity:1}
+html[data-loading-cover="fading"] #sessionpath-loading::before,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-title,
+html[data-loading-cover="fading"] #sessionpath-loading #loading-coin,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::before,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::after{opacity:0}
+@media(prefers-reduced-motion:reduce){#sessionpath-loading *,#sessionpath-loading::before,#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{transition:none!important}}
 </style><script src="background-picker.js?v=mountains-11"></script>
 <meta name="sessionpath-context-endpoint" content="https://sessionpath-data.jjj-jason2345.chatgpt.site/api/context"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="CL session planning: estimate remaining upside, downside and range expansion from historical analogues."><title>SessionPath.By LUI</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101520'/%3E%3Cpath d='M5 23L12 15L18 19L27 8' fill='none' stroke='%2368e4c0' stroke-width='3'/%3E%3C/svg%3E"><link rel="stylesheet" href="style-v5.css"><link rel="stylesheet" href="workspace-v6.css"><script type="module" src="startup.mjs?v=coin-cover-20261023"></script><link rel="stylesheet" href="night-v7.css"><link rel="stylesheet" href="replay-v8.css"><link rel="stylesheet" href="screenshot-review.css?v=matched-days-20261023"><link rel="stylesheet" href="forecast-context.css"><link rel="stylesheet" href="instrument.css"><link rel="stylesheet" href="device-view.css"><link rel="stylesheet" href="clean-workflow.css?v=tools-slide-20261022"><link rel="stylesheet" href="market-emblem.css"><link rel="stylesheet" href="sunset-layout.css?v=mountains-11"><link rel="stylesheet" href="probability-finish.css"><link rel="stylesheet" href="auto-fill.css?v=ny0830-20261022"><script type="module" src="auto-fill.mjs?v=ny0830-20261022"></script><link rel="stylesheet" href="forecast-motion.css?v=percentile-2"><link rel="stylesheet" href="cursor-fireworks.css?v=2"><script type="module" src="cursor-fireworks.mjs?v=black-cover-20261023"></script><link rel="stylesheet" href="news-desk.css?v=fast-news-20261022-scroll2"><script type="module" src="news-desk.mjs?v=juice-paused-chirp-20261022"></script><link rel="stylesheet" href="cot-panel.css?v=1"><script type="module" src="cot-panel.mjs?v=1"></script><link rel="stylesheet" href="bbox-live.css?v=smooth-live-20261023">
 <link rel="stylesheet" href="startup.css?v=20261023"></head>
@@ -93,7 +106,7 @@ html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{
    if(run!==generation||navigating)return;
    // The ready panels have completed layout before they become visible behind the fade.
    root.dataset.loadingCover='fading';cover.setAttribute('aria-busy','false');
-   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:560);
+   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:900);
   })),quiet?0:Math.max(0,815-(performance.now()-began)));
  }
  function state(){
