@@ -1,8 +1,8 @@
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
 import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=juice-paused-20261022';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=juice-paused-20261022';
-import {createNewsWhistle} from './news-whistle.mjs?v=twitter-chirp-150';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=resume-20261023';
+import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
@@ -63,12 +63,9 @@ export function setupNewsDesk() {
 
   const filters = readFilters();
   const savedPreferences = storedJSON(ALERT_PREFS_KEY);
-  const preferences = {alerts: savedPreferences?.alerts !== false, sound: savedPreferences?.sound === true};
-  let alertState = createNewsAlertState(storedJSON(ALERT_STATE_KEY));
+  const preferences = {alerts: savedPreferences?.alerts !== false, sound: savedPreferences?.sound !== false, context: savedPreferences?.context !== false};
+  let alertState = createNewsAlertState(storedJSON(ALERT_STATE_KEY), {resume:true});
   const whistle = createNewsWhistle();
-  let toastTimer = null;
-  let toastHovered = false;
-  let persistentToast = false;
   let queuedAlerts = [];
   const storedAudit = storedJSON('sessionpath-news-audit-v1');
   let audit = Array.isArray(storedAudit) ? storedAudit.filter(entry => entry.analysis?.source_name !== 'abcnews').slice(-300) : [];
@@ -157,18 +154,20 @@ export function setupNewsDesk() {
   const soundToggle = element('button', 'news-alert-control');
   soundToggle.type = 'button';
   soundToggle.id = 'news-sound-toggle';
+  const contextToggle = element('button', 'news-alert-control');
+  contextToggle.type = 'button'; contextToggle.id = 'news-context-toggle';
   const testAlert = element('button', 'news-alert-control', 'Test alert');
   testAlert.type = 'button';
   const alertHelp = element('p', 'news-alert-help');
   alertHelp.id = 'news-alert-help';
-  for (const button of [alertsToggle, soundToggle, testAlert]) button.setAttribute('aria-describedby', alertHelp.id);
+  for (const button of [alertsToggle, soundToggle, contextToggle, testAlert]) button.setAttribute('aria-describedby', alertHelp.id);
   const exportLog = element('button', 'news-alert-control', 'Export alert log');
   exportLog.type = 'button';
   exportLog.addEventListener('click', () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify({format:'sessionpath-news-audit-v1', records:audit.filter(entry => entry.analysis?.source_name !== 'abcnews')}, null, 2)], {type:'application/json'}));
     const link = element('a'); link.href = url; link.download = 'SessionPath-news-alert-log.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
-  alertControls.append(alertsToggle, soundToggle, testAlert, exportLog);
+  alertControls.append(alertsToggle, soundToggle, contextToggle, testAlert, exportLog);
   controls.append(topics, fields, alertControls, alertHelp);
 
   const sourceStatus = element('div', 'news-source-status');
@@ -207,9 +206,9 @@ export function setupNewsDesk() {
   const toastActions = element('div', 'news-alert-actions');
   const toastOpen = element('button', '', 'Open news');
   toastOpen.type = 'button';
-  const toastDismiss = element('button', '', 'Dismiss');
+  const toastDismiss = element('button', '', 'Close');
   toastDismiss.type = 'button';
-  toastDismiss.setAttribute('aria-label', 'Dismiss news alert');
+  toastDismiss.setAttribute('aria-label', 'Close news alert');
   toastActions.append(toastOpen, toastDismiss);
   toast.append(toastMessage, toastActions);
   document.body.append(toast);
@@ -231,12 +230,14 @@ export function setupNewsDesk() {
   function renderAlertControls() {
     alertsToggle.textContent = preferences.alerts ? 'Alerts on' : 'Alerts off';
     alertsToggle.setAttribute('aria-pressed', String(preferences.alerts));
-    soundToggle.textContent = preferences.sound ? 'Whistle on' : 'Whistle muted';
+    soundToggle.textContent = preferences.sound ? (whistle.ready ? 'Tweet sound on' : 'Enable tweet sound') : 'Tweet sound muted';
+    contextToggle.textContent = preferences.context ? 'Popups: all matching' : 'Popups: major only';
+    contextToggle.setAttribute('aria-pressed', String(preferences.context));
     soundToggle.setAttribute('aria-pressed', String(preferences.sound));
     trigger.classList.toggle('has-news-alerts', preferences.alerts);
     trigger.title = 'Oil, US indices & policy headlines' + (preferences.alerts ? ' · alerts on' : '');
     alertHelp.textContent = preferences.alerts
-      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s while visible. FinancialJuice requests are paused. Turn Whistle on for the notification chirp.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable sound.' : '')
+      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Popups stay until you close them. New headlines are kept when you switch tabs; background checks may be slowed by your browser. FinancialJuice remains paused.' + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -248,16 +249,8 @@ export function setupNewsDesk() {
   }
 
   function hideToast() {
-    persistentToast = false;
-    clearTimeout(toastTimer);
-    toastTimer = null;
     if (typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) toast.hidePopover();
     toast.hidden = true;
-  }
-
-  function dismissLater() {
-    clearTimeout(toastTimer);
-    if (!persistentToast && !toastHovered && !toast.contains(document.activeElement)) toastTimer = setTimeout(nextQueuedAlert, 9000);
   }
 
   function positionToast() {
@@ -281,35 +274,41 @@ export function setupNewsDesk() {
     if (queuedAlerts.length) { const pending = queuedAlerts; queuedAlerts = []; showAlert(pending, {replay:true}); }
   }
   function showAlert(items, {test = false, replay = false} = {}) {
-    if (!test && (!preferences.alerts || !items.length || document.hidden)) return;
-    const ordered = [...items].sort((a,b) => (a.analysis?.priority || 'P2').localeCompare(b.analysis?.priority || 'P2'));
+    if (!test && (!preferences.alerts || !items.length)) return;
+    if (!test && document.hidden) {
+      queuedAlerts=[...new Map([...queuedAlerts,...items].map(item=>[item.id,item])).values()].slice(-50);
+      if (preferences.sound && Date.now()-lastWhistleAt>=3000 && whistle.play()) lastWhistleAt=Date.now();
+      trigger.textContent='News · '+queuedAlerts.length;
+      return;
+    }
+    trigger.textContent='News';
+    const ordered = replay ? [...items] : [...items].sort((a,b) => (a.analysis?.priority || 'P2').localeCompare(b.analysis?.priority || 'P2'));
     const item = ordered[0];
     if (!test) {
-      if (!replay && !toast.hidden && activeItem && activeItem.id !== item.id) queuedAlerts.push(activeItem);
+      // Never replace an unread popup. Its Close button advances the queue.
+      if (!replay && !toast.hidden && activeItem && activeItem.id !== item.id) {
+        queuedAlerts=[...new Map([...queuedAlerts,...ordered].filter(v=>v.id!==activeItem.id).map(v=>[v.id,v])).values()].slice(-50);
+        toastHeading.textContent=`${activeItem.analysis?.priority || 'P2'} · ${activeItem.analysis?.event_type || 'New matching headline'} · ${queuedAlerts.length} queued`;
+        if(preferences.sound && Date.now()-lastWhistleAt>=3000 && whistle.play()) lastWhistleAt=Date.now();
+        return;
+      }
       queuedAlerts.push(...ordered.slice(1));
-      // Keep unresolved major alerts, with bounded deduplication by story version.
-      queuedAlerts = [...new Map(queuedAlerts.filter(previous => previous.id !== item.id).map(previous => [previous.id,previous])).values()].slice(-50);
+      queuedAlerts=[...new Map(queuedAlerts.filter(previous=>previous.id!==item.id).map(previous=>[previous.id,previous])).values()].slice(-50);
       activeItem = item;
     }
-    persistentToast = !test && item?.analysis?.priority === 'P1';
-    toastHeading.textContent = test ? 'Test news alert' : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}${queuedAlerts.length ? ` · ${queuedAlerts.length} earlier alerts` : ''}`;
+    toastHeading.textContent = test ? 'Test news alert' : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}${queuedAlerts.length ? ` · ${queuedAlerts.length} queued` : ''}`;
     toastHeadline.textContent = test ? 'Your market catalyst alerts are ready.' : item.title;
     const url = test ? null : safeHeadlineUrl(item.url);
     if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
     toastDetail.textContent = test
-      ? (whistle.ready && preferences.sound ? 'Listen for the bird chirp.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Whistle is muted. Popups still work.')
+      ? (whistle.ready && preferences.sound ? 'Playing the downloaded classic Twitter notification.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Tweet sound is muted. Popups still work.')
       : `${item.analysis ? directionLabel(item.analysis.direction) + ' · ' + item.analysis.rationale + ' ' : ''}${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${ordered.length>1 ? ` · +${ordered.length-1} new in News` : ''}`;
     toast.hidden = false;
     positionToast();
     if (preferences.sound && !replay && (test || Date.now()-lastWhistleAt >= 3000)) { if (whistle.play()) lastWhistleAt = Date.now(); }
-    dismissLater();
   }
   toastDismiss.addEventListener('click', nextQueuedAlert);
-  toastOpen.addEventListener('click', () => { queuedAlerts=[]; activeItem=null; hideToast(); openNews(); });
-  toast.addEventListener('mouseenter', () => { toastHovered = true; clearTimeout(toastTimer); });
-  toast.addEventListener('mouseleave', () => { toastHovered = false; dismissLater(); });
-  toast.addEventListener('focusin', () => clearTimeout(toastTimer));
-  toast.addEventListener('focusout', () => queueMicrotask(dismissLater));
+  toastOpen.addEventListener('click', openNews);
   alertsToggle.addEventListener('click', () => {
     preferences.alerts = !preferences.alerts;
     silenceBaseline();
@@ -318,7 +317,9 @@ export function setupNewsDesk() {
     else unlockSound();
     refreshNews();
   });
+  contextToggle.addEventListener('click',()=>{preferences.context=!preferences.context;savePreferences();});
   soundToggle.addEventListener('click', () => {
+    if(preferences.sound&&!whistle.ready){unlockSound();return;}
     preferences.sound = !preferences.sound;
     savePreferences();
     if (preferences.sound) unlockSound();
@@ -351,7 +352,7 @@ export function setupNewsDesk() {
   }
 
   function scheduleRefresh() {
-    if (!document.hidden && (dialog.open || preferences.alerts)) poller?.start();
+    if (preferences.alerts || !document.hidden && dialog.open) poller?.start();
     else poller?.stop();
   }
   function interruptRefresh() { poller?.stop(); loading = false; }
@@ -489,7 +490,7 @@ export function setupNewsDesk() {
     const id = result.source.id;
     const next = {items:result.items,sources:[result.source],fetchedAt:result.source.fetchedAt};
     const retained = (feed?.items || []).filter(item => item.source !== id || result.source.status !== 'ok');
-    const receivedAlerts = collectNewsAlerts(alertState, next);
+    const receivedAlerts = collectNewsAlerts(alertState, next, {includeContext:preferences.context});
     alertState = receivedAlerts.state; saveSeen();
     const reports = new Map((feed?.sources || []).map(source=>[source.id,source])); reports.set(id,result.source);
     feed = {items:[...receivedAlerts.items,...retained], sources:[...reports.values()], fetchedAt:next.fetchedAt};
@@ -503,10 +504,10 @@ export function setupNewsDesk() {
       audit.push({story_id:item.id,headline:item.title,recorded_at_utc:new Date().toISOString(),analysis:item.analysis,popup_eligible:preferences.alerts && eligible.has(item.id),decision:eligible.has(item.id)?'Eligible for popup':'Silent baseline, duplicate, stale, feed-only or filtered'});
     }
     audit=audit.slice(-300);try{localStorage.setItem('sessionpath-news-audit-v1',JSON.stringify(audit));}catch{}
-    render(); showAlert(matchedAlerts);
+    if(dialog.open) render(); showAlert(matchedAlerts);
   }
   function refreshNews() {
-    if (document.hidden || (!dialog.open && !preferences.alerts)) return;
+    if (!preferences.alerts && (!dialog.open || document.hidden)) return;
     lastAttempt=Date.now(); poller?.start(); poller?.refresh();
   }
   function openNews() {
@@ -542,14 +543,18 @@ export function setupNewsDesk() {
   search.addEventListener('input', () => { filters.search = search.value; saveFilters(); render(); });
   refresh.addEventListener('click', refreshNews);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { queuedAlerts = []; hideToast(); interruptRefresh(); silenceBaseline(); }
+    if (document.hidden) {
+      if(activeItem) queuedAlerts=[...new Map([activeItem,...queuedAlerts].map(item=>[item.id,item])).values()].slice(-50);
+      activeItem=null;hideToast();if(!preferences.alerts)interruptRefresh();
+    }
     else if (dialog.open || preferences.alerts) {
-      render();
+      if(dialog.open)render();
+      if(queuedAlerts.length) nextQueuedAlert();
       if (!feed || Date.now() - lastAttempt >= REFRESH_MS) refreshNews();
       else scheduleRefresh();
     }
   });
-  window.addEventListener('pagehide', () => { hideToast(); interruptRefresh(); silenceBaseline(); });
+  window.addEventListener('pagehide', () => { hideToast(); interruptRefresh(); saveSeen(); });
   window.addEventListener('pageshow', event => {
     if (event.persisted && (dialog.open || preferences.alerts)) refreshNews();
   });
@@ -558,7 +563,7 @@ export function setupNewsDesk() {
     refresh.disabled=pending.length===ACTIVE_SOURCE_COUNT; refresh.textContent=refresh.disabled?'Checking…':'Refresh';
     listArea.setAttribute('aria-busy',String(loading));
   }});
-  if (preferences.alerts && !document.hidden) refreshNews();
+  if (preferences.alerts) refreshNews();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupNewsDesk, {once: true});

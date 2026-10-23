@@ -27,7 +27,7 @@ html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{
 #sessionpath-loading .loading-brand{position:relative;isolation:isolate}
 #sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::before{content:"";position:absolute;pointer-events:none;z-index:-2;left:calc(clamp(48px,7vw,84px)/2);top:50%;width:260px;height:180px;transform:translate(-50%,-35%);background:radial-gradient(ellipse,rgba(114,126,148,.19) 0%,rgba(83,94,114,.10) 35%,transparent 70%)}
 #sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::after{content:"";position:absolute;pointer-events:none;z-index:-1;left:calc(clamp(48px,7vw,84px)/2);top:calc(50% + clamp(48px,7vw,84px)/2 + 7px);width:clamp(42px,6vw,72px);height:12px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.95) 0%,rgba(0,0,0,.6) 42%,transparent 74%);filter:blur(2px)}
-#sessionpath-loading #loading-coin{filter:drop-shadow(3px 6px 4px rgba(0,0,0,.75))}
+
 
 /* Fade layers independently: the illuminated coin shadow leaves last. */
 #sessionpath-loading{background:transparent;transition:none}
@@ -41,3 +41,17 @@ html[data-loading-cover="fading"] #sessionpath-loading #loading-coin,
 html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::before,
 html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::after{opacity:0}
 @media(prefers-reduced-motion:reduce){#sessionpath-loading *,#sessionpath-loading::before,#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{transition:none!important}}
+
+/* A cylinder: two independent faces and 48 reflective edge facets, not a flipped bitmap. */
+#sessionpath-loading #loading-coin{--coin-size:clamp(48px,7vw,84px);width:var(--coin-size);height:var(--coin-size);position:relative;perspective:600px;filter:none;transform-style:preserve-3d}
+#loading-coin-rotor{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(12deg) rotateY(-22deg)}
+#loading-coin .coin-face{position:absolute;inset:0;border-radius:50%;backface-visibility:hidden;background:conic-gradient(from 25deg,#a2b6d1,#f1f8ff 12%,#536a89 24%,#d5eafa 36%,#fff6dd 46%,#7c94b2 58%,#283b55 72%,#dceeff 89%,#a2b6d1);box-shadow:inset 0 0 0 1px #eff8ffb0;transform:translateZ(5px);display:grid;place-items:center}
+#loading-coin .coin-face.back{transform:rotateY(180deg) translateZ(5px)}
+#loading-coin .coin-face::before{content:'';position:absolute;inset:7%;border-radius:50%;background:linear-gradient(140deg,#8596ac,#263247 38%,#111b2a 62%,#4b627d);border:1px solid #c0d6ee90;box-shadow:inset 1px 2px 4px #0009,0 0 0 2px #18263780}
+#loading-coin .coin-face::after{content:'';position:absolute;inset:2%;border-radius:50%;background:linear-gradient(125deg,transparent 12%,#ffffff30 24%,transparent 40%,transparent 65%,#ffe2ac22 78%,transparent 89%);pointer-events:none}
+#loading-coin .coin-face svg{position:relative;width:58%;height:58%;overflow:visible;filter:drop-shadow(1px 2px 1px #020816b0)}
+#loading-coin .coin-mark-nq{display:none}
+#loading-coin[data-market="NQ"] .coin-mark-cl{display:none}
+#loading-coin[data-market="NQ"] .coin-mark-nq{display:block}
+#loading-coin .coin-edge{position:absolute;left:50%;top:50%;width:calc(var(--coin-size)*.067);height:10px;margin-left:calc(var(--coin-size)*-.0335);margin-top:-5px;background:linear-gradient(90deg,#b4c8de,#546a85 26%,#e5efff 52%,#708aa6 70%,#d1e4f6);transform:rotateZ(var(--angle)) translateY(calc(var(--coin-size)*-.493)) rotateX(90deg);backface-visibility:visible}
+#loading-coin .coin-edge:nth-child(3n){background:linear-gradient(90deg,#354c6b,#d5e7fa 45%,#798faa)}

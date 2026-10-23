@@ -2,35 +2,31 @@
 (()=>{
  const root=document.documentElement,cover=document.getElementById('sessionpath-loading');
  const note=document.getElementById('loading-note'),retry=document.getElementById('loading-retry');
- const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),coin=document.getElementById('loading-coin');
+ const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),coin=document.getElementById('loading-coin'),rotor=document.getElementById('loading-coin-rotor');
  const transferKey='sessionpath-loading-transition';
  const markets={CL:{name:'Crude oil',image:'assets/emblems/cl-acrylic-v1.webp'},NQ:{name:'Nasdaq 100',image:'assets/emblems/nq-acrylic-v1.webp'}};
  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
  let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,spin,audio;
- function cling(){
-  try{
-   const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;
-   audio??=new Audio();void audio.resume().catch(()=>{});
-   const t=audio.currentTime;
-   [1760,2640,4224].forEach((frequency,i)=>{const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.setValueAtTime(frequency,t);o.frequency.exponentialRampToValueAtTime(frequency*.97,t+.65);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.11/(i+1),t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+.75);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.8);});
-  }catch{/* Sound must never block switching markets. */}
- }
+ // A real recorded coin sound; preloading is deferred until a user gesture.
+ function prepareCoinSound(){try{if(!audio&&window.Audio){audio=new window.Audio('assets/audio/coin-cling.mp3');audio.preload='auto';audio.volume=.65;audio.load();}}catch{}}
+ function cling(){try{prepareCoinSound();if(audio){audio.currentTime=0;void audio.play().catch(()=>{});}}catch{}}
+ document.addEventListener('pointerdown',prepareCoinSound,{once:true,passive:true});
+ document.addEventListener('keydown',prepareCoinSound,{once:true});
  function present(market,elapsed=0,sound=false){
   clearTimeout(typeTimer);spin?.cancel();
   const info=markets[market],text=info?.name||'SessionPath center';
   title.setAttribute('aria-label',text);title.dataset.fullTitle=text;
   coin.hidden=!info;
-  if(info){coin.src=info.image;coin.alt='';}
+  if(info){coin.dataset.market=market;}
   const tick=()=>{const elapsedNow=performance.now()-began;typed.textContent=text.slice(0,Math.min(text.length,Math.floor(text.length*elapsedNow/815)));if(elapsedNow<815)typeTimer=setTimeout(tick,Math.min(16,815-elapsedNow));};
   if(reduced())typed.textContent=text;else tick();
   let coinDone=Promise.resolve();
   if(info&&!reduced()&&elapsed<600){
    const started=began;
-   coinDone=Promise.race([coin.decode().catch(()=>{}),new Promise(resolve=>setTimeout(resolve,1500))]).then(()=>{
-    if(started!==began)return;
-    spin=coin.animate([{transform:'rotateY(0deg)'},{transform:'rotateY(1080deg)'}],{duration:600,easing:'cubic-bezier(.15,.65,.25,1)',fill:'both'});
-    return spin.finished.catch(()=>{});
-   });
+   if(started===began&&rotor){
+    spin=rotor.animate([{transform:'rotateX(12deg) rotateY(-22deg)'},{transform:'rotateX(12deg) rotateY(1058deg)'}],{duration:600,easing:'cubic-bezier(.15,.65,.25,1)',fill:'both'});
+    coinDone=spin.finished.catch(()=>{});
+   }
   }
   if(sound)cling();
   return Promise.all([coinDone,new Promise(resolve=>setTimeout(resolve,reduced()?0:Math.max(0,815-elapsed)))]);

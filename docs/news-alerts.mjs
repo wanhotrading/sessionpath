@@ -45,13 +45,13 @@ function readSaved(saved) {
 }
 
 /** Restore persisted deduplication data while starting a silent page-session baseline.
- * Call again after re-enabling alerts or returning from a hidden page to rebase.
+ * Use resume:true to preserve a known baseline across page loads. Explicitly re-enabling alerts may rebase.
  */
-export function createNewsAlertState(saved = null, {now = Date.now()} = {}) {
+export function createNewsAlertState(saved = null, {now = Date.now(), resume = false} = {}) {
   const previous = readSaved(saved);
   const seen = (Array.isArray(previous.seen) ? previous.seen.slice(-NEWS_ALERT_MAX_SEEN) : []).map(entry => validSeenEntry(entry, now)).filter(Boolean);
   const sources = Object.fromEntries(SOURCE_IDS.map(id => [id, {
-    initialized: false,
+    initialized: resume && !!dateValue(previous.sources?.[id]?.lastObservedAt, now),
     watermark: dateValue(previous.sources?.[id]?.watermark, now),
     lastObservedAt: dateValue(previous.sources?.[id]?.lastObservedAt, now)
   }]));
@@ -79,7 +79,7 @@ export function serializeNewsAlertState(state, {now = Date.now()} = {}) {
  * Same-second new IDs remain eligible; older-than-watermark and >10-minute-old
  * recovery headlines stay silent. No DOM, audio, storage, or input mutation.
  */
-export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEWS_ALERT_MAX_AGE_MS} = {}) {
+export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEWS_ALERT_MAX_AGE_MS, includeContext = false} = {}) {
   const next = createNewsAlertState(state, {now});
   for (const id of SOURCE_IDS) next.sources[id].initialized = state?.version === VERSION && state?.sources?.[id]?.initialized === true;
   const age = Number.isFinite(maxAgeMs) && maxAgeMs > 0 ? maxAgeMs : NEWS_ALERT_MAX_AGE_MS;
@@ -112,7 +112,7 @@ export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEW
       if (revised && item.analysis?.is_correction && previous.priority === 'P1') { item.analysis.priority = 'P1'; entry.priority = 'P1'; }
       if (item.analysis) { item.analysis.event_version = entry.version; item.analysis.previous_headlines = entry.history; item.analysis.novelty = revised ? 'Updated headline' : known ? 'Already seen' : 'New headline'; }
       const stamp = Date.parse(entry.publishedAt);
-      if (!baseline && !known && (revised || !previousWatermark || entry.publishedAt >= previousWatermark) && (stamp >= now - age || revised && item.analysis?.is_correction) && (!item.analysis || ['P1','P2'].includes(item.analysis.priority))) newItems.push(item);
+      if (!baseline && !known && (revised || !previousWatermark || entry.publishedAt >= previousWatermark) && (stamp >= now - age || revised && item.analysis?.is_correction) && (includeContext || !item.analysis || ['P1','P2'].includes(item.analysis.priority))) newItems.push(item);
       ids.add(key); urls.add(entry.url); titles.add(entry.titleKey);
       entries.delete(key); entries.set(key, entry);
       watermark = laterDate(watermark, entry.publishedAt);
