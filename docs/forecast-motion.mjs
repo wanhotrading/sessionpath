@@ -12,7 +12,9 @@ export function reveal(host,nodes,gap=250){
  if(!host)return;
  (runs.get(host)||[]).forEach(a=>a.cancel());runs.delete(host);
  host.querySelectorAll(':scope > .forecast-shine').forEach(x=>x.remove());
- if(quiet())return;
+ if(quiet()||document.hidden||document.documentElement.dataset.startup==='loading')return;
+ const bounds=host.getBoundingClientRect();
+ if(bounds.bottom<=0||bounds.top>=innerHeight||bounds.right<=0||bounds.left>=innerWidth)return;
  const items=[...nodes].filter(Boolean),duration=150,step=gap;
  const animations=items.map((el,i)=>el.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration,delay:i*step,fill:'backwards',easing:'ease-out'}));
  host.classList.add('forecast-motion-surface');

@@ -74,9 +74,9 @@ export function mountBBoxReturn(){
   }catch(e){if(attempt===liveAttempt)$('br-live-note').textContent=e.message;}
  };
  $('br-returned').onclick=()=>{stopTracking('Return recorded by you. This remaining-chance scenario has ended. Start a new observation for a new event.');returnRecorded=true;trackingMinute=null;$('br-survival').checked=false;rememberInputs();$('br-code').value='';$('br-copy').disabled=true;$('br-result').innerHTML='<p class="notice">Returned · tracking stopped. The prior “still no return” estimate no longer applies.</p>';revision++;};
- setInterval(()=>{if(!document.hidden)updateClock();},1000);
- setInterval(()=>{if(!document.hidden)syncClock();},5*60000);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncClock();});syncClock();
+ setInterval(()=>{if(!document.hidden&&live)updateClock();},1000);
+ setInterval(()=>{if(!document.hidden&&live)syncClock();},5*60000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&live)syncClock();});
  host.addEventListener('change',e=>{returnRecorded=false;stopTracking('Inputs updated. Review the observation and restart live tracking if needed.');trackingMinute=null;if(e.target.id==='br-observed'&&e.target.value){const m=checkpointMinute(e.target.value);if(m===null){revision++;$('br-code').value='';$('br-copy').disabled=true;$('br-copy-status').textContent='';$('br-result').innerHTML='<p class="notice">Choose an observation from 03:00 through 08:29 NY time.</p>';return;}$('br-anchor').value=m;syncTimes();}else if(e.target.id==='br-anchor'){ $('br-observed').value='';syncTimes();}else if(e.target.id==='br-mode')syncTimes();rememberInputs();renderBBoxReturn();});
  document.addEventListener('change',e=>{if(['trading-date','year','replay-date','replay-toggle'].includes(e.target.id)){returnRecorded=false;stopTracking('Date or archive changed. Review and restart tracking.');trackingMinute=null;queueMicrotask(renderBBoxReturn);}});
  $('scenario-form').addEventListener('submit',()=>queueMicrotask(renderBBoxReturn));
@@ -84,6 +84,7 @@ export function mountBBoxReturn(){
 }
 export async function renderBBoxReturn({tick=false}={}){
  const host=$('br-result');if(!host)return;
+ if(!live&&!$('bbox-return-details')?.open)return;
  restoreDraft();
  const rev=++revision,date=$('trading-date').value,year=$('year').value;
  $('br-code').value='';$('br-copy').disabled=true;$('br-copy-status').textContent='';

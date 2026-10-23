@@ -39,9 +39,9 @@ export function sessionProbabilities(days,chosen={},year=''){
   return result;
  });
 }
-export function boxEstimate(days,timeline,query,endMinute){
+export function boxEstimate(days,timeline,query,endMinute,preparedRows=null){
  if(endMinute<=query.minute)return null;
- const selection=selectMatches(days,deriveRows(days,timeline,query.minute,endMinute),query);
+ const selection=selectMatches(days,preparedRows??deriveRows(days,timeline,query.minute,endMinute),query);
  const matches=selection.matches;if(!matches.length)return null;
  const up=mean(matches.map(m=>m.row.nextHighAvr)),down=mean(matches.map(m=>-m.row.nextLowAvr));
  const inside=matches.filter(m=>m.row.nextHighAvr<=up+1e-9&&-m.row.nextLowAvr<=down+1e-9).length;

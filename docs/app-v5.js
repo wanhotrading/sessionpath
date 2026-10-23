@@ -1,8 +1,9 @@
+import {loadAsset,yieldToBrowser} from './startup-load.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument,dataPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs';
 import {setupDeviceView} from './device-view.mjs';
-import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=smooth-live-20261023';
+import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=startup-20261023';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
 import {mountLocalImporter} from './local-import-ui.mjs';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
@@ -23,12 +24,13 @@ mountScreenshotReview(state);
 mountForecastContext();mountBBoxReturn();
 const returnDetails=document.createElement('details');returnDetails.id='bbox-return-details';returnDetails.className='session-note bbox-return-details';returnDetails.innerHTML='<summary>Closed outside BBOX? Check % of return</summary>';
 $('projection').querySelector('.forecast-main').append(returnDetails);returnDetails.append($('bbox-return'));
+returnDetails.addEventListener('toggle',()=>{if(returnDetails.open)renderBBoxReturn();});
 const storageKey=marketStorageKey('session-path-checkpoints-v2');
 const val=id=>$(id).value===''?null:Number($(id).value);
 const friendly=t=>String(t).replace(/RALLY_FADE/g,'TREND UP → FADE').replace(/DROP_RECOVERY/g,'TREND DOWN → RECOVER');
 const shape=s=>s;
 const engineShape=s=>({'Trending up':'Higher finish','Trending down':'Lower finish'}[s]||s);
-async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error('A research file could not be loaded. Please reload this page.');return r.json();}
+const getJSON=url=>loadAsset(url);
 function toast(text){$('toast').textContent=text;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3300);}
 function selectedWindow(){return windows[$('window').value]||windows['1930-0500'];}
 function syncInputs(){ $('window').value=$('asof').value==='05:00'?'1930-0830':'1930-0500';const rh=val('range-high'),rl=val('range-low'),price=val('price'),avr=val('avr'),rangeValid=rh!=null&&rl!=null&&rh>rl;
@@ -193,13 +195,13 @@ function renderBox(){
  if(state.library||!q||!Number.isFinite(q.minute)){renderBoxEmpty('Return to valid planning inputs to estimate the box.');return;}
  const end=q.endMinute;
  if(end<=q.minute){renderBoxEmpty('The 08:30 forecasting deadline has passed. The standalone range indicator remains available below.');return;}
- const b=boxEstimate(state.days,state.timeline,q,end);state.box=b;
+ const b=boxEstimate(state.days,state.timeline,q,end,state.rowCache.get(`${q.minute}:${end}`));state.box=b;
  if(!b){renderBoxEmpty('No complete matches for this box. Broaden your conditions.');return;}
  const ready=q.price!=null&&q.avr>0,minutes=end-q.minute;
  
  $('box-result').innerHTML=`<p class="compact-note">${clockLabel(q.minute)}–${clockLabel(end)} ET · ${raised(pct(b.coverage))} in-sample containment</p>`;
- $('download-pine').disabled=!ready;$('copy-pine').disabled=!ready;$('pine-status').textContent='';
- if(ready){state.pine=makeChartPine(state.pineTemplate,b,q);$('forecast-code').value=makeForecastCode(b,q);}else $('forecast-code').value='';$('copy-forecast-code').disabled=!ready;$('pine-source').value=state.pine||'';
+ $('download-pine').disabled=!ready||!state.pineTemplate;$('copy-pine').disabled=!ready||!state.pineTemplate;$('pine-status').textContent='';
+ if(ready){state.pine=state.pineTemplate?makeChartPine(state.pineTemplate,b,q):null;$('forecast-code').value=makeForecastCode(b,q);}else $('forecast-code').value='';$('copy-forecast-code').disabled=!ready;$('pine-source').value=state.pine||'';
 }
 $('session-cards').addEventListener('change',e=>{const select=e.target.closest('[data-session]');if(!select)return;const i=sessions.findIndex(s=>s.id===select.dataset.session);state.sessionChoices[select.dataset.session]=select.value;for(const s of sessions.slice(i+1))delete state.sessionChoices[s.id];renderSessions();});
 $('clear-sequence').addEventListener('click',()=>{state.sessionChoices={};renderSessions();});
@@ -211,4 +213,42 @@ $('copy-pine').addEventListener('click',async()=>{if(!state.pine)return;try{awai
 
 function syncDate(){const replay=$('replay-toggle').checked,today=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});$('replay-date-wrap').hidden=!replay;if(replay){$('replay-date').value||=today;$('trading-date').value=$('replay-date').value;}else $('trading-date').value=today;$('date-label').textContent=replay?'Earlier cases only':'Today · '+today;}
 $('replay-toggle').addEventListener('change',()=>{syncDate();analyze();});$('replay-date').addEventListener('change',()=>{syncDate();analyze();});syncDate();syncInputs();$('analyze-btn').disabled=true;
-try{[state.days,state.tags,state.timeline,state.galleryIndex,state.extra,state.pineTemplate]=await Promise.all([getJSON(dataPath('days.json')),getJSON(dataPath('tags.json')),getJSON(dataPath('timeline.json')),getJSON(dataPath('gallery-index.json')+'?v=public-captures-20261020'),getJSON(dataPath('planner-extra.json')),fetch(instrument.indicatorFile).then(r=>{if(!r.ok)throw Error('Indicator template unavailable.');return r.text();})]);state.shapeDictionary=state.tags;Object.assign(state,enrichResearch(state.days,state.tags,state.extra));migrateCheckpoints();state.ready=true;$('dataset-status').innerHTML=`${instrument.id} · ${state.days.length.toLocaleString()} research dates · 2022–2026`;$('analyze-btn').disabled=false;mountNYReference(state.days,state.timeline);restoreMarketInputs();syncDate();syncInputs();$('trading-date').dispatchEvent(new Event('change'));mountReplayTools(state,applyReplaySnapshot);mountDictionary(state);mountValidation();const applyReaderChoices=choices=>{for(const c of choices){if(c.kind==='tag')state.selected.add(c.value);if(c.kind==='behavior')$('behavior').value=c.value;if(c.kind==='value'){const [id,value]=c.value.split('=');if($(id))$(id).value=value;}}state.library=false;analyze();};mountReader(state,applyReaderChoices);mountLocalImporter(state,applyReaderChoices);for(const id of ['compare-a','compare-b'])$(id).addEventListener('change',()=>renderComparison(state));analyze();registerTools();}catch(e){$('dataset-status').textContent='Research could not be loaded';$('forecast').innerHTML=`<div class="panel empty">${esc(e.message)}</div>`;}
+async function startResearch(){
+ try{
+  $('dataset-status').textContent='Loading '+instrument.id+' research…';
+  [state.days,state.tags,state.timeline,state.extra]=await Promise.all(['days.json','tags.json','timeline.json','planner-extra.json'].map(file=>getJSON(dataPath(file))));
+  await yieldToBrowser();
+  state.shapeDictionary=state.tags;Object.assign(state,enrichResearch(state.days,state.tags,state.extra));migrateCheckpoints();
+  await yieldToBrowser();
+  mountNYReference(state.days,state.timeline);
+  restoreMarketInputs();syncDate();syncInputs();
+  state.ready=true;$('analyze-btn').disabled=false;
+  await yieldToBrowser();
+  // Date change already renders the initial forecast; do not calculate twice.
+  $('trading-date').dispatchEvent(new Event('change'));
+  $('dataset-status').textContent=`${instrument.id} · ${state.days.length.toLocaleString()} research dates · 2022–2026`;
+  document.documentElement.dataset.startup='ready';$('startup-recovery')?.remove();registerTools();
+ }catch(error){
+  state.ready=false;document.documentElement.dataset.startup='failed';
+  $('dataset-status').textContent='Research could not be loaded';
+  $('forecast').innerHTML=`<div class="panel empty"><p>${esc(error.message)}</p><button type="button" id="retry-research" class="quiet">Retry loading</button></div>`;
+  $('retry-research').onclick=()=>location.reload();return;
+ }
+ // An optional download must never block the forecast.
+ async function optionalAsset(file,apply,target){
+  try{apply(await loadAsset(file,{format:file.endsWith('.pine')?'text':'json'}));}
+  catch(error){
+   const note=document.createElement('p');note.className='compact-note';note.textContent=error.message+' ';
+   const retry=document.createElement('button');retry.type='button';retry.className='quiet';retry.textContent='Retry';
+   retry.onclick=()=>{note.remove();optionalAsset(file,apply,target);};note.append(retry);target.append(note);
+  }
+ }
+ void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();},$('evidence'));
+ void optionalAsset(instrument.indicatorFile,value=>{state.pineTemplate=value;renderBox();},$('indicator-section'));
+ const applyReaderChoices=choices=>{for(const c of choices){if(c.kind==='tag')state.selected.add(c.value);if(c.kind==='behavior')$('behavior').value=c.value;if(c.kind==='value'){const [id,value]=c.value.split('=');if($(id))$(id).value=value;}}state.library=false;analyze();};
+ for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation(),()=>mountReader(state,applyReaderChoices),()=>mountLocalImporter(state,applyReaderChoices)]){
+  await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}
+ }
+ for(const id of ['compare-a','compare-b'])$(id).addEventListener('change',()=>renderComparison(state));
+}
+await startResearch();
