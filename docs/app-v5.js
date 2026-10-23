@@ -2,7 +2,7 @@ import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument,dataPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs';
 import {setupDeviceView} from './device-view.mjs';
-import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=direction-live-20261022-r3';
+import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=smooth-live-20261023';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
 import {mountLocalImporter} from './local-import-ui.mjs';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
