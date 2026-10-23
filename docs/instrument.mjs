@@ -19,10 +19,11 @@ export function mountInstrumentSelector(){
  for(const c of Object.values(instruments)){const option=document.createElement('option');option.value=c.id;option.textContent=c.id+' · '+c.name;select.append(option);}select.value=instrument.id;label.append(select);
  document.querySelector('.top-actions').prepend(label);
  select.addEventListener('change',()=>{
-  document.dispatchEvent(new Event('sessionpath:instrument-change'));
+  const transition={instrument:select.value};
+  document.dispatchEvent(new CustomEvent('sessionpath:instrument-change',{detail:transition}));
   saveMarketInputs();const url=new URL(location.href);url.searchParams.set('instrument',select.value);
-  // Paint the cover on the outgoing market before beginning the next navigation.
-  requestAnimationFrame(()=>requestAnimationFrame(()=>location.assign(url.href)));
+  // Finish the gesture-triggered sound and title before navigating; the new page resumes this cover.
+  Promise.resolve(transition.finished).finally(()=>location.assign(url.href));
  });
  document.querySelector('.ambient-footer span').textContent=instrument.id+' / RESEARCH WORKSPACE';
  document.querySelector('.page-heading h1').textContent=instrument.id;

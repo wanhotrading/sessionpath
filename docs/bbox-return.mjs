@@ -1,6 +1,6 @@
 import {tint,reveal} from './forecast-motion.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
-import {instrument,assetPath} from './instrument.mjs?v=black-cover-20261023';
+import {instrument,assetPath} from './instrument.mjs?v=coin-cover-20261023';
 import {bboxReturnStats,returnClock as clock,checkpointMinute,makeBBoxReturnCode} from './bbox-return-core.mjs?v=three-states-20261023';
 import {curveGeometry,liveMarkerGeometry} from './bbox-curve.mjs?v=live-time-20261023';
 import {createOnlineClock} from './ny-online-clock.mjs?v=live-time-20261023';
