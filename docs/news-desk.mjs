@@ -3,16 +3,21 @@ import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
 import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=juice-paused-20261022';
 import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=resume-20261023';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
+import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
 const ALERT_STATE_KEY = 'sessionpath-news-alert-seen-v1';
 const REFRESH_MS = 10_000;
 const STALE_MS = 20 * 60_000;
-const SOURCE_NAMES = Object.fromEntries(NEWS_SOURCES.map(source => [source.id,source.name]));
+const SOURCE_NAMES = Object.fromEntries(NEWS_SOURCES.map(source => [source.id,source.id === 'wallstreetcn' ? 'WallstreetCN · 華爾街見聞' : source.name]));
 const ACTIVE_SOURCE_COUNT = NEWS_SOURCES.filter(source => !source.paused).length;
 const TOPICS = new Set(['all', 'oil', 'geopolitics', 'indices', 'trump']);
 const SOURCES = new Set(['all', ...Object.keys(SOURCE_NAMES)]);
+
+function filterDisplayNews(items, filters) {
+  return filterNews(items, {...filters, search:''}).filter(item => matchesNewsSearch(item,filters.search));
+}
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -297,7 +302,7 @@ export function setupNewsDesk() {
       activeItem = item;
     }
     toastHeading.textContent = test ? 'Test news alert' : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}${queuedAlerts.length ? ` · ${queuedAlerts.length} queued` : ''}`;
-    toastHeadline.textContent = test ? 'Your market catalyst alerts are ready.' : item.title;
+    toastHeadline.textContent = test ? 'Your market catalyst alerts are ready.' : traditionalNewsText(item);
     const url = test ? null : safeHeadlineUrl(item.url);
     if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
     toastDetail.textContent = test
@@ -411,7 +416,7 @@ export function setupNewsDesk() {
 
     const rawItems = (Array.isArray(feed?.items) ? feed.items : []).filter(item => item.source !== 'abcnews' || Date.parse(item.publishedAt) >= Date.now()-7*86400000);
     const relevantItems = rawItems.filter(item => Array.isArray(item.categories) && item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category)));
-    const items = filterNews(relevantItems, filters)
+    const items = filterDisplayNews(relevantItems, filters)
       .filter(item => safeHeadlineUrl(item.url))
       .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
     const updated = feed?.fetchedAt ? ' · Checked ' + newsTime(feed.fetchedAt) : '';
@@ -456,7 +461,7 @@ export function setupNewsDesk() {
       const time = element('time', 'news-headline-time', newsTime(item.publishedAt));
       if (Number.isFinite(Date.parse(item.publishedAt))) time.dateTime = item.publishedAt;
       meta.append(time);
-      const link = element('a', 'news-headline-link', item.title || 'Open headline');
+      const link = element('a', 'news-headline-link', traditionalNewsText(item) || 'Open headline');
       link.href = safeHeadlineUrl(item.url);
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
@@ -477,7 +482,7 @@ export function setupNewsDesk() {
         if (a.numbers) summary.append(element('p', 'news-event-numbers', `Actual ${a.numbers.actual} / expected ${a.numbers.consensus ?? 'unavailable'} / surprise ${a.numbers.surprise ?? 'unavailable'} ${a.numbers.unit}`));
         const details = element('details', 'news-event-details'); details.open = expanded.has(item.id);
         details.append(element('summary', '', 'Evidence & uncertainty'));
-        for (const value of [`Assets: ${Object.entries(a.direction_by_asset).map(([asset, direction]) => asset + ': ' + directionLabel(direction)).join('; ')}`, `Source: ${a.source_authenticity}`, `Evidence: ${a.evidence_excerpt}`, `Received: ${newsTime(a.received_at_utc)}`, `Version: ${a.event_version || 1} · ${a.novelty || 'Publisher headline'}`, `Missing: ${a.missing_fields.join('; ')}`, ...a.invalidation_checks, ...(a.previous_headlines || []).map(v => 'Previous wording: ' + v)]) details.append(element('p', '', value));
+        for (const value of [`Assets: ${Object.entries(a.direction_by_asset).map(([asset, direction]) => asset + ': ' + directionLabel(direction)).join('; ')}`, `Source: ${a.source_authenticity}`, `Evidence: ${a.evidence_excerpt}`, `Received: ${newsTime(a.received_at_utc)}`, `Version: ${a.event_version || 1} · ${a.novelty || 'Publisher headline'}`, `Missing: ${a.missing_fields.join('; ')}`, ...a.invalidation_checks, ...(a.previous_headlines || []).map(v => 'Previous wording: ' + v)]) details.append(element('p', '', traditionalNewsText(item,value)));
         if (item.source === 'abcnews') summary.append(element('p','','Headlines supplied by ABCNEWS.com. Copyright © ABC, Inc.'));
         row.append(summary, details);
       }
@@ -495,7 +500,7 @@ export function setupNewsDesk() {
     const reports = new Map((feed?.sources || []).map(source=>[source.id,source])); reports.set(id,result.source);
     feed = {items:[...receivedAlerts.items,...retained], sources:[...reports.values()], fetchedAt:next.fetchedAt};
     failed=false;
-    const matchedAlerts = filterNews(receivedAlerts.newItems, filters).filter(item=>safeHeadlineUrl(item.url));
+    const matchedAlerts = filterDisplayNews(receivedAlerts.newItems, filters).filter(item=>safeHeadlineUrl(item.url));
     const eligible = new Set(matchedAlerts.map(item=>item.id));
     for (const item of receivedAlerts.items) {
       if (item.source === 'abcnews') continue; // Publisher permits current display, not a permanent archive.
@@ -558,7 +563,7 @@ export function setupNewsDesk() {
   window.addEventListener('pageshow', event => {
     if (event.persisted && (dialog.open || preferences.alerts)) refreshNews();
   });
-  poller = createNewsPoller({sources:NEWS_SOURCES,loadSource:loadNewsSource,onResult:receiveSource,onActivity:pending=>{
+  poller = createNewsPoller({sources:NEWS_SOURCES,loadSource:async (source,options) => prepareTraditionalNews(await loadNewsSource(source,options)),onResult:receiveSource,onActivity:pending=>{
     loading=pending.length>0;
     refresh.disabled=pending.length===ACTIVE_SOURCE_COUNT; refresh.textContent=refresh.disabled?'Checking…':'Refresh';
     listArea.setAttribute('aria-busy',String(loading));
