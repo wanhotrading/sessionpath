@@ -18,7 +18,12 @@ export function mountInstrumentSelector(){
  const select=document.createElement('select');select.id='instrument-select';select.setAttribute('aria-label','Market');
  for(const c of Object.values(instruments)){const option=document.createElement('option');option.value=c.id;option.textContent=c.id+' · '+c.name;select.append(option);}select.value=instrument.id;label.append(select);
  document.querySelector('.top-actions').prepend(label);
- select.addEventListener('change',()=>{saveMarketInputs();const url=new URL(location.href);url.searchParams.set('instrument',select.value);location.assign(url.href);});
+ select.addEventListener('change',()=>{
+  document.dispatchEvent(new Event('sessionpath:instrument-change'));
+  saveMarketInputs();const url=new URL(location.href);url.searchParams.set('instrument',select.value);
+  // Paint the cover on the outgoing market before beginning the next navigation.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>location.assign(url.href)));
+ });
  document.querySelector('.ambient-footer span').textContent=instrument.id+' / RESEARCH WORKSPACE';
  document.querySelector('.page-heading h1').textContent=instrument.id;
  document.querySelector('meta[name="description"]').content='SessionPath '+instrument.id+' futures: AVR-normalized forecasts and historical compression, expansion and BBOX returns.';

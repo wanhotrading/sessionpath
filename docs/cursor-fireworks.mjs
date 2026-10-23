@@ -10,7 +10,7 @@ const button=document.createElement('button');button.id='fireworks-toggle';butto
 const particles=[];
 let width=0,height=0,frame=0,previous=0,lastMove=-Infinity,lastBurst=-Infinity,lastX=-999,lastY=-999,scrollUntil=0;
 let themeIndex=Math.floor(Math.random()*themes.length),budget=coarse.matches?64:120,slowFrames=0;
-const paused=()=>!enabled||!ctx||reduced.matches||document.hidden||document.documentElement.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
+const paused=()=>!enabled||!ctx||document.documentElement.hasAttribute('data-loading-cover')||reduced.matches||document.hidden||document.documentElement.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
 function clear(){if(frame)cancelAnimationFrame(frame);frame=0;previous=0;particles.length=0;ctx?.clearRect(0,0,width,height);}
 function sync(){
  button.textContent=`🎆 ${enabled?'On':'Off'}`;button.setAttribute('aria-label',enabled?'Turn fireworks off':'Turn fireworks on');button.setAttribute('aria-pressed',String(enabled));
@@ -64,7 +64,7 @@ document.addEventListener('click',e=>{
  const now=performance.now();if(now-lastBurst<180)return;lastBurst=now;emit(e.clientX,e.clientY,true);
 },{passive:true,capture:true});
 document.addEventListener('scroll',()=>{scrollUntil=performance.now()+180;if(frame||particles.length)clear();},{passive:true,capture:true});
-new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['class','data-loading-cover']});
 new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});
 reduced.addEventListener('change',sync);document.addEventListener('visibilitychange',sync);
 window.addEventListener('blur',clear);window.addEventListener('resize',resize,{passive:true});
