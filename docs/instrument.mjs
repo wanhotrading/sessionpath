@@ -33,7 +33,6 @@ export function mountInstrumentSelector(){
   for(const text of document.querySelectorAll('#indicator-section .compact-note'))text.textContent=text.textContent.replaceAll('v6.6',instrument.indicatorLabel);
   for(const input of document.querySelectorAll('input[type="number"][step="0.01"]'))input.step='.25';
   document.getElementById('price').placeholder='25000.00';document.getElementById('avr').placeholder='320.00';
-  const note=document.createElement('p');note.className='market-note compact-note';note.textContent='NQ database · 2022-01-03–2026-10-15 · quarterly contracts · 0.25-point tick. Forecasts use earlier dates only. Daily indicator screenshots are still pending.';document.querySelector('.page-heading').append(note);
  }
  window.addEventListener('pagehide',saveMarketInputs);
 }

@@ -7,11 +7,22 @@
  const markets={CL:{name:'Crude oil',image:'assets/emblems/cl-acrylic-v1.webp'},NQ:{name:'Nasdaq 100',image:'assets/emblems/nq-acrylic-v1.webp'}};
  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
  let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,spin,audio;
+ const artwork=new Map();
+ function prepareArtwork(market){
+  if(!window.Image)return Promise.resolve();
+  if(!artwork.has(market)){
+   const img=new window.Image();img.src=markets[market].image;
+   artwork.set(market,img.decode().catch(()=>{}));
+  }
+  return artwork.get(market);
+ }
+ // Reuse the exact panel artwork; prepare it before the short transition starts.
+ function prepareTransition(){prepareCoinSound();for(const market of Object.keys(markets))void prepareArtwork(market);}
  // A real recorded coin sound; preloading is deferred until a user gesture.
  function prepareCoinSound(){try{if(!audio&&window.Audio){audio=new window.Audio('assets/audio/coin-cling.mp3');audio.preload='auto';audio.volume=.65;audio.load();}}catch{}}
  function cling(){try{prepareCoinSound();if(audio){audio.currentTime=0;void audio.play().catch(()=>{});}}catch{}}
- document.addEventListener('pointerdown',prepareCoinSound,{once:true,passive:true});
- document.addEventListener('keydown',prepareCoinSound,{once:true});
+ document.addEventListener('pointerdown',prepareTransition,{once:true,passive:true});
+ document.addEventListener('keydown',prepareTransition,{once:true});
  function present(market,elapsed=0,sound=false){
   clearTimeout(typeTimer);spin?.cancel();
   const info=markets[market],text=info?.name||'SessionPath center';
@@ -22,11 +33,12 @@
   if(reduced())typed.textContent=text;else tick();
   let coinDone=Promise.resolve();
   if(info&&!reduced()&&elapsed<600){
-   const started=began;
-   if(started===began&&rotor){
-    spin=rotor.animate([{transform:'rotateX(12deg) rotateY(-22deg)'},{transform:'rotateX(12deg) rotateY(1058deg)'}],{duration:600,easing:'cubic-bezier(.15,.65,.25,1)',fill:'both'});
-    coinDone=spin.finished.catch(()=>{});
-   }
+   const run=generation;
+   coinDone=Promise.race([prepareArtwork(market),new Promise(resolve=>setTimeout(resolve,400))]).then(()=>{
+    if(run!==generation||!rotor)return;
+    spin=rotor.animate([{transform:'rotateY(0deg)'},{transform:'rotateY(1080deg)'}],{duration:600,easing:'cubic-bezier(.18,.62,.26,1)',fill:'both'});
+    return spin.finished.catch(()=>{});
+   });
   }
   if(sound)cling();
   return Promise.all([coinDone,new Promise(resolve=>setTimeout(resolve,reduced()?0:Math.max(0,815-elapsed)))]);
