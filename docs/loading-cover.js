@@ -21,7 +21,7 @@
   title.setAttribute('aria-label',text);title.dataset.fullTitle=text;
   coin.hidden=!info;
   if(info){coin.src=info.image;coin.alt='';}
-  const tick=()=>{const elapsedNow=performance.now()-began;typed.textContent=text.slice(0,Math.min(text.length,Math.floor(text.length*elapsedNow/1100)));if(elapsedNow<1100)typeTimer=setTimeout(tick,Math.min(16,1100-elapsedNow));};
+  const tick=()=>{const elapsedNow=performance.now()-began;typed.textContent=text.slice(0,Math.min(text.length,Math.floor(text.length*elapsedNow/815)));if(elapsedNow<815)typeTimer=setTimeout(tick,Math.min(16,815-elapsedNow));};
   if(reduced())typed.textContent=text;else tick();
   let coinDone=Promise.resolve();
   if(info&&!reduced()&&elapsed<600){
@@ -33,7 +33,7 @@
    });
   }
   if(sound)cling();
-  return Promise.all([coinDone,new Promise(resolve=>setTimeout(resolve,reduced()?0:Math.max(0,1100-elapsed)))]);
+  return Promise.all([coinDone,new Promise(resolve=>setTimeout(resolve,reduced()?0:Math.max(0,815-elapsed)))]);
  }
  const locked=new Map();
  function lock(){for(const el of document.body.children){if(el===cover||['SCRIPT','STYLE','NOSCRIPT'].includes(el.tagName))continue;if(!locked.has(el))locked.set(el,el.inert);el.inert=true;}}
@@ -60,7 +60,7 @@
    // The ready panels have completed layout before they become visible behind the fade.
    root.dataset.loadingCover='fading';cover.setAttribute('aria-busy','false');
    finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:560);
-  })),quiet?0:Math.max(0,1100-(performance.now()-began)));
+  })),quiet?0:Math.max(0,815-(performance.now()-began)));
  }
  function state(){
   if(navigating)return;
