@@ -1,10 +1,10 @@
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
-import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=discord-20261023';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=discord-topics-20261023';
 import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=discord-20261023';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
-import {connectDiscordNews,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-20261023';
+import {connectDiscordNews,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-topics-20261023';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';

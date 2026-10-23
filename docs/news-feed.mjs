@@ -1,4 +1,4 @@
-import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=fast-news-20261022';
+import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=discord-topics-20261023';
 // Public publisher feeds only. No account, proxy, article body, or stored credentials.
 export const NEWS_SOURCES = Object.freeze([
   Object.freeze({id: 'financialjuice', name: 'FinancialJuice', paused:true, pauseReason:'Automatic requests paused while access is checked', pollMs: 60000, kind:'rss', hosts:['financialjuice.com','www.financialjuice.com'], url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
@@ -7,7 +7,7 @@ export const NEWS_SOURCES = Object.freeze([
   Object.freeze({id:'abcnews',name:'ABC News · World',pollMs:60000,kind:'rss',retentionMs:7*86400000,hosts:['abcnews.go.com','abcnews.com','www.abcnews.com'],url:'https://abcnews.com/abcnews/internationalheadlines'})
 ]);
 
-const OIL = /\b(?:crude(?:\s+oil)?|wti|brent|opec\+?|petroleum|cushing|oilfield|oilfields)\b|(?:原油|石油|油價|油价|油田|油輪|油轮|油儲|油储|油庫|油库|庫欣|库欣|布倫特|布伦特|布蘭特|美油|布油)/iu;
+const OIL = /\b(?:crude(?!\s+steel\b)(?:\s+oil)?|wti|brent|opec\+?|petroleum|cushing|oilfield|oilfields)\b|(?:原油|石油|油價|油价|油田|油輪|油轮|油儲|油储|油庫|油库|庫欣|库欣|布倫特|布伦特|布蘭特|美油|布油)/iu;
 const OIL_CONTEXT = /\boil\b.{0,45}\b(?:prices?|market|futures?|inventor\w*|supply|output|production|exports?|imports?|refiner\w*|barrels?|tanker\w*|pipeline\w*|demand|reserve\w*|drill\w*|wells?)\b|\boil\s+(?:rises?|rose|rall\w*|gains?|climbs?|falls?|fell|drops?|declin\w*|slips?|surges?|slumps?|settles?)\b|\b(?:prices?|futures?|barrels?|inventor\w*|supply|exports?|imports?|tanker\w*|pipeline\w*|demand|reserve\w*)\b.{0,30}\boil\b|\b(?:eia|api)\b.{0,35}\b(?:inventor\w*|barrels?|draw|build)\b/iu;
 const NON_PETROLEUM_OIL = /\b(?:olive|cooking|edible|vegetable|palm|soybean|canola|essential)\s+oil\b|\boil\s+paint\w*\b/iu;
 const GEO_DIRECT = /\b(?:geopolitic\w*|cold\s+war|(?:regional|military|border)\s+tensions?|ceasefire|airstrikes?|invasion|ballistic\s+missiles?|nuclear\s+(?:talks|deal|threat)|armed\s+conflict)\b|(?:地緣政治|地缘政治|冷戰|冷战|緊張局勢|紧张局势|停火|空襲|空袭|入侵|導彈|导弹|飛彈|飞弹|核談判|核谈判|武裝衝突|武装冲突)/iu;

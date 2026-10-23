@@ -1,12 +1,12 @@
 // Conservative headline rules, not a language model or a trading signal.
 // Publisher text is always data. Unknown facts are never filled from assumptions.
 const match = (text, pattern) => pattern.test(text);
-const OIL = /\b(?:crude|wti|brent|opec|petroleum|oilfield|cushing)\b|原油|石油|油田|欧佩克|歐佩克/iu;
+const OIL = /\b(?:crude(?!\s+steel\b)|wti|brent|opec|petroleum|oilfield|cushing)\b|原油|石油|油田|欧佩克|歐佩克/iu;
 const INDICES = /\b(?:cpi|pce|ppi|fomc|fed|federal reserve|payrolls?|nfp|unemployment|jobless|jolts|adp|gdp|ism|pmi|retail sales|nasdaq|s&p|dow jones|russell\s*(?:2000|index)|treasur\w*|tariffs?|duties|export controls|debt ceiling|bank failure|circuit breaker)\b|美联储|美聯儲|非农|非農|失业|失業|关税|關稅|纳指|納指|标普|標普|通胀|通脹/iu;
 const TRUMP = /\btrump\b|特朗普|川普/iu;
 const POLICY = /\b(?:tariffs?|duties|trade|sanctions?|iran|oil|fed|rates?|tax|military|ceasefire|china|export|budget|spending|troops|blockade|chips)\b|关税|關稅|制裁|伊朗|石油|利率|贸易|貿易|停火|中国|中國|军|軍|税|稅/iu;
 export function extraNewsCategories(text) {
-  const foreign = /\b(?:china|chinese|russia|russian|uk|britain|eurozone|germany|german|japan|japanese|canada|canadian|australia|australian|snb|swiss)\b|中国|中國|日本|欧元区|歐元區/iu.test(text) && !/\b(?:us|u\.s\.|united states|fed|fomc|nasdaq|tariffs?|duties|export controls)\b|美国|美國|美联储|美聯儲|关税|關稅/iu.test(text);
+  const foreign = /\b(?:china|chinese|russia|russian|uk|britain|british|eurozone|france|french|germany|german|japan|japanese|canada|canadian|australia|australian|india|indian|snb|swiss)\b|中国|中國|日本|欧元区|歐元區/iu.test(text) && !/\b(?:us|u\.s\.|united states|fed|fomc|nasdaq|tariffs?|duties|export controls)\b|美国|美國|美联储|美聯儲|关税|關稅/iu.test(text);
   const genericMacro = /^(?:retail sales|gdp|pmi|ism)$/iu.test(text.trim());
   return [...(INDICES.test(text) && !foreign && !genericMacro ? ['indices'] : []), ...(TRUMP.test(text) && POLICY.test(text) ? ['trump'] : [])];
 }
