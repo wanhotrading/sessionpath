@@ -132,6 +132,7 @@ export function mountNYReference(days,timeline) {
   if(validAvr&&validPrice&&/^\d{4}-\d{2}-\d{2}$/.test($('ny-date').value)) {
    try{$('ny-code').value=makeForecastCode({...s,upPoints:s.up*avr,downPoints:s.down*avr,extensionUpPoints:s.extensionUp*avr,extensionDownPoints:s.extensionDown*avr,upMaxPoints:Math.max(...s.cohort.map(r=>r.row.nextHighAvr))*avr,downMaxPoints:Math.max(...s.cohort.map(r=>-r.row.nextLowAvr))*avr,upMedianPoints:s.upMedian*avr,downMedianPoints:s.downMedian*avr,endMinute:end},{date:$('ny-date').value,minute:510,price,avr,rangeHigh:$('ny-range-high').value===''?null:Number($('ny-range-high').value),rangeLow:$('ny-range-low').value===''?null:Number($('ny-range-low').value)});$('ny-copy').disabled=false;}catch(e){$('ny-code-status').textContent=e.message;}
   }
+  if($('ny-code').value)document.dispatchEvent(new CustomEvent('sessionpath:forecast-export',{detail:{code:$('ny-code').value}}));
  }
  host.addEventListener('change',e=>{
   if(e.target.id==='ny-basis'){

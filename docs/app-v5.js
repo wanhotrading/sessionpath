@@ -201,7 +201,7 @@ function renderBox(){
  
  $('box-result').innerHTML=`<p class="compact-note">${clockLabel(q.minute)}–${clockLabel(end)} ET · ${raised(pct(b.coverage))} in-sample containment</p>`;
  $('download-pine').disabled=!ready||!state.pineTemplate;$('copy-pine').disabled=!ready||!state.pineTemplate;$('pine-status').textContent='';
- if(ready){state.pine=state.pineTemplate?makeChartPine(state.pineTemplate,b,q):null;$('forecast-code').value=makeForecastCode(b,q);}else $('forecast-code').value='';$('copy-forecast-code').disabled=!ready;$('pine-source').value=state.pine||'';
+ if(ready){state.pine=state.pineTemplate?makeChartPine(state.pineTemplate,b,q):null;$('forecast-code').value=makeForecastCode(b,q);document.dispatchEvent(new CustomEvent('sessionpath:forecast-export',{detail:{code:$('forecast-code').value}}));}else $('forecast-code').value='';$('copy-forecast-code').disabled=!ready;$('pine-source').value=state.pine||'';
 }
 $('session-cards').addEventListener('change',e=>{const select=e.target.closest('[data-session]');if(!select)return;const i=sessions.findIndex(s=>s.id===select.dataset.session);state.sessionChoices[select.dataset.session]=select.value;for(const s of sessions.slice(i+1))delete state.sessionChoices[s.id];renderSessions();});
 $('clear-sequence').addEventListener('click',()=>{state.sessionChoices={};renderSessions();});
@@ -245,6 +245,8 @@ async function startResearch(){
  }
  void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();},$('evidence'));
  void optionalAsset(instrument.indicatorFile,value=>{state.pineTemplate=value;renderBox();},$('indicator-section'));
+ // Follow-up research is optional and lazy: it never gates the existing forecast.
+ void import('./research-followup.mjs?v=20261028').then(m=>m.mountResearchFollowup(state)).catch(error=>console.warn('Research follow-up unavailable:',error));
  const applyReaderChoices=choices=>{for(const c of choices){if(c.kind==='tag')state.selected.add(c.value);if(c.kind==='behavior')$('behavior').value=c.value;if(c.kind==='value'){const [id,value]=c.value.split('=');if($(id))$(id).value=value;}}state.library=false;analyze();};
  for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation(),()=>mountReader(state,applyReaderChoices),()=>mountLocalImporter(state,applyReaderChoices)]){
   await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}
