@@ -1,0 +1,1333 @@
+//@version=6
+// Session Path ES v1.0. Standard 5-minute ES/MES chart; all clocks America/New_York.
+// Range and quartiles freeze at 04:30. U/D and running extremes continue through 08:30.
+// AVR = mean last 10 COMPLETE NY 09:30-16:00 high-low ranges, frozen at 19:30.
+// Forecast code comes from the local research website. No automatic website connection.
+// Quarter location selects a scenario, not an estimated success probability.
+indicator("SessionPath.By LUI ES v1.0 - overnight + NY + input table", overlay = true, max_boxes_count = 24, max_lines_count = 140, max_labels_count = 90, max_bars_back = 20)
+
+string TZ = "America/New_York"
+float manualAvr = input.float(0.0, "AVR override in points (0 = automatic)", minval = 0, step = 0.25, group = "Range and AVR", tooltip = "Automatic uses the last ten complete NY sessions on this chart's symbol. Prefer an explicit delivery contract. A manual override is frozen for the night; change it when your baseline changes.")
+string anchorMode = input.string("Frozen 04:30", "AVR anchor", options = ["Frozen 04:30", "Latest overnight extreme"], group = "Range and AVR")
+bool showAvr = input.bool(true, "Show conditional 1x AVR projection", group = "Range and AVR")
+string forecastCode = input.string("", "Forecast code from website", group = "Historical estimate", tooltip = "Box edges use mean U/D. White dotted lines show medians; orange dotted lines show means. SPES1/SPES2 maxima are retained for compatibility only. Main code: use a 03:00 estimate with a 05:00 endpoint for the first locked window. The optional 05:00 code supplies updated distances for the second window. Imported widths are fixed templates, not automatic historical recalculations.")
+string forecastCode0500 = input.string("", "05:00 forecast code (optional)", group = "Historical estimate", tooltip = "For new 05:00 U/D distances, paste a separate website code calculated at 05:00 with the 08:30 endpoint. Blank leaves the second box empty until a new 05:00 code is supplied. An invalid nonblank code disables the second box instead of silently falling back.")
+string forecastCodeNY = input.string("", "NY forecast code (08:30)", group = "Historical estimate", tooltip = "Paste the NY code here. The box locks to the chart's 08:30 open and ends at 10:30 or 16:00, as encoded. A NY code in the main field is also recognised. Widths come from the website; refresh them for every dated test.")
+bool showInputTable = input.bool(true, "Show website input table", group = "Input helper")
+string inputClock = input.string("Auto", "Input snapshot", options = ["Auto", "03:00", "05:00", "08:30"], group = "Input helper", tooltip = "Freeze the selected cutoff using only earlier completed candles plus its opening price. Auto selects the latest available cutoff on the selected chart date.")
+string inputCorner = input.string("Top left", "Input table position", options = ["Top left", "Bottom left"], group = "Input helper")
+bool logInput = input.bool(false, "Write snapshot to Pine Logs", group = "Input helper", tooltip = "Open Pine Logs and copy the ESPI1 line. Paste it into the website's Replay tools. No alert or API connection is needed. Logs are emitted only for complete snapshots.")
+string forecastPlacement = input.string("03:00 / 05:00 locked windows", "Forecast placement", options = ["03:00 / 05:00 locked windows", "Follow chart candle", "Original dated snapshot"], group = "Historical estimate")
+string forecastCursor = input.string("Last visible candle", "Candle to follow", options = ["Last visible candle", "Latest chart / replay candle"], group = "Historical estimate", tooltip = "Last visible candle follows the rightmost visible bar, including when you scroll back. Latest chart / replay candle follows the last available bar regardless of scrolling. Follow chart candle mode uses the previous completed close while a candle is unfinished. Locked windows instead use the exact 03:00 and 05:00 opening prices, available as soon as those bars open.")
+string panelSize = input.string("Small", "Table text size", options = ["Tiny", "Small", "Normal"], group = "Display")
+string meanOuterBands = input.string("Both", "Mean-box outer lines", options = ["Off", "10%", "15%", "Both"], group = "Mean box extensions", tooltip = "Purple dotted Fibonacci-style levels measured using the FULL Mean box width W = Mean U + Mean D. Upper + 0.10W / 0.15W and lower - 0.10W / 0.15W. Equivalent levels 1.10 / 1.15 and -0.10 / -0.15 with lower=0, upper=1. These are final-close tolerance thresholds, not guaranteed reversal levels. Median distances are never used.")
+bool showMeanUpper = input.bool(true, "Upper extension lines", group = "Mean box extensions")
+bool showMeanLower = input.bool(true, "Lower extension lines", group = "Mean box extensions")
+// Q7 uses the full imported Mean box. These are range multiples, not standard deviations.
+string rangeExtensionMode = input.string("First breached side", "Orange extensions", options = ["Off", "First breached side", "Both sides"], group = "SessionPath range multiples", tooltip = "Uses the imported Mean box only. W = U extreme - D extreme. Upward 1.2 = D + 1.2W; downward 1.2 = U - 1.2W. First breached side follows the first strict high/low breach within this window, including wicks. Both sides prepares both directions before a breach. Same-bar first breaches of both sides show both with a ? label because order is unknown. Follow chart candle mode supports Both sides only.")
+bool range105 = input.bool(false, "1.05 (105%)", inline = "r1", group = "SessionPath range multiples")
+bool range110 = input.bool(false, "1.10 (110%)", inline = "r1", group = "SessionPath range multiples")
+bool range115 = input.bool(false, "1.15 (115%)", inline = "r2", group = "SessionPath range multiples")
+bool range120 = input.bool(true, "1.20 (120%)", inline = "r2", group = "SessionPath range multiples")
+bool range130 = input.bool(true, "1.30 (130%)", inline = "r3", group = "SessionPath range multiples")
+bool range140 = input.bool(false, "1.40 (140%)", inline = "r3b", group = "SessionPath range multiples")
+bool range150 = input.bool(false, "1.50 (150%)", inline = "r3", group = "SessionPath range multiples")
+bool range175 = input.bool(false, "1.75 (175%)", inline = "r4", group = "SessionPath range multiples")
+bool range200 = input.bool(false, "2.00 (200%)", inline = "r4", group = "SessionPath range multiples")
+bool showRangeHitRates = input.bool(true, "Historical hit rates on orange labels", group = "SessionPath range multiples", tooltip = "03:00/05:00 keep their existing first-side historical references. NY uses the new direction-specific earlier-only research; choose its method, cohort, fit minimum and probability basis below. Upper and lower are measured separately. Counts and intervals appear on hover. These are historical frequencies, not live fitted probabilities or trade win rates.")
+string q7History = input.string("Earlier-date boxes", "ES 03:00/05:00 probability reference", options = ["Earlier-date boxes", "All-history reconstruction"], group = "SessionPath range multiples", tooltip = "Only the two early windows use this selector; new NY rates always use earlier-only forecasts. Earlier-date boxes exclude the observation date and all later dates from each historical forecast. Retrospective reconstruction includes them, matching the original capture protocol. Both are descriptive reference frequencies and may include low-count forecast fits; neither is a trade win rate.")
+string nyQ7Reference = input.string("Not specified", "NY research method", options = ["Not specified", "Own Exact", "Own Wide", "Prior Exact", "Prior Wide"], group = "NY extension probabilities", tooltip = "Match the website NY forecast method exactly. Own uses each completed session's own range; Prior uses the previous NY BBOX. Exact/Wide keep their original classification rules. Codes do not encode this method. New rates use strictly earlier matched days, only NY 08:30-16:00, and only 1.20/1.30/1.40/1.50 levels. No NY probability is shown until selected.")
+string nyProbabilityBasis = input.string("Pending after confirmation", "NY probability basis", options = ["Whole-window directional", "First breakout side", "Pending after confirmation"], group = "NY extension probabilities", tooltip = "Whole-window: independent upper/lower target touch frequencies across all eligible NY forecasts, including no-break days. First breakout side: conditional on that side breaking first; includes trigger-candle target hits. Pending: target still untouched at the first breakout candle's close and next opening price, with candles remaining; only later target hits count. Pending is a historical reference at first confirmation, NOT a probability updated for every later minute. All three bases keep UP and DOWN separate.")
+string nyProbabilityFit = input.string("50+ earlier matches", "NY historical fit minimum", options = ["50+ earlier matches", "1+ earlier match (sensitivity)"], group = "NY extension probabilities", tooltip = "50+ is the primary sample. Sensitivity includes sparse historical fits. Your imported NY forecast must also meet the chosen minimum. An orange-tail reference additionally requires its earlier orange forecast to meet that minimum. Counts and 95% Wilson intervals appear on hover; small tail groups are exploratory.")
+string nyProbabilityCohort = input.string("All eligible NY forecasts", "NY preceding tail event", options = ["All eligible NY forecasts", "04:30 double break - second U", "04:30 double break - second D", "03:00-05:00 both orange boxes - second U", "03:00-05:00 both orange boxes - second D", "05:00-08:30 both orange boxes - second U", "05:00-08:30 both orange boxes - second D"], group = "NY extension probabilities", tooltip = "Manually select a pre-08:30 event that actually completed. U/D here is the SECOND side of the earlier tail event, not the later NY breakout direction. The orange event means both outer AVR-expansion targets touched; a new high and new low alone is insufficient. Unknown same-candle second-side order does not qualify. These historical slices do not automatically detect or refit today's event.")
+bool rangeLevelLabels = input.bool(true, "Label orange multiples", group = "SessionPath range multiples", tooltip = "1.10 and 1.15 share prices with the purple 10% and 15% tolerance lines. Turn those orange levels off to keep purple visible.")
+
+bool showForecast = input.bool(true, "Show imported mean U/D box", group = "Historical estimate")
+bool showMatchedExpansion = input.bool(true, "Show dated AVR expansion boxes", group = "Matched AVR expansion", tooltip = "New website codes include two orange boxes: cutoff cumulative high to high + mean additional expansion, and low - mean additional expansion to cutoff cumulative low. Each historical extra move is divided by that day's AVR, averaged across the SAME forecast matches including zero moves, then multiplied by your entered AVR. Anchors, code date and deadline stay fixed even when scrolling or following a candle. Zero expansion has no rectangle. Older codes keep their mean boxes but do not contain this layer.")
+string bboxReturnCode = input.string("", "BBOX return code", group = "BBOX return probability", tooltip = "Paste the separate EBPR1 code from the site's BBOX return panel. Uses its exact trading date, direction, observation block and deadline. U targets the prior complete NY BBOX high; D targets its low. This imports a historical CLOSE-back-inside frequency, not a wick-touch probability. Recalculate and paste again when your scenario changes; old codes do not update automatically.")
+bool showBBoxReturn = input.bool(true, "Show BBOX return line", group = "BBOX return probability")
+
+// Separate, dated research exports never change the original forecast distances.
+string endpointResearchCode = input.string("", "Next-window continuation code", group = "Research follow-up", tooltip = "Paste SR1 / EP from the website. The indicator verifies the completed 05:00 or 08:30 close, the previous dated Mean box and the frozen running high/low since 19:30. HH/LL mean a strict new running extreme in the NEXT window; both can happen. Rates are historical references, not a trade win rate.")
+string breachResearchCode = input.string("", "First-breach follow-up code", group = "Research follow-up", tooltip = "Paste SR1 / FB from the website after the FIRST completed five-minute candle strictly breaches a dated imported Mean box. The first side, wick/close type, exact close time and Mean edges must match the chart. Return means a subsequent completed close inside within 20 minutes, capped at the original endpoint. Future 1.20/1.30 exclude targets already hit on the signal candle. A new code is required for a different observation; percentages do not refit automatically.")
+bool showResearchFollowUp = input.bool(true, "Show research follow-up table and lines", group = "Research follow-up")
+bool emitResearchSnapshots = input.bool(false, "Write research snapshots to Pine Logs", group = "Research follow-up", tooltip = "Open Pine Logs and copy the SFB1 or SEP1 line into the website's research snapshot input. SFB1 is the FIRST completed strict breach, including a wick-only breach; both-side first candles are marked ambiguous. SEP1 uses the endpoint candle CLOSE, never the next opening price. Only dated imported boxes and complete chart history qualify. This exports observations, not probabilities.")
+bool researchSnapshotAlerts = input.bool(false, "Emit research snapshot alerts", group = "Research follow-up", tooltip = "Optional: create a TradingView alert using Any alert() function call. Only newly completed real-time five-minute observations emit SFB1/SEP1. This does not itself connect TradingView to the website and does not send orders.")
+string researchSnapshotWindow = input.string("Auto", "First-breach window to inspect", options = ["Auto", "03:00-05:00", "05:00-08:30", "08:30-16:00"], group = "Research follow-up")
+
+
+
+if not timeframe.isminutes or timeframe.multiplier != 5
+    runtime.error("Use a standard 5-minute chart with overnight bars enabled.")
+if not chart.is_standard
+    runtime.error("Use standard candles, not Heikin Ashi, Renko or another synthetic chart.")
+// Native ES data and fitted-count audits passed. Compile this separate ES script before release.
+
+if syminfo.root != "ES" and syminfo.root != "MES"
+    runtime.error("This research is for ES/MES futures. Use an explicit ES contract for database comparisons.")
+
+f_price(float value) =>
+    na(value) ? "--" : str.tostring(value, "#.00")
+f_percent(float value) =>
+    na(value) ? "--" : str.tostring(value, "#.0") + "%"
+
+int clockMinute = hour(time, TZ) * 60 + minute(time, TZ)
+bool inNy = clockMinute >= 570 and clockMinute < 960
+var array<float> nyRanges = array.new<float>()
+var float nyHigh = na
+var float nyLow = na
+var int nyCount = 0
+var int nyPreviousClose = na
+var bool nyComplete = false
+var float priorNyHigh = na
+var float priorNyLow = na
+if barstate.isconfirmed and inNy
+    if clockMinute == 570
+        nyHigh := high
+        nyLow := low
+        nyCount := 0
+        nyPreviousClose := time
+        nyComplete := true
+    if nyCount == 0 and clockMinute != 570
+        nyComplete := false
+    if time != nyPreviousClose
+        nyComplete := false
+    nyHigh := na(nyHigh) ? high : math.max(nyHigh, high)
+    nyLow := na(nyLow) ? low : math.min(nyLow, low)
+    nyCount += 1
+    nyPreviousClose := time_close
+    if clockMinute == 955
+        if nyComplete and nyCount == 78
+            priorNyHigh := nyHigh
+            priorNyLow := nyLow
+            array.push(nyRanges, nyHigh - nyLow)
+            if array.size(nyRanges) > 10
+                array.shift(nyRanges)
+        nyCount := 0
+        nyComplete := false
+
+int localYear = year(time, TZ)
+int localMonth = month(time, TZ)
+int localDay = dayofmonth(time, TZ)
+int anchorDay = clockMinute >= 1170 ? localDay : localDay - 1
+int startForBar = timestamp(TZ, localYear, localMonth, anchorDay, 19, 30)
+int lockForBar = timestamp(TZ, localYear, localMonth, anchorDay + 1, 4, 30)
+int endForBar = timestamp(TZ, localYear, localMonth, anchorDay + 1, 8, 30)
+bool inOvernight = time >= startForBar and time < endForBar
+
+var int sessionStart = na
+var int sessionLock = na
+var int sessionEnd = na
+var int asof = na
+var int barCount = 0
+var bool complete = false
+var bool frozen = false
+var float open1930 = na
+var float runningHigh = na
+var float runningLow = na
+var float fixedHigh = na
+var float fixedLow = na
+var float lastPrice = na
+var float nightAvr = na
+var int avrSessions = 0
+var bool highBroken = false
+var bool lowBroken = false
+
+bool inputWithinCursor = forecastCursor != "Last visible candle" or time <= chart.right_visible_bar_time
+int inputDayForBar = timestamp(TZ, localYear, localMonth, localDay, 0, 0)
+var int inputDay = na
+var array<float> input0300 = array.new<float>(19, na)
+var array<float> input0500 = array.new<float>(19, na)
+var array<float> input0830 = array.new<float>(19, na)
+var float asiaHighInput = na
+var float asiaLowInput = na
+var float asiaCloseInput = na
+var int asiaCountInput = 0
+var float londonHighInput = na
+var float londonLowInput = na
+var float londonCloseInput = na
+var int londonCountInput = 0
+
+f_behavior(float baseline) =>
+    int code = 0
+    if baseline > 0 and not na(close[13])
+        float base = close[13]
+        float bottom = 0.0
+        float top = 0.0
+        int bottomAt = 0
+        int topAt = 0
+        bool contiguous = true
+        for i = 12 to 1
+            contiguous := contiguous and time[i] == time - i * 300000
+            float value = (close[i] - base) / baseline
+            if value < bottom
+                bottom := value
+                bottomAt := 13 - i
+            if value > top
+                top := value
+                topAt := 13 - i
+        float finish = (close[1] - base) / baseline
+        bool recovery = bottom <= -0.08 and finish - bottom >= 0.08 and bottomAt < 12
+        bool fade = top >= 0.08 and top - finish >= 0.08 and topAt < 12
+        code := not contiguous ? 0 : recovery and fade ? (bottomAt < topAt ? 4 : 3) : recovery ? 3 : fade ? 4 : finish >= 0.05 ? 1 : finish <= -0.05 ? 2 : 5
+    code
+
+if inputWithinCursor
+    if na(inputDay) or inputDay != inputDayForBar
+        inputDay := inputDayForBar
+        array.fill(input0300, na)
+        array.fill(input0500, na)
+        array.fill(input0830, na)
+    if clockMinute == 180 or clockMinute == 300 or clockMinute == 510
+        array<float> target = clockMinute == 180 ? input0300 : clockMinute == 300 ? input0500 : input0830
+        bool inputComplete = complete and asof == time and sessionStart == startForBar and not na(open1930)
+        array.set(target, 0, time)
+        array.set(target, 1, open)
+        array.set(target, 2, nightAvr)
+        array.set(target, 3, open1930)
+        array.set(target, 4, math.max(runningHigh, open))
+        array.set(target, 5, math.min(runningLow, open))
+        array.set(target, 6, priorNyHigh)
+        array.set(target, 7, priorNyLow)
+        array.set(target, 8, f_behavior(nightAvr))
+        array.set(target, 9, inputComplete ? 1 : 0)
+        array.set(target, 10, avrSessions)
+        array.set(target, 11, asiaCloseInput)
+        array.set(target, 12, asiaHighInput)
+        array.set(target, 13, asiaLowInput)
+        array.set(target, 14, asiaCountInput == 78 ? 1 : 0)
+        array.set(target, 15, londonCloseInput)
+        array.set(target, 16, londonHighInput)
+        array.set(target, 17, londonLowInput)
+        array.set(target, 18, londonCountInput == 66 and clockMinute == 510 ? 1 : 0)
+    if barstate.isconfirmed
+        if clockMinute == 1170
+            asiaHighInput := na
+            asiaLowInput := na
+            asiaCloseInput := na
+            asiaCountInput := 0
+            londonHighInput := na
+            londonLowInput := na
+            londonCloseInput := na
+            londonCountInput := 0
+        if clockMinute >= 1170 or clockMinute < 120
+            asiaHighInput := na(asiaHighInput) ? high : math.max(asiaHighInput, high)
+            asiaLowInput := na(asiaLowInput) ? low : math.min(asiaLowInput, low)
+            asiaCloseInput := close
+            asiaCountInput += 1
+        if clockMinute >= 180 and clockMinute < 510
+            londonHighInput := na(londonHighInput) ? high : math.max(londonHighInput, high)
+            londonLowInput := na(londonLowInput) ? low : math.min(londonLowInput, low)
+            londonCloseInput := close
+            londonCountInput += 1
+
+if barstate.isconfirmed and inOvernight
+    if na(sessionStart) or sessionStart != startForBar
+        sessionStart := startForBar
+        sessionLock := lockForBar
+        sessionEnd := endForBar
+        asof := startForBar
+        barCount := 0
+        complete := time == startForBar
+        frozen := false
+        open1930 := time == startForBar ? open : na
+        runningHigh := high
+        runningLow := low
+        fixedHigh := na
+        fixedLow := na
+        highBroken := false
+        lowBroken := false
+        avrSessions := array.size(nyRanges)
+        nightAvr := manualAvr > 0 ? manualAvr : avrSessions == 10 ? array.avg(nyRanges) : na
+    if time != asof
+        complete := false
+    runningHigh := math.max(runningHigh, high)
+    runningLow := math.min(runningLow, low)
+    lastPrice := close
+    asof := time_close
+    barCount += 1
+    if time < sessionLock and time_close == sessionLock and complete and barCount == 108
+        fixedHigh := runningHigh
+        fixedLow := runningLow
+        frozen := true
+    if time >= sessionLock and frozen
+        bool upBreak = high > fixedHigh
+        bool downBreak = low < fixedLow
+        highBroken := highBroken or upBreak
+        lowBroken := lowBroken or downBreak
+
+float printed = runningHigh - runningLow
+float observedUp = runningHigh - open1930
+float observedDown = open1930 - runningLow
+float q = frozen and fixedHigh > fixedLow ? (lastPrice - fixedLow) / (fixedHigh - fixedLow) : na
+bool active = complete and frozen and asof >= sessionLock and asof < sessionEnd and time < sessionEnd
+int side = not na(q) ? q >= 0.75 ? 1 : q <= 0.25 ? -1 : 0 : 0
+bool anchorFailed = anchorMode == "Frozen 04:30" and (side == 1 ? lowBroken : side == -1 ? highBroken : false)
+float avrAnchor = side == 1 ? (anchorMode == "Frozen 04:30" ? fixedLow : runningLow) : side == -1 ? (anchorMode == "Frozen 04:30" ? fixedHigh : runningHigh) : na
+float avrTarget = side == 1 ? avrAnchor + nightAvr : side == -1 ? avrAnchor - nightAvr : na
+bool targetReached = not na(avrTarget) and (side == 1 ? runningHigh >= avrTarget : runningLow <= avrTarget)
+string avrState = not complete ? "Incomplete overnight data" : not frozen ? "Waiting for complete 04:30 range" : not active ? "Window ended at 08:30" : side == 0 ? "Middle 50%: no AVR projection" : anchorFailed ? "Original opposite boundary broke: projection invalid" : na(nightAvr) ? "Load 10 full NY sessions or enter AVR" : targetReached ? "1x AVR level already reached" : side == 1 ? "Upper quarter: low + AVR" : "Lower quarter: high - AVR"
+
+var box rangeBox = na
+var line rangeHighLine = na
+var line rangeLowLine = na
+var line q1Line = na
+var line midLine = na
+var line q3Line = na
+var box avrBox = na
+var label rangeLabel = na
+var label avrLabel = na
+if barstate.islast
+    box.delete(rangeBox)
+    line.delete(rangeHighLine)
+    line.delete(rangeLowLine)
+    line.delete(q1Line)
+    line.delete(midLine)
+    line.delete(q3Line)
+    box.delete(avrBox)
+    label.delete(rangeLabel)
+    label.delete(avrLabel)
+    if complete and not na(sessionStart)
+        float boxHigh = frozen ? fixedHigh : runningHigh
+        float boxLow = frozen ? fixedLow : runningLow
+        int boxRight = frozen ? sessionLock : asof
+        rangeBox := box.new(left = sessionStart, top = boxHigh, right = boxRight, bottom = boxLow, xloc = xloc.bar_time, border_color = color.silver, bgcolor = color.new(color.blue, 92))
+        rangeLabel := label.new(x = boxRight, y = boxHigh, text = frozen ? "19:30-04:30 FROZEN range" : "19:30 range forming", xloc = xloc.bar_time, style = label.style_label_down, color = color.new(color.gray, 35), textcolor = color.white, size = size.small)
+        if frozen
+            float w = fixedHigh - fixedLow
+            rangeHighLine := line.new(x1 = sessionLock, y1 = fixedHigh, x2 = sessionEnd, y2 = fixedHigh, xloc = xloc.bar_time, color = color.silver)
+            rangeLowLine := line.new(x1 = sessionLock, y1 = fixedLow, x2 = sessionEnd, y2 = fixedLow, xloc = xloc.bar_time, color = color.silver)
+            q1Line := line.new(x1 = sessionStart, y1 = fixedLow + 0.25 * w, x2 = sessionEnd, y2 = fixedLow + 0.25 * w, xloc = xloc.bar_time, color = color.new(color.silver, 40), style = line.style_dotted)
+            midLine := line.new(x1 = sessionStart, y1 = fixedLow + 0.5 * w, x2 = sessionEnd, y2 = fixedLow + 0.5 * w, xloc = xloc.bar_time, color = color.new(color.silver, 60), style = line.style_dotted)
+            q3Line := line.new(x1 = sessionStart, y1 = fixedLow + 0.75 * w, x2 = sessionEnd, y2 = fixedLow + 0.75 * w, xloc = xloc.bar_time, color = color.new(color.silver, 40), style = line.style_dotted)
+        if showAvr and active and side != 0 and not anchorFailed and nightAvr > 0
+            color scenarioColor = color.orange
+            avrBox := box.new(left = asof, top = math.max(avrAnchor, avrTarget), right = sessionEnd, bottom = math.min(avrAnchor, avrTarget), xloc = xloc.bar_time, border_color = color.rgb(139, 0, 0), border_width = 4, border_style = line.style_dashed, bgcolor = color.new(color.orange, 85))
+            avrLabel := label.new(x = sessionEnd, y = avrTarget, text = "1x AVR scenario " + f_price(avrTarget) + "\n" + anchorMode + " anchor " + f_price(avrAnchor) + (targetReached ? "\nALREADY REACHED" : "\nNot a historical mean target"), xloc = xloc.bar_time, style = label.style_label_left, color = color.new(scenarioColor, 20), textcolor = color.white, size = size.small)
+
+// One small website export, not the historical dataset. Keep source values intact.
+var array<string> payload = str.split(str.trim(forecastCode), "|")
+var int estimateStart = na
+var int estimateEnd = na
+var float estimatePrice = na
+var float estimateUp = na
+var float estimateDown = na
+var float estimateN = na
+var float containment = na
+var float touchUp = na
+var float touchDown = na
+var float estimateAvr = na
+var float estimateMaxUp = na
+var float estimateMaxDown = na
+var float estimateMedianUp = na
+var float estimateMedianDown = na
+var float estimateRangeHigh = na
+var float estimateRangeLow = na
+var float estimateExtensionUp = na
+var float estimateExtensionDown = na
+var bool estimateExpansionValid = false
+var bool estimateValid = false
+if barstate.isfirst and str.length(forecastCode) > 0
+    if array.size(payload) == 15 or array.size(payload) == 19
+        if (array.size(payload) == 15 and array.get(payload, 0) == "SPES1") or (array.size(payload) == 19 and array.get(payload, 0) == "SPES2")
+            estimateStart := int(str.tonumber(array.get(payload, 1)))
+            estimateEnd := int(str.tonumber(array.get(payload, 2)))
+            estimatePrice := str.tonumber(array.get(payload, 3))
+            estimateUp := str.tonumber(array.get(payload, 4))
+            estimateDown := str.tonumber(array.get(payload, 5))
+            estimateN := str.tonumber(array.get(payload, 6))
+            containment := str.tonumber(array.get(payload, 7))
+            touchUp := str.tonumber(array.get(payload, 8))
+            touchDown := str.tonumber(array.get(payload, 9))
+            estimateAvr := str.tonumber(array.get(payload, 10))
+            estimateMaxUp := estimateUp
+            estimateMaxDown := estimateDown
+            if array.size(payload) >= 15
+                estimateMaxUp := str.tonumber(array.get(payload, 11))
+                estimateMaxDown := str.tonumber(array.get(payload, 12))
+                estimateMedianUp := str.tonumber(array.get(payload, 13))
+                estimateMedianDown := str.tonumber(array.get(payload, 14))
+            estimateValid := not na(estimateStart) and not na(estimateEnd) and not na(estimatePrice) and not na(estimateUp) and not na(estimateDown) and not na(estimateN) and not na(containment) and not na(touchUp) and not na(touchDown) and not na(estimateAvr)
+            estimateValid := estimateValid and estimateStart > 0 and estimateEnd > estimateStart and estimateEnd - estimateStart <= 46800000 and estimateUp >= 0 and estimateDown >= 0 and estimateN >= 1 and estimateN == math.floor(estimateN) and estimateAvr > 0 and containment >= 0 and containment <= 100 and touchUp >= 0 and touchUp <= 100 and touchDown >= 0 and touchDown <= 100
+            if array.size(payload) >= 15
+                estimateValid := estimateValid and not na(estimateMaxUp) and not na(estimateMaxDown) and not na(estimateMedianUp) and not na(estimateMedianDown) and estimateMaxUp >= estimateUp and estimateMaxDown >= estimateDown and estimateMedianUp >= 0 and estimateMedianDown >= 0 and estimateMedianUp <= estimateMaxUp and estimateMedianDown <= estimateMaxDown
+            if array.size(payload) == 19
+                estimateRangeHigh := str.tonumber(array.get(payload, 15))
+                estimateRangeLow := str.tonumber(array.get(payload, 16))
+                estimateExtensionUp := str.tonumber(array.get(payload, 17))
+                estimateExtensionDown := str.tonumber(array.get(payload, 18))
+                estimateExpansionValid := not na(estimateRangeHigh) and not na(estimateRangeLow) and not na(estimateExtensionUp) and not na(estimateExtensionDown) and estimateRangeHigh >= estimateRangeLow and estimatePrice >= estimateRangeLow - 0.00000001 and estimatePrice <= estimateRangeHigh + 0.00000001 and estimateExtensionUp >= 0 and estimateExtensionDown >= 0
+                estimateValid := estimateValid and estimateExpansionValid
+
+// Optional second snapshot is independent; a malformed supplied code never falls back.
+var array<string> payload0500 = str.split(str.trim(forecastCode0500), "|")
+var int estimateStart0500 = na
+var int estimateEnd0500 = na
+var float estimatePrice0500 = na
+var float estimateUp0500 = na
+var float estimateDown0500 = na
+var float estimateN0500 = na
+var float containment0500 = na
+var float touchUp0500 = na
+var float touchDown0500 = na
+var float estimateAvr0500 = na
+var float estimateMaxUp0500 = na
+var float estimateMaxDown0500 = na
+var float estimateMedianUp0500 = na
+var float estimateMedianDown0500 = na
+var float estimateRangeHigh0500 = na
+var float estimateRangeLow0500 = na
+var float estimateExtensionUp0500 = na
+var float estimateExtensionDown0500 = na
+var bool estimateExpansionValid0500 = false
+var bool estimateValid0500 = false
+if barstate.isfirst and str.length(forecastCode0500) > 0
+    if array.size(payload0500) == 15 or array.size(payload0500) == 19
+        if (array.size(payload0500) == 15 and array.get(payload0500, 0) == "SPES1") or (array.size(payload0500) == 19 and array.get(payload0500, 0) == "SPES2")
+            estimateStart0500 := int(str.tonumber(array.get(payload0500, 1)))
+            estimateEnd0500 := int(str.tonumber(array.get(payload0500, 2)))
+            estimatePrice0500 := str.tonumber(array.get(payload0500, 3))
+            estimateUp0500 := str.tonumber(array.get(payload0500, 4))
+            estimateDown0500 := str.tonumber(array.get(payload0500, 5))
+            estimateN0500 := str.tonumber(array.get(payload0500, 6))
+            containment0500 := str.tonumber(array.get(payload0500, 7))
+            touchUp0500 := str.tonumber(array.get(payload0500, 8))
+            touchDown0500 := str.tonumber(array.get(payload0500, 9))
+            estimateAvr0500 := str.tonumber(array.get(payload0500, 10))
+            estimateMaxUp0500 := estimateUp0500
+            estimateMaxDown0500 := estimateDown0500
+            if array.size(payload0500) >= 15
+                estimateMaxUp0500 := str.tonumber(array.get(payload0500, 11))
+                estimateMaxDown0500 := str.tonumber(array.get(payload0500, 12))
+                estimateMedianUp0500 := str.tonumber(array.get(payload0500, 13))
+                estimateMedianDown0500 := str.tonumber(array.get(payload0500, 14))
+            estimateValid0500 := not na(estimateStart0500) and not na(estimateEnd0500) and not na(estimatePrice0500) and not na(estimateUp0500) and not na(estimateDown0500) and not na(estimateN0500) and not na(containment0500) and not na(touchUp0500) and not na(touchDown0500) and not na(estimateAvr0500)
+            estimateValid0500 := estimateValid0500 and estimateStart0500 > 0 and estimateEnd0500 > estimateStart0500 and estimateEnd0500 - estimateStart0500 <= 46800000 and estimateUp0500 >= 0 and estimateDown0500 >= 0 and estimateN0500 >= 1 and estimateN0500 == math.floor(estimateN0500) and estimateAvr0500 > 0 and containment0500 >= 0 and containment0500 <= 100 and touchUp0500 >= 0 and touchUp0500 <= 100 and touchDown0500 >= 0 and touchDown0500 <= 100
+            if array.size(payload0500) >= 15
+                estimateValid0500 := estimateValid0500 and not na(estimateMaxUp0500) and not na(estimateMaxDown0500) and not na(estimateMedianUp0500) and not na(estimateMedianDown0500) and estimateMaxUp0500 >= estimateUp0500 and estimateMaxDown0500 >= estimateDown0500 and estimateMedianUp0500 >= 0 and estimateMedianDown0500 >= 0 and estimateMedianUp0500 <= estimateMaxUp0500 and estimateMedianDown0500 <= estimateMaxDown0500
+            if array.size(payload0500) == 19
+                estimateRangeHigh0500 := str.tonumber(array.get(payload0500, 15))
+                estimateRangeLow0500 := str.tonumber(array.get(payload0500, 16))
+                estimateExtensionUp0500 := str.tonumber(array.get(payload0500, 17))
+                estimateExtensionDown0500 := str.tonumber(array.get(payload0500, 18))
+                estimateExpansionValid0500 := not na(estimateRangeHigh0500) and not na(estimateRangeLow0500) and not na(estimateExtensionUp0500) and not na(estimateExtensionDown0500) and estimateRangeHigh0500 >= estimateRangeLow0500 and estimatePrice0500 >= estimateRangeLow0500 - 0.00000001 and estimatePrice0500 <= estimateRangeHigh0500 + 0.00000001 and estimateExtensionUp0500 >= 0 and estimateExtensionDown0500 >= 0
+                estimateValid0500 := estimateValid0500 and estimateExpansionValid0500
+
+// Dedicated NY input also accepts legacy main-field NY codes without changing placement.
+bool mainIsNY = estimateValid and hour(estimateStart, TZ) == 8 and minute(estimateStart, TZ) == 30
+string nyCodeSource = str.length(str.trim(forecastCodeNY)) > 0 ? forecastCodeNY : mainIsNY ? forecastCode : ""
+var array<string> payloadNY = str.split(str.trim(nyCodeSource), "|")
+var int estimateStartNY = na
+var int estimateEndNY = na
+var float estimatePriceNY = na
+var float estimateUpNY = na
+var float estimateDownNY = na
+var float estimateNNY = na
+var float containmentNY = na
+var float touchUpNY = na
+var float touchDownNY = na
+var float estimateAvrNY = na
+var float estimateMaxUpNY = na
+var float estimateMaxDownNY = na
+var float estimateMedianUpNY = na
+var float estimateMedianDownNY = na
+var float estimateRangeHighNY = na
+var float estimateRangeLowNY = na
+var float estimateExtensionUpNY = na
+var float estimateExtensionDownNY = na
+var bool estimateExpansionValidNY = false
+var bool estimateValidNY = false
+if barstate.isfirst and str.length(nyCodeSource) > 0
+    if array.size(payloadNY) == 15 or array.size(payloadNY) == 19
+        if (array.size(payloadNY) == 15 and array.get(payloadNY, 0) == "SPES1") or (array.size(payloadNY) == 19 and array.get(payloadNY, 0) == "SPES2")
+            estimateStartNY := int(str.tonumber(array.get(payloadNY, 1)))
+            estimateEndNY := int(str.tonumber(array.get(payloadNY, 2)))
+            estimatePriceNY := str.tonumber(array.get(payloadNY, 3))
+            estimateUpNY := str.tonumber(array.get(payloadNY, 4))
+            estimateDownNY := str.tonumber(array.get(payloadNY, 5))
+            estimateNNY := str.tonumber(array.get(payloadNY, 6))
+            containmentNY := str.tonumber(array.get(payloadNY, 7))
+            touchUpNY := str.tonumber(array.get(payloadNY, 8))
+            touchDownNY := str.tonumber(array.get(payloadNY, 9))
+            estimateAvrNY := str.tonumber(array.get(payloadNY, 10))
+            estimateMaxUpNY := estimateUpNY
+            estimateMaxDownNY := estimateDownNY
+            if array.size(payloadNY) >= 15
+                estimateMaxUpNY := str.tonumber(array.get(payloadNY, 11))
+                estimateMaxDownNY := str.tonumber(array.get(payloadNY, 12))
+                estimateMedianUpNY := str.tonumber(array.get(payloadNY, 13))
+                estimateMedianDownNY := str.tonumber(array.get(payloadNY, 14))
+            estimateValidNY := not na(estimateStartNY) and not na(estimateEndNY) and not na(estimatePriceNY) and not na(estimateUpNY) and not na(estimateDownNY) and not na(estimateNNY) and not na(containmentNY) and not na(touchUpNY) and not na(touchDownNY) and not na(estimateAvrNY)
+            estimateValidNY := estimateValidNY and estimateStartNY > 0 and estimateEndNY > estimateStartNY and estimateEndNY - estimateStartNY <= 46800000 and estimateUpNY >= 0 and estimateDownNY >= 0 and estimateNNY >= 1 and estimateNNY == math.floor(estimateNNY) and estimateAvrNY > 0 and containmentNY >= 0 and containmentNY <= 100 and touchUpNY >= 0 and touchUpNY <= 100 and touchDownNY >= 0 and touchDownNY <= 100
+            if array.size(payloadNY) >= 15
+                estimateValidNY := estimateValidNY and not na(estimateMaxUpNY) and not na(estimateMaxDownNY) and not na(estimateMedianUpNY) and not na(estimateMedianDownNY) and estimateMaxUpNY >= estimateUpNY and estimateMaxDownNY >= estimateDownNY and estimateMedianUpNY >= 0 and estimateMedianDownNY >= 0 and estimateMedianUpNY <= estimateMaxUpNY and estimateMedianDownNY <= estimateMaxDownNY
+            if array.size(payloadNY) == 19
+                estimateRangeHighNY := str.tonumber(array.get(payloadNY, 15))
+                estimateRangeLowNY := str.tonumber(array.get(payloadNY, 16))
+                estimateExtensionUpNY := str.tonumber(array.get(payloadNY, 17))
+                estimateExtensionDownNY := str.tonumber(array.get(payloadNY, 18))
+                estimateExpansionValidNY := not na(estimateRangeHighNY) and not na(estimateRangeLowNY) and not na(estimateExtensionUpNY) and not na(estimateExtensionDownNY) and estimateRangeHighNY >= estimateRangeLowNY and estimatePriceNY >= estimateRangeLowNY - 0.00000001 and estimatePriceNY <= estimateRangeHighNY + 0.00000001 and estimateExtensionUpNY >= 0 and estimateExtensionDownNY >= 0
+                estimateValidNY := estimateValidNY and estimateExpansionValidNY
+
+
+bool nyEstimateValid = estimateValidNY and hour(estimateStartNY, TZ) == 8 and minute(estimateStartNY, TZ) == 30 and (estimateEndNY - estimateStartNY == 7200000 or estimateEndNY - estimateStartNY == 27000000)
+
+// Evaluate at the selected chart bar, before later loaded bars can affect the anchor.
+// Visible-bar time triggers recalculation when scrolling; replay uses chart bar time.
+// Never use wall-clock time or a later session's close for the imported box.
+bool forecastRenderBar = forecastCursor == "Last visible candle" ? time == chart.right_visible_bar_time : barstate.islast
+var int chartForecastAsOf = na
+var float chartForecastPrice = na
+if forecastRenderBar
+    chartForecastAsOf := barstate.isconfirmed ? time_close : time_close[1]
+    chartForecastPrice := barstate.isconfirmed ? close : close[1]
+bool followForecast = forecastPlacement == "Follow chart candle"
+int drawEstimateStart = followForecast ? chartForecastAsOf : estimateStart
+int drawEstimateEnd = followForecast ? chartForecastAsOf + (estimateEnd - estimateStart) : estimateEnd
+float drawEstimatePrice = followForecast ? chartForecastPrice : estimatePrice
+bool forecastReady = estimateValid and not na(chartForecastAsOf) and not na(drawEstimatePrice) and (followForecast or chartForecastAsOf >= estimateStart)
+
+// Locked windows use actual opens only; no future 05:00 open is read at 03:00.
+bool lockedWindows = forecastPlacement == "03:00 / 05:00 locked windows"
+bool withinForecastCursor = forecastCursor != "Last visible candle" or time <= chart.right_visible_bar_time
+int forecastDayForBar = timestamp(TZ, localYear, localMonth, localDay, 0, 0)
+int window0300ForBar = timestamp(TZ, localYear, localMonth, localDay, 3, 0)
+int window0500ForBar = timestamp(TZ, localYear, localMonth, localDay, 5, 0)
+int window0830ForBar = timestamp(TZ, localYear, localMonth, localDay, 8, 30)
+bool has0500Code = str.length(str.trim(forecastCode0500)) > 0
+bool firstEstimateValid = estimateValid and hour(estimateStart, TZ) == 3 and minute(estimateStart, TZ) == 0 and estimateEnd - estimateStart == 7200000
+bool secondEstimateValid = has0500Code and estimateValid0500 and hour(estimateStart0500, TZ) == 5 and minute(estimateStart0500, TZ) == 0 and estimateEnd0500 - estimateStart0500 == 12600000
+float secondEstimateUp = estimateUp0500
+float secondEstimateDown = estimateDown0500
+// New expansion packets represent dated observations. In locked mode, keep
+// their mean boxes on the SAME code date and read that exact chart cutoff open.
+// Legacy SP4/SP5/SPES1 templates retain visible-day placement.
+bool codedLocked0300 = lockedWindows and firstEstimateValid and estimateExpansionValid
+bool codedLocked0500 = lockedWindows and secondEstimateValid and estimateExpansionValid0500
+bool codedLockedNY = lockedWindows and nyEstimateValid and estimateExpansionValidNY
+var float coded0300Price = na
+var float coded0500Price = na
+var float codedNYPrice = na
+var int lockedDay = na
+var int locked0300Start = na
+var int locked0500Start = na
+var int locked0830End = na
+var float locked0300Price = na
+var float locked0500Price = na
+var float lockedNYPrice = na
+var float locked0300Up = na
+var float locked0300Down = na
+var float locked0500Up = na
+var float locked0500Down = na
+if withinForecastCursor
+    if na(lockedDay) or lockedDay != forecastDayForBar
+        lockedDay := forecastDayForBar
+        locked0300Start := window0300ForBar
+        locked0500Start := window0500ForBar
+        locked0830End := window0830ForBar
+        locked0300Price := na
+        locked0500Price := na
+        lockedNYPrice := na
+        locked0300Up := na
+        locked0300Down := na
+        locked0500Up := na
+        locked0500Down := na
+    // No isconfirmed/isnew guard: open is already known, and this must survive realtime rollback.
+    if time == window0300ForBar and firstEstimateValid
+        locked0300Price := open
+        locked0300Up := estimateUp
+        locked0300Down := estimateDown
+    if time == window0830ForBar and nyEstimateValid
+        lockedNYPrice := open
+    if time == window0500ForBar and secondEstimateValid
+        locked0500Price := open
+        locked0500Up := secondEstimateUp
+        locked0500Down := secondEstimateDown
+    // Code-scoped prices never reset when a later visible day is processed.
+    if codedLocked0300 and time == estimateStart
+        coded0300Price := open
+    if codedLocked0500 and time == estimateStart0500
+        coded0500Price := open
+    if codedLockedNY and time == estimateStartNY
+        codedNYPrice := open
+
+// Each dated mean window follows its OWN packet, not the right-visible date.
+int firstWindowStart = codedLocked0300 ? estimateStart : locked0300Start
+int firstWindowEnd = codedLocked0300 ? estimateEnd : locked0500Start
+float firstWindowPrice = codedLocked0300 ? coded0300Price : locked0300Price
+float firstWindowUp = codedLocked0300 ? estimateUp : locked0300Up
+float firstWindowDown = codedLocked0300 ? estimateDown : locked0300Down
+int secondWindowStart = codedLocked0500 ? estimateStart0500 : locked0500Start
+int secondWindowEnd = codedLocked0500 ? estimateEnd0500 : locked0830End
+float secondWindowPrice = codedLocked0500 ? coded0500Price : locked0500Price
+float secondWindowUp = codedLocked0500 ? estimateUp0500 : locked0500Up
+float secondWindowDown = codedLocked0500 ? estimateDown0500 : locked0500Down
+
+bool datedNY = forecastPlacement == "Original dated snapshot"
+int drawNYStart = datedNY or codedLockedNY ? estimateStartNY : locked0830End
+int drawNYEnd = drawNYStart + (estimateEndNY - estimateStartNY)
+float drawNYPrice = codedLockedNY ? codedNYPrice : datedNY ? estimatePriceNY : lockedNYPrice
+
+// Each written call owns its own state. Stop at the selected visible candle and window end.
+f_firstBoxBreach(int start, int finish, float upper, float lower) =>
+    var int activeStart = na
+    var int firstSide = 0
+    var int breachTime = na
+    if not na(start) and (na(activeStart) or start != activeStart)
+        activeStart := start
+        firstSide := 0
+        breachTime := na
+    if withinForecastCursor and not na(upper) and not na(lower) and time >= start and time < finish and firstSide == 0
+        bool upBreach = high > upper
+        bool downBreach = low < lower
+        if upBreach or downBreach
+            firstSide := upBreach and downBreach ? 2 : upBreach ? 1 : -1
+            breachTime := time
+    [firstSide, breachTime]
+
+[firstBoxSide, firstBoxBreachTime] = f_firstBoxBreach(lockedWindows ? firstWindowStart : estimateStart, lockedWindows ? firstWindowEnd : estimateEnd, lockedWindows ? firstWindowPrice + firstWindowUp : estimatePrice + estimateUp, lockedWindows ? firstWindowPrice - firstWindowDown : estimatePrice - estimateDown)
+[secondBoxSide, secondBoxBreachTime] = f_firstBoxBreach(secondWindowStart, secondWindowEnd, secondWindowPrice + secondWindowUp, secondWindowPrice - secondWindowDown)
+[nyBoxSide, nyBoxBreachTime] = f_firstBoxBreach(drawNYStart, drawNYEnd, drawNYPrice + estimateUpNY, drawNYPrice - estimateDownNY)
+
+// NY state uses only chart candles at/before the selected visible/replay cursor.
+// The opening timestamp identifies a candle; its breach confirms at time_close.
+f_nyProbabilityState(int start, int finish, float upper, float lower) =>
+    var int activeStart = na
+    var int firstSide = 0
+    var int breachTime = na
+    var int previousEnd = na
+    var bool hasStart = false
+    var bool contiguous = true
+    var bool breachConfirmed = false
+    var float seenHigh = na
+    var float seenLow = na
+    if not na(start) and (na(activeStart) or start != activeStart)
+        activeStart := start
+        firstSide := 0
+        breachTime := na
+        previousEnd := na
+        hasStart := false
+        contiguous := true
+        breachConfirmed := false
+        seenHigh := na
+        seenLow := na
+    if withinForecastCursor and not na(upper) and not na(lower) and time >= start and time < finish
+        if na(previousEnd)
+            hasStart := time == start
+        else if time != previousEnd
+            contiguous := false
+        seenHigh := na(seenHigh) ? high : math.max(seenHigh, high)
+        seenLow := na(seenLow) ? low : math.min(seenLow, low)
+        if firstSide == 0
+            bool upBreach = high > upper + 0.000000001
+            bool downBreach = low < lower - 0.000000001
+            if upBreach or downBreach
+                firstSide := upBreach and downBreach ? 2 : upBreach ? 1 : -1
+                breachTime := time
+        if firstSide != 0 and (time > breachTime or barstate.isconfirmed)
+            breachConfirmed := true
+        previousEnd := time_close
+    [firstSide, breachTime, breachConfirmed, seenHigh, seenLow, hasStart and contiguous]
+
+[nyProbabilitySide, nyProbabilityBreachTime, nyProbabilityConfirmed, nyProbabilityHigh, nyProbabilityLow, nyProbabilityComplete] = f_nyProbabilityState(drawNYStart, drawNYEnd, drawNYPrice + estimateUpNY, drawNYPrice - estimateDownNY)
+
+
+// --- Research follow-up v1: completed candles, isolated from the Mean boxes. ---
+string researchMarket = "ES"
+float REPS = 0.00000001
+f_rnum(array<string> parts, int index) =>
+    array.size(parts) > index ? str.tonumber(array.get(parts, index)) : na
+f_rtext(array<string> parts, int index) =>
+    array.size(parts) > index ? array.get(parts, index) : ""
+f_rvalue(float value) =>
+    na(value) ? "NA" : str.tostring(value, "0.########")
+f_rsame(float left, float right) =>
+    not na(left) and not na(right) and math.abs(left - right) <= 0.000001
+f_rtriplet(array<string> parts, int index) =>
+    float p = f_rnum(parts, index)
+    float k = f_rnum(parts, index + 1)
+    float n = f_rnum(parts, index + 2)
+    not na(p) and not na(k) and not na(n) and ((p == -1 and k == 0 and n == 0) or (p >= 0 and p <= 100 and n >= 1 and n == math.floor(n) and k >= 0 and k <= n and k == math.floor(k)))
+f_rpacket(array<string> parts, string kind) =>
+    int codedFrom = int(f_rnum(parts, 3))
+    int codedUntil = int(f_rnum(parts, 4))
+    int through = int(f_rnum(parts, 17))
+    int midnight = not na(codedFrom) ? timestamp(TZ, year(codedFrom, TZ), month(codedFrom, TZ), dayofmonth(codedFrom, TZ), 0, 0) : na
+    float flags = f_rnum(parts, 19)
+    array.size(parts) == 20 and f_rtext(parts, 0) == "SR1" and f_rtext(parts, 1) == researchMarket and f_rtext(parts, 2) == kind and not na(codedFrom) and not na(codedUntil) and codedFrom > 0 and codedUntil > codedFrom and codedFrom % 300000 == 0 and codedUntil % 300000 == 0 and f_rnum(parts, 5) > f_rnum(parts, 6) and not na(through) and through > 0 and through < midnight and f_rtriplet(parts, 8) and f_rtriplet(parts, 11) and f_rtriplet(parts, 14) and not na(flags) and flags >= 0 and flags <= 7 and flags == math.floor(flags)
+f_rprob(array<string> parts, int index) =>
+    float p = f_rnum(parts, index)
+    p >= 0 ? str.tostring(p, "0.0") + "%" : "Unavailable"
+f_rsupport(array<string> parts, int index) =>
+    float n = f_rnum(parts, index + 2)
+    n >= 1 ? str.tostring(f_rnum(parts, index + 1), "#") + "/" + str.tostring(n, "#") + " earlier dates" : "No eligible earlier dates"
+f_rtip(array<string> parts, int index) =>
+    float n = f_rnum(parts, index + 2)
+    float k = f_rnum(parts, index + 1)
+    string tipText = "Historical reference from the website; supporting raw outcomes " + f_rsupport(parts, index) + ". Displayed probability may be shrunk toward a broader earlier-date baseline and need not equal raw k/n. Data through " + str.format_time(int(f_rnum(parts, 17)), "yyyy-MM-dd", TZ) + "."
+    if n > 0
+        float r = k / n
+        float den = 1 + 3.8416 / n
+        float center = (r + 1.9208 / n) / den
+        float half = 1.96 * math.sqrt(r * (1 - r) / n + 0.9604 / (n * n)) / den
+        tipText += " Raw-frequency 95% Wilson interval " + str.tostring(100 * math.max(0, center - half), "0.0") + "%-" + str.tostring(100 * math.min(1, center + half), "0.0") + "%; this interval is for k/n, not the pooled model."
+    tipText
+
+// An independent running range continues after 08:30 so a NY breach snapshot
+// includes the actual 19:30-to-signal extrema; the original overnight AVR stays frozen.
+var int rRunStart = na
+var int rRunNext = na
+var float rRunHigh = na
+var float rRunLow = na
+var bool rRunComplete = false
+int rRunEnd = timestamp(TZ, localYear, localMonth, anchorDay + 1, 16, 0)
+if barstate.isconfirmed and withinForecastCursor and time >= startForBar and time < rRunEnd
+    if na(rRunStart) or rRunStart != startForBar
+        rRunStart := startForBar
+        rRunNext := time
+        rRunHigh := na
+        rRunLow := na
+        rRunComplete := time == startForBar
+    rRunComplete := rRunComplete and time == rRunNext
+    rRunHigh := na(rRunHigh) ? high : math.max(rRunHigh, high)
+    rRunLow := na(rRunLow) ? low : math.min(rRunLow, low)
+    rRunNext := time_close
+
+bool rDated0300 = firstEstimateValid and (codedLocked0300 or forecastPlacement == "Original dated snapshot")
+bool rDated0500 = secondEstimateValid and (codedLocked0500 or forecastPlacement == "Original dated snapshot")
+bool rDatedNY = nyEstimateValid and estimateEndNY - estimateStartNY == 27000000 and (codedLockedNY or forecastPlacement == "Original dated snapshot")
+int rStart0300 = lockedWindows ? firstWindowStart : estimateStart
+int rEnd0300 = lockedWindows ? firstWindowEnd : estimateEnd
+float rPrice0300 = lockedWindows ? firstWindowPrice : estimatePrice
+int rStart0500 = lockedWindows ? secondWindowStart : estimateStart0500
+int rEnd0500 = lockedWindows ? secondWindowEnd : estimateEnd0500
+float rPrice0500 = lockedWindows ? secondWindowPrice : estimatePrice0500
+
+// Array state: start,end,U,D,complete,next,side,signalClose,type,close,H,L,
+// overshootBand,already120,already130,returnedAt,future120At,future130At,printed,bboxInside.
+// Every written call has its own persistent state. No unfinished candle qualifies.
+f_researchBreach(int start, int finish, float upper, float lower, bool enabled) =>
+    var array<float> s = array.new<float>(20, na)
+    if enabled and not na(start) and (na(array.get(s, 0)) or array.get(s, 0) != start)
+        array.fill(s, na)
+        array.set(s, 0, start)
+        array.set(s, 1, finish)
+        array.set(s, 2, upper)
+        array.set(s, 3, lower)
+        array.set(s, 4, 1)
+        array.set(s, 6, 0)
+    if enabled and barstate.isconfirmed and withinForecastCursor and upper > lower and time >= start and time < finish
+        // Dated chart opens are unknown before their actual start bar. Store the
+        // bounds only once they exist; an earlier NA must not poison the export.
+        array.set(s, 2, upper)
+        array.set(s, 3, lower)
+        bool initial = na(array.get(s, 5))
+        bool completeWindow = array.get(s, 4) == 1 and (initial ? time == start : time == int(array.get(s, 5)))
+        array.set(s, 4, completeWindow ? 1 : 0)
+        array.set(s, 5, time_close)
+        float width = upper - lower
+        if array.get(s, 6) == 0
+            bool up = high > upper + REPS
+            bool down = low < lower - REPS
+            if up or down
+                int direction = up and down ? 2 : up ? 1 : -1
+                bool outside = close > upper + REPS or close < lower - REPS
+                float target120 = direction == 1 ? lower + 1.2 * width : upper - 1.2 * width
+                float target130 = direction == 1 ? lower + 1.3 * width : upper - 1.3 * width
+                array.set(s, 6, direction)
+                array.set(s, 7, time_close)
+                array.set(s, 8, direction == 2 ? 2 : outside ? 1 : 0)
+                array.set(s, 9, close)
+                array.set(s, 10, high)
+                array.set(s, 11, low)
+                array.set(s, 12, outside and direction != 2 ? math.floor(math.max(0, direction == 1 ? close - upper : lower - close) / width * 10 + REPS) * 10 : na)
+                array.set(s, 13, direction == 2 ? na : (direction == 1 ? high >= target120 - REPS : low <= target120 + REPS) ? 1 : 0)
+                array.set(s, 14, direction == 2 ? na : (direction == 1 ? high >= target130 - REPS : low <= target130 + REPS) ? 1 : 0)
+                array.set(s, 18, rRunComplete and nightAvr > 0 ? 100 * (rRunHigh - rRunLow) / nightAvr : na)
+                array.set(s, 19, priorNyHigh > priorNyLow ? (close >= priorNyLow - REPS and close <= priorNyHigh + REPS ? 1 : 0) : na)
+        if array.get(s, 6) != 0 and time_close > int(array.get(s, 7))
+            int direction = int(array.get(s, 6))
+            float target120 = direction == 1 ? lower + 1.2 * width : upper - 1.2 * width
+            float target130 = direction == 1 ? lower + 1.3 * width : upper - 1.3 * width
+            if direction != 2
+                if array.get(s, 8) == 1 and na(array.get(s, 15)) and time_close <= math.min(finish, int(array.get(s, 7)) + 1200000) and close >= lower - REPS and close <= upper + REPS
+                    array.set(s, 15, time_close)
+                if array.get(s, 13) == 0 and na(array.get(s, 16)) and (direction == 1 ? high >= target120 - REPS : low <= target120 + REPS)
+                    array.set(s, 16, time_close)
+                if array.get(s, 14) == 0 and na(array.get(s, 17)) and (direction == 1 ? high >= target130 - REPS : low <= target130 + REPS)
+                    array.set(s, 17, time_close)
+    s
+
+array<float> rBreach0300 = f_researchBreach(rStart0300, rEnd0300, rPrice0300 + estimateUp, rPrice0300 - estimateDown, rDated0300)
+array<float> rBreach0500 = f_researchBreach(rStart0500, rEnd0500, rPrice0500 + estimateUp0500, rPrice0500 - estimateDown0500, rDated0500)
+array<float> rBreachNY = f_researchBreach(drawNYStart, drawNYEnd, drawNYPrice + estimateUpNY, drawNYPrice - estimateDownNY, rDatedNY)
+f_rside(array<float> s) =>
+    array.get(s, 6) == 1 ? "U" : array.get(s, 6) == -1 ? "D" : array.get(s, 6) == 2 ? "B" : ""
+f_rtype(array<float> s) =>
+    array.get(s, 8) == 1 ? "CLOSE_OUTSIDE" : array.get(s, 8) == 0 ? "WICK_ONLY" : "BOTH_UNKNOWN"
+f_rsnapshot(array<float> s) =>
+    var int cachedWindow = na
+    var int cachedSignal = na
+    var string cachedPacket = ""
+    if not na(array.get(s, 0)) and (na(cachedWindow) or cachedWindow != int(array.get(s, 0)))
+        cachedWindow := int(array.get(s, 0))
+        cachedSignal := na
+        cachedPacket := ""
+    bool ready = array.get(s, 4) == 1 and array.get(s, 6) != 0 and not na(array.get(s, 7))
+    if ready and (na(cachedSignal) or cachedSignal != int(array.get(s, 7)))
+        cachedSignal := int(array.get(s, 7))
+        cachedPacket := "SFB1|" + researchMarket + "|" + f_rvalue(array.get(s, 0)) + "|" + f_rvalue(array.get(s, 1)) + "|" + f_rvalue(array.get(s, 7)) + "|" + f_rvalue(array.get(s, 2)) + "|" + f_rvalue(array.get(s, 3)) + "|" + f_rside(s) + "|" + f_rtype(s) + "|" + f_rvalue(array.get(s, 9)) + "|" + f_rvalue(array.get(s, 10)) + "|" + f_rvalue(array.get(s, 11)) + "|" + f_rvalue(array.get(s, 18)) + "|" + f_rvalue(array.get(s, 19))
+    ready ? cachedPacket : ""
+f_researchEndpoint(int at, int deadline, float upper, float lower, bool enabled) =>
+    var string packet = ""
+    if enabled and barstate.isconfirmed and withinForecastCursor and time_close == at and rRunComplete and rRunNext == at and upper > lower
+        string state = close > upper + REPS ? "ABOVE_U" : close < lower - REPS ? "BELOW_D" : "INSIDE"
+        packet := "SEP1|" + researchMarket + "|" + str.tostring(at) + "|" + str.tostring(deadline) + "|" + f_rvalue(rRunHigh) + "|" + f_rvalue(rRunLow) + "|" + f_rvalue(close) + "|" + f_rvalue(upper) + "|" + f_rvalue(lower) + "|" + state
+    packet
+string rEP0500 = f_researchEndpoint(rEnd0300, timestamp(TZ, year(rEnd0300, TZ), month(rEnd0300, TZ), dayofmonth(rEnd0300, TZ), 8, 30), rPrice0300 + estimateUp, rPrice0300 - estimateDown, rDated0300)
+string rEP0830 = f_researchEndpoint(rEnd0500, timestamp(TZ, year(rEnd0500, TZ), month(rEnd0500, TZ), dayofmonth(rEnd0500, TZ), 16, 0), rPrice0500 + estimateUp0500, rPrice0500 - estimateDown0500, rDated0500)
+
+var array<string> rEP = str.split(str.trim(endpointResearchCode), "|")
+var array<string> rFB = str.split(str.trim(breachResearchCode), "|")
+var int rEPStart = int(f_rnum(rEP, 3))
+var int rEPEnd = int(f_rnum(rEP, 4))
+var int rFBStart = int(f_rnum(rFB, 3))
+var int rFBEnd = int(f_rnum(rFB, 4))
+bool rEPTimeValid = not na(rEPStart) and (hour(rEPStart, TZ) == 5 and minute(rEPStart, TZ) == 0 and rEPEnd - rEPStart == 12600000 or hour(rEPStart, TZ) == 8 and minute(rEPStart, TZ) == 30 and rEPEnd - rEPStart == 27000000)
+bool rFBTimeValid = not na(rFBEnd) and (hour(rFBEnd, TZ) == 5 and minute(rFBEnd, TZ) == 0 and rFBStart > rFBEnd - 7200000 or hour(rFBEnd, TZ) == 8 and minute(rFBEnd, TZ) == 30 and rFBStart > rFBEnd - 12600000 or hour(rFBEnd, TZ) == 16 and minute(rFBEnd, TZ) == 0 and rFBStart > rFBEnd - 27000000) and rFBStart <= rFBEnd
+var bool rEPValid = f_rpacket(rEP, "EP") and rEPTimeValid and f_rtext(rEP, 7) == "B" and f_rnum(rEP, 19) == 0 and (f_rtext(rEP, 18) == "ABOVE_U" or f_rtext(rEP, 18) == "INSIDE" or f_rtext(rEP, 18) == "BELOW_D")
+// Strength experiments stay on the website: SR1 does not encode the actual
+// overshoot band, so a strength-filtered estimate cannot be chart-verified here.
+var bool rFBValid = f_rpacket(rFB, "FB") and rFBTimeValid and f_rnum(rFB, 19) < 4 and (f_rtext(rFB, 7) == "U" or f_rtext(rFB, 7) == "D") and (f_rtext(rFB, 18) == "CLOSE_OUTSIDE" or f_rtext(rFB, 18) == "WICK_ONLY")
+string rEPSnapshot = not na(rEPStart) and hour(rEPStart, TZ) == 5 ? rEP0500 : rEP0830
+var string rEPCached = ""
+var array<string> rEPObserved = array.new<string>()
+if rEPSnapshot != rEPCached
+    rEPObserved := str.split(rEPSnapshot, "|")
+    rEPCached := rEPSnapshot
+bool researchEPVerified = rEPValid and array.size(rEPObserved) == 10 and int(f_rnum(rEPObserved, 2)) == rEPStart and int(f_rnum(rEPObserved, 3)) == rEPEnd and f_rsame(f_rnum(rEPObserved, 4), f_rnum(rEP, 5)) and f_rsame(f_rnum(rEPObserved, 5), f_rnum(rEP, 6)) and f_rtext(rEPObserved, 9) == f_rtext(rEP, 18)
+array<float> rFBObserved = not na(rFBEnd) and hour(rFBEnd, TZ) == 5 ? rBreach0300 : not na(rFBEnd) and hour(rFBEnd, TZ) == 8 ? rBreach0500 : rBreachNY
+var int rFBFlags = int(f_rnum(rFB, 19))
+bool researchFBVerified = rFBValid and array.get(rFBObserved, 4) == 1 and int(array.get(rFBObserved, 7)) == rFBStart and int(array.get(rFBObserved, 1)) == rFBEnd and f_rsame(array.get(rFBObserved, 2), f_rnum(rFB, 5)) and f_rsame(array.get(rFBObserved, 3), f_rnum(rFB, 6)) and f_rside(rFBObserved) == f_rtext(rFB, 7) and f_rtype(rFBObserved) == f_rtext(rFB, 18) and (rFBFlags % 2 == 1 ? 1 : 0) == array.get(rFBObserved, 13) and (rFBFlags % 4 >= 2 ? 1 : 0) == array.get(rFBObserved, 14) and (na(chartForecastAsOf) or chartForecastAsOf < rFBEnd or int(array.get(rFBObserved, 5)) == rFBEnd)
+int researchFBWindowStart = int(array.get(rFBObserved, 0))
+var bool rEPHigher = false
+var bool rEPLower = false
+if researchEPVerified and barstate.isconfirmed and withinForecastCursor and time >= rEPStart and time < rEPEnd
+    rEPHigher := rEPHigher or high > f_rnum(rEP, 5) + REPS
+    rEPLower := rEPLower or low < f_rnum(rEP, 6) - REPS
+
+// Logs/alerts export confirmed observations; they never manufacture probabilities.
+f_emitResearch(string packet, string previous) =>
+    if str.length(packet) > 0 and packet != previous
+        if emitResearchSnapshots
+            log.info("{0}", packet)
+        if researchSnapshotAlerts and barstate.isrealtime and barstate.isconfirmed
+            alert(packet, alert.freq_all)
+    packet
+var string rLast0300 = ""
+var string rLast0500 = ""
+var string rLastNY = ""
+var string rLastEP0500 = ""
+var string rLastEP0830 = ""
+rLast0300 := f_emitResearch(f_rsnapshot(rBreach0300), rLast0300)
+rLast0500 := f_emitResearch(f_rsnapshot(rBreach0500), rLast0500)
+rLastNY := f_emitResearch(f_rsnapshot(rBreachNY), rLastNY)
+rLastEP0500 := f_emitResearch(rEP0500, rLastEP0500)
+rLastEP0830 := f_emitResearch(rEP0830, rLastEP0830)
+// --- End isolated research calculations. ---
+
+var array<line> forecastStatLines = array.new<line>()
+var array<label> rangeExtensionLabels = array.new<label>()
+// Pine drawing objects reproduce Fibonacci extension levels; native mouse-drawn Fib objects are separate.
+f_meanOuterLines(int start, int finish, float price, float meanUp, float meanDown) =>
+    float fullWidth = meanUp + meanDown
+    if fullWidth > 0 and meanOuterBands != "Off"
+        for levelIndex = 0 to 1
+            float fraction = levelIndex == 0 ? 0.10 : 0.15
+            bool enabled = meanOuterBands == "Both" or (levelIndex == 0 and meanOuterBands == "10%") or (levelIndex == 1 and meanOuterBands == "15%")
+            if enabled
+                if showMeanUpper
+                    float upperLevel = price + meanUp + fraction * fullWidth
+                    array.push(forecastStatLines, line.new(start, upperLevel, finish, upperLevel, xloc = xloc.bar_time, color = color.rgb(173, 95, 230), style = line.style_dotted, width = 1))
+                if showMeanLower
+                    float lowerLevel = price - meanDown - fraction * fullWidth
+                    array.push(forecastStatLines, line.new(start, lowerLevel, finish, lowerLevel, xloc = xloc.bar_time, color = color.rgb(173, 95, 230), style = line.style_dotted, width = 1))
+
+// ES-only Q7 first-side samples and hits, refitted from native ES candles.
+var array<int> q7ReconstructionSamples = array.from(490, 433, 461, 434)
+var array<int> q7ReconstructionHits = array.from(436, 392, 341, 297, 225, 139, 65, 28, 395, 356, 313, 280, 222, 146, 82, 45, 422, 368, 325, 283, 215, 110, 60, 26, 387, 345, 314, 287, 225, 150, 89, 53)
+var array<int> q7EarlierSamples = array.from(455, 399, 465, 431)
+var array<int> q7EarlierHits = array.from(405, 356, 309, 274, 218, 126, 62, 28, 365, 324, 286, 247, 194, 127, 82, 46, 413, 361, 319, 278, 216, 121, 64, 29, 391, 345, 314, 287, 229, 161, 96, 63)
+
+// NY directional counts from ny-sessionpath-extension-data.json. No pooled rates.
+// Flattening: method, fit, preceding cohort, multiple, basis, U/D, k/n.
+// Chunked to keep each array.from call below 100 literal arguments.
+// ES-only NY directional counts. Source hash is recorded in the release manifest.
+// Order: method, minimum fit, preceding cohort, multiple, basis, U/D, k/n.
+var array<int> nyExtensionCounts = array.new<int>()
+if barstate.isfirst
+    array.concat(nyExtensionCounts, array.from(81, 390, 101, 390, 73, 142, 91, 140, 68, 136, 83, 131, 63, 390, 79, 390, 59, 142, 72, 140, 57, 139, 70, 137, 45, 390, 69, 390, 42, 142, 62, 140, 42, 141, 62, 139, 34, 390, 54, 390, 32, 142, 48, 140, 32, 141, 48, 139, 3, 16, 3, 16, 3, 6, 2, 3, 3, 6, 2, 3, 2, 16, 2, 16, 2, 6, 1, 3, 2, 6, 1, 3, 2, 16, 2, 16, 2, 6, 1, 3, 2, 6, 1, 3, 0, 16, 1, 16, 0, 6, 1, 3, 0, 6, 1, 3))
+    array.concat(nyExtensionCounts, array.from(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 296, 1169, 291, 1169, 271, 465, 261, 405, 256, 447, 237, 377, 230, 1169, 237, 1169, 210, 465, 213, 405, 201, 453, 201, 389, 169, 1169, 198, 1169, 155, 465, 175, 405, 150, 457, 167, 393, 131, 1169, 150, 1169, 122, 465, 133, 405, 117, 457, 129, 397))
+    array.concat(nyExtensionCounts, array.from(9, 38, 6, 38, 8, 13, 4, 12, 7, 12, 4, 12, 7, 38, 4, 38, 6, 13, 2, 12, 6, 13, 2, 12, 5, 38, 3, 38, 4, 13, 1, 12, 4, 13, 1, 12, 3, 38, 1, 38, 2, 13, 1, 12, 2, 13, 1, 12, 6, 25, 3, 25, 5, 5, 2, 8, 5, 5, 0, 6, 4, 25, 3, 25, 3, 5, 2, 8, 3, 5, 1, 7, 4, 25, 3, 25, 3, 5, 2, 8, 3, 5, 1, 7, 3, 25, 3, 25, 3, 5, 2, 8, 3, 5, 1, 7))
+    array.concat(nyExtensionCounts, array.from(1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 2, 6, 1, 6, 2, 3, 1, 2, 2, 3, 1, 2, 0, 6, 1, 6, 0, 3, 1, 2, 0, 3, 1, 2, 0, 6, 1, 6, 0, 3, 1, 2, 0, 3, 1, 2, 0, 6, 1, 6, 0, 3, 1, 2, 0, 3, 1, 2))
+    array.concat(nyExtensionCounts, array.from(2, 6, 3, 6, 2, 2, 3, 4, 2, 2, 1, 2, 2, 6, 3, 6, 2, 2, 3, 4, 2, 2, 2, 3, 2, 6, 2, 6, 2, 2, 2, 4, 2, 2, 1, 3, 0, 6, 2, 6, 0, 2, 2, 4, 0, 2, 1, 3, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(147, 620, 163, 620, 133, 236, 145, 223, 125, 226, 128, 204, 110, 620, 134, 620, 99, 236, 121, 223, 98, 233, 113, 213, 78, 620, 114, 620, 70, 236, 101, 223, 70, 234, 97, 217, 59, 620, 90, 620, 53, 236, 81, 223, 53, 234, 78, 218, 6, 25, 3, 25, 6, 11, 2, 5, 6, 11, 2, 5, 5, 25, 2, 25, 5, 11, 1, 5, 5, 11, 1, 5, 1, 25, 2, 25, 1, 11, 1, 5, 1, 11, 1, 5, 0, 25, 1, 25, 0, 11, 1, 5, 0, 11, 1, 5))
+    array.concat(nyExtensionCounts, array.from(2, 10, 2, 10, 1, 1, 1, 5, 1, 1, 0, 4, 2, 10, 2, 10, 1, 1, 1, 5, 1, 1, 0, 4, 2, 10, 2, 10, 1, 1, 1, 5, 1, 1, 0, 4, 1, 10, 2, 10, 1, 1, 1, 5, 1, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 299, 1176, 289, 1176, 276, 475, 258, 402, 260, 455, 233, 375, 226, 1176, 239, 1176, 206, 475, 215, 402, 198, 463, 202, 387, 166, 1176, 194, 1176, 152, 475, 172, 402, 146, 465, 164, 392, 129, 1176, 148, 1176, 120, 475, 133, 402, 115, 466, 126, 393))
+    array.concat(nyExtensionCounts, array.from(9, 38, 6, 38, 8, 14, 4, 11, 7, 13, 4, 11, 7, 38, 4, 38, 6, 14, 2, 11, 6, 14, 2, 11, 3, 38, 3, 38, 2, 14, 1, 11, 2, 14, 1, 11, 2, 38, 1, 38, 1, 14, 1, 11, 1, 14, 1, 11, 6, 25, 3, 25, 5, 5, 2, 8, 5, 5, 0, 6, 4, 25, 3, 25, 3, 5, 2, 8, 3, 5, 1, 7, 4, 25, 3, 25, 3, 5, 2, 8, 3, 5, 1, 7, 3, 25, 3, 25, 3, 5, 2, 8, 3, 5, 1, 7))
+    array.concat(nyExtensionCounts, array.from(1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 1, 4, 2, 4, 1, 1, 2, 3, 1, 1, 2, 3, 2, 6, 1, 6, 2, 3, 1, 1, 2, 3, 1, 1, 0, 6, 1, 6, 0, 3, 1, 1, 0, 3, 1, 1, 0, 6, 1, 6, 0, 3, 1, 1, 0, 3, 1, 1, 0, 6, 1, 6, 0, 3, 1, 1, 0, 3, 1, 1))
+    array.concat(nyExtensionCounts, array.from(2, 6, 3, 6, 2, 2, 3, 4, 2, 2, 1, 2, 2, 6, 3, 6, 2, 2, 3, 4, 2, 2, 2, 3, 0, 6, 2, 6, 0, 2, 2, 4, 0, 2, 1, 3, 0, 6, 2, 6, 0, 2, 2, 4, 0, 2, 1, 3, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(64, 291, 68, 291, 57, 96, 64, 96, 54, 93, 53, 84, 45, 291, 60, 291, 40, 96, 56, 96, 39, 95, 52, 91, 35, 291, 50, 291, 32, 96, 46, 96, 32, 96, 44, 93, 23, 291, 42, 291, 20, 96, 38, 96, 20, 96, 36, 93, 2, 15, 3, 15, 2, 5, 2, 2, 2, 5, 2, 2, 1, 15, 3, 15, 1, 5, 2, 2, 1, 5, 2, 2, 1, 15, 2, 15, 1, 5, 1, 2, 1, 5, 1, 2, 0, 15, 2, 15, 0, 5, 1, 2, 0, 5, 1, 2))
+    array.concat(nyExtensionCounts, array.from(1, 3, 0, 3, 1, 1, 0, 1, 1, 1, 0, 1, 0, 3, 0, 3, 0, 1, 0, 1, 0, 1, 0, 1, 0, 3, 0, 3, 0, 1, 0, 1, 0, 1, 0, 1, 0, 3, 0, 3, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 313, 1153, 290, 1153, 290, 465, 265, 395, 272, 441, 234, 362, 237, 1153, 243, 1153, 216, 465, 221, 395, 209, 452, 207, 379, 173, 1153, 198, 1153, 159, 465, 180, 395, 154, 454, 172, 385, 129, 1153, 155, 1153, 116, 465, 142, 395, 112, 455, 135, 386))
+    array.concat(nyExtensionCounts, array.from(9, 38, 8, 38, 9, 14, 7, 10, 8, 13, 7, 10, 6, 38, 6, 38, 6, 14, 5, 10, 6, 14, 5, 10, 4, 38, 3, 38, 4, 14, 2, 10, 4, 14, 2, 10, 3, 38, 2, 38, 3, 14, 1, 10, 3, 14, 1, 10, 6, 23, 4, 23, 5, 6, 3, 9, 5, 6, 1, 7, 5, 23, 3, 23, 4, 6, 3, 9, 4, 6, 2, 8, 4, 23, 3, 23, 3, 6, 3, 9, 3, 6, 2, 8, 4, 23, 3, 23, 3, 6, 3, 9, 3, 6, 2, 8))
+    array.concat(nyExtensionCounts, array.from(0, 4, 2, 4, 0, 0, 2, 3, 0, 0, 2, 3, 0, 4, 2, 4, 0, 0, 2, 3, 0, 0, 2, 3, 0, 4, 2, 4, 0, 0, 2, 3, 0, 0, 2, 3, 0, 4, 1, 4, 0, 0, 1, 3, 0, 0, 1, 3, 1, 6, 3, 6, 1, 3, 3, 3, 1, 3, 3, 3, 0, 6, 1, 6, 0, 3, 1, 3, 0, 3, 1, 3, 0, 6, 1, 6, 0, 3, 1, 3, 0, 3, 1, 3, 0, 6, 1, 6, 0, 3, 1, 3, 0, 3, 1, 3))
+    array.concat(nyExtensionCounts, array.from(2, 6, 3, 6, 2, 2, 3, 3, 2, 2, 1, 1, 1, 6, 3, 6, 1, 2, 3, 3, 1, 2, 2, 2, 1, 6, 2, 6, 1, 2, 2, 3, 1, 2, 1, 2, 0, 6, 2, 6, 0, 2, 2, 3, 0, 2, 1, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(103, 433, 97, 433, 94, 157, 93, 141, 88, 148, 78, 124, 70, 433, 83, 433, 64, 157, 79, 141, 62, 152, 74, 134, 49, 433, 72, 433, 46, 157, 68, 141, 45, 153, 66, 137, 35, 433, 59, 433, 32, 157, 55, 141, 31, 153, 54, 138, 3, 17, 3, 17, 3, 6, 2, 2, 3, 6, 2, 2, 2, 17, 3, 17, 2, 6, 2, 2, 2, 6, 2, 2, 2, 17, 2, 17, 2, 6, 1, 2, 2, 6, 1, 2, 1, 17, 2, 17, 1, 6, 1, 2, 1, 6, 1, 2))
+    array.concat(nyExtensionCounts, array.from(1, 7, 0, 7, 1, 1, 0, 2, 1, 1, 0, 2, 1, 7, 0, 7, 1, 1, 0, 2, 1, 1, 0, 2, 0, 7, 0, 7, 0, 1, 0, 2, 0, 1, 0, 2, 0, 7, 0, 7, 0, 1, 0, 2, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    array.concat(nyExtensionCounts, array.from(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 308, 1163, 293, 1163, 288, 460, 268, 401, 269, 435, 239, 370, 230, 1163, 239, 1163, 213, 460, 218, 401, 206, 447, 204, 385, 174, 1163, 201, 1163, 163, 460, 183, 401, 157, 448, 175, 391, 134, 1163, 158, 1163, 124, 460, 144, 401, 119, 449, 138, 393))
+    array.concat(nyExtensionCounts, array.from(9, 38, 8, 38, 9, 14, 7, 10, 8, 13, 7, 10, 6, 38, 6, 38, 6, 14, 5, 10, 6, 14, 5, 10, 4, 38, 3, 38, 4, 14, 2, 10, 4, 14, 2, 10, 3, 38, 2, 38, 3, 14, 1, 10, 3, 14, 1, 10, 6, 24, 4, 24, 5, 6, 3, 9, 5, 6, 2, 8, 6, 24, 3, 24, 5, 6, 3, 9, 5, 6, 2, 8, 4, 24, 3, 24, 3, 6, 3, 9, 3, 6, 2, 8, 4, 24, 3, 24, 3, 6, 3, 9, 3, 6, 2, 8))
+    array.concat(nyExtensionCounts, array.from(0, 4, 2, 4, 0, 0, 2, 3, 0, 0, 2, 3, 0, 4, 2, 4, 0, 0, 2, 3, 0, 0, 2, 3, 0, 4, 2, 4, 0, 0, 2, 3, 0, 0, 2, 3, 0, 4, 1, 4, 0, 0, 1, 3, 0, 0, 1, 3, 1, 6, 3, 6, 1, 3, 3, 3, 1, 3, 3, 3, 0, 6, 1, 6, 0, 3, 1, 3, 0, 3, 1, 3, 0, 6, 1, 6, 0, 3, 1, 3, 0, 3, 1, 3, 0, 6, 1, 6, 0, 3, 1, 3, 0, 3, 1, 3))
+    array.concat(nyExtensionCounts, array.from(2, 6, 3, 6, 2, 2, 3, 3, 2, 2, 2, 2, 1, 6, 3, 6, 1, 2, 3, 3, 1, 2, 2, 2, 1, 6, 2, 6, 1, 2, 2, 3, 1, 2, 1, 2, 0, 6, 2, 6, 0, 2, 2, 3, 0, 2, 1, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0))
+
+f_nyExtensionLabel(int start, int finish, float multiple, int direction, float target) =>
+    string side = direction == 1 ? "U" : "D"
+    string suffix = ""
+    string explanation = ""
+    int referenceIndex = nyQ7Reference == "Own Exact" ? 0 : nyQ7Reference == "Own Wide" ? 1 : nyQ7Reference == "Prior Exact" ? 2 : nyQ7Reference == "Prior Wide" ? 3 : -1
+    int level = math.abs(multiple - 1.20) < 0.000001 ? 0 : math.abs(multiple - 1.30) < 0.000001 ? 1 : math.abs(multiple - 1.40) < 0.000001 ? 2 : math.abs(multiple - 1.50) < 0.000001 ? 3 : -1
+    int fit = nyProbabilityFit == "50+ earlier matches" ? 0 : 1
+    int minimumFit = fit == 0 ? 50 : 1
+    int cohort = nyProbabilityCohort == "All eligible NY forecasts" ? 0 : nyProbabilityCohort == "04:30 double break - second U" ? 1 : nyProbabilityCohort == "04:30 double break - second D" ? 2 : nyProbabilityCohort == "03:00-05:00 both orange boxes - second U" ? 3 : nyProbabilityCohort == "03:00-05:00 both orange boxes - second D" ? 4 : nyProbabilityCohort == "05:00-08:30 both orange boxes - second U" ? 5 : 6
+    int basis = nyProbabilityBasis == "Whole-window directional" ? 0 : nyProbabilityBasis == "First breakout side" ? 1 : 2
+    int observedAsOf = barstate.isconfirmed ? time_close : time
+    bool reached = direction == 1 ? nyProbabilityHigh >= target - 0.000000001 : nyProbabilityLow <= target + 0.000000001
+    bool isFirstDirection = nyProbabilitySide == direction
+    if showRangeHitRates
+        if referenceIndex < 0
+            suffix := " | " + side + " Hist n/a"
+            explanation := "Select the NY research reference matching the website's Own/Prior and Exact/Wide method. The code does not identify that method."
+        else if level < 0
+            suffix := " | " + side + " Hist n/a"
+            explanation := "New earlier-only NY research covers 1.20, 1.30, 1.40 and 1.50 only. This level has no matching new NY probability. No legacy NY percentage is substituted."
+        else if estimateNNY < minimumFit
+            suffix := " | " + side + " fit n/a"
+            explanation := "This imported NY forecast has fewer earlier matches than the selected historical fit minimum. Use a matching fit threshold; sensitivity fits may be sparse."
+        else if basis > 0 and not nyProbabilityComplete
+            suffix := " | " + side + " state n/a"
+            explanation := "The chart lacks a continuous 08:30-to-observation candle sequence. First-breakout order and pending-target state cannot be verified from the loaded chart."
+        else if basis > 0 and nyProbabilitySide == 2
+            suffix := " | " + side + " order n/a"
+            explanation := "Both initial Mean-box boundaries broke in the same five-minute candle. Their order is unknown; first-side and pending samples exclude these cases."
+        else if basis > 0 and nyProbabilitySide != 0 and not isFirstDirection
+            suffix := " | " + side + " not first"
+            explanation := "The opposite side already broke first. A first-" + side + " probability does not apply to this observed sequence. Whole-window directional frequencies remain available under NY probability basis."
+        else if basis == 2 and reached
+            suffix := " | " + side + " reached"
+            explanation := "This target was already touched at or before the selected chart observation, including any trigger-candle or next-open hit. A pending-target reference does not apply after a hit."
+        else if basis == 2 and observedAsOf >= finish
+            suffix := " | " + side + " ended"
+            explanation := "The NY window has ended. There are no remaining candles for a pending target."
+        else if basis == 2 and not na(nyProbabilityBreachTime) and nyProbabilityBreachTime + 300000 >= finish
+            suffix := " | " + side + " no time"
+            explanation := "The first breakout candle confirms at the window endpoint, leaving no eligible later candle. Such cases are excluded from pending-target denominators."
+        else if basis == 2 and not nyProbabilityConfirmed
+            suffix := " | " + side + (nyProbabilitySide == 0 ? " await break" : " await close")
+            explanation := "The default pending reference is shown only for the direction of a confirmed first breakout. Wait for a strict Mean-box boundary breach and completion of that five-minute candle. The target must still be untouched and at least one candle must remain. No pre-confirmation percentage is shown."
+        else
+            int index = (((((referenceIndex * 2 + fit) * 7 + cohort) * 4 + level) * 3 + basis) * 2 + (direction == 1 ? 0 : 1)) * 2
+            int k = array.get(nyExtensionCounts, index)
+            int n = array.get(nyExtensionCounts, index + 1)
+            if n == 0
+                suffix := " | " + side + " Hist n/a"
+                explanation := "No eligible historical cases for this selected NY method, minimum fit, earlier tail event, direction and probability basis. Unavailable is not a 0% forecast."
+            else
+                float probability = float(k) / n
+                float z2 = 3.841458820694
+                float center = (probability + z2 / (2 * n)) / (1 + z2 / n)
+                float half = 1.95996398454 * math.sqrt(probability * (1 - probability) / n + z2 / (4 * n * n)) / (1 + z2 / n)
+                bool beforeConfirmation = nyProbabilitySide == 0 or not nyProbabilityConfirmed
+                string condition = basis == 0 ? " Hist " : basis == 1 ? (beforeConfirmation ? " if " + side + " first " : " first Hist ") : " UNREACHED @conf "
+                suffix := " | " + (basis == 1 and beforeConfirmation ? "" : side) + condition + "R " + str.tostring(100 * probability, "0.0") + "% / M " + str.tostring(100 * (1 - probability), "0.0") + "%"
+                explanation := "NY 08:30-16:00 " + nyQ7Reference + " Mean / " + side + " / " + nyProbabilityBasis + ": " + str.tostring(k) + "/" + str.tostring(n) + ". 95% Wilson interval " + str.tostring(100 * math.max(0, center - half), "0.0") + "%-" + str.tostring(100 * math.min(1, center + half), "0.0") + "%. Earlier-only 2022-2026 reconstructed forecasts. Fit minimum: " + str.tostring(minimumFit) + ". Preceding condition: " + nyProbabilityCohort + ". Upper and lower counts remain separate. "
+                explanation += "R = historical reached percentage; M = historical missed/unreached percentage in the same denominator. "
+                explanation += basis == 0 ? "Denominator: every eligible NY forecast in this cohort, including no-break days. Numerator: a wick touched this directional target anywhere in [08:30,16:00). The two sides may overlap." : basis == 1 ? "Denominator: resolved first strict wick breakouts on this side. Target touches anywhere through 16:00, including the trigger candle. No-break and same-candle unknown-order cases excluded." : "UNREACHED is the actual chart target state at the selected observation. Denominator: resolved first breaks on this side with target untouched through the trigger candle AND the next opening price, and at least one later candle. Numerator: a later wick touched the target before 16:00. This reference is measured at first confirmation; it is NOT recalculated for elapsed time or current distance as later candles pass. Only the confirmed first-breakout direction receives this pending percentage."
+                explanation += n < 30 ? " Small sample: exploratory only." : ""
+                explanation += " The selected tail event must actually have completed before 08:30. Rates are historical reference frequencies, not today's refitted probability or trade win rates."
+    [suffix, explanation]
+
+f_q7Label(int start, int finish, float multiple, int direction, bool ambiguous, bool beforeBreach) =>
+    int duration = finish - start
+    int variant = hour(start, TZ) == 3 and minute(start, TZ) == 0 and duration == 7200000 ? 0 : hour(start, TZ) == 5 and minute(start, TZ) == 0 and duration == 12600000 ? 1 : -1
+    int levelIndex = math.abs(multiple - 1.05) < 0.000001 ? 0 : math.abs(multiple - 1.10) < 0.000001 ? 1 : math.abs(multiple - 1.15) < 0.000001 ? 2 : math.abs(multiple - 1.20) < 0.000001 ? 3 : math.abs(multiple - 1.30) < 0.000001 ? 4 : math.abs(multiple - 1.50) < 0.000001 ? 5 : math.abs(multiple - 1.75) < 0.000001 ? 6 : math.abs(multiple - 2.00) < 0.000001 ? 7 : -1
+    string suffix = ""
+    string explanation = ""
+    if showRangeHitRates
+        if ambiguous
+            suffix := " | Hist n/a"
+            explanation := "First UP and DOWN breach share one candle; order is unknown. These cases were excluded from the first-side research denominator."
+        else if variant < 0 or levelIndex < 0
+            suffix := " | Hist n/a"
+            explanation := "No matching legacy early-window reference exists for this duration or level. The added 1.40 level is available in the new NY research only."
+        else
+            int row = variant * 2 + (direction == 1 ? 0 : 1)
+            int n = q7History == "Earlier-date boxes" ? array.get(q7EarlierSamples, row) : array.get(q7ReconstructionSamples, row)
+            int k = q7History == "Earlier-date boxes" ? array.get(q7EarlierHits, row * 8 + levelIndex) : array.get(q7ReconstructionHits, row * 8 + levelIndex)
+            float probability = float(k) / n
+            float z2 = 3.841458820694
+            float center = (probability + z2 / (2 * n)) / (1 + z2 / n)
+            float half = 1.95996398454 * math.sqrt(probability * (1 - probability) / n + z2 / (4 * n * n)) / (1 + z2 / n)
+            suffix := " | ES " + str.tostring(100 * probability, "0.0") + "%" + (beforeBreach ? " if first" : "")
+            string reference = variant == 0 ? "03:00-05:00 Mean" : "05:00-08:30 Mean"
+            explanation := reference + (direction == 1 ? " / first UP breach" : " / first DOWN breach") + ": " + str.tostring(k) + "/" + str.tostring(n) + " eligible breached days reached this level by the window endpoint. 95% Wilson interval " + str.tostring(100 * (center - half), "0.0") + "%-" + str.tostring(100 * (center + half), "0.0") + "%. ES 2022-2026 " + (q7History == "Earlier-date boxes" ? "earlier-date boxes" : "all-history reconstructed boxes") + "; reference frequency, not today's fitted probability. Includes hits during the breach candle. No-break and same-bar two-sided first breaches excluded. Not a trade win rate or a remaining-chance estimate."
+    [suffix, explanation]
+
+f_extensionLabel(int start, int finish, float multiple, int direction, float target, bool ambiguous, bool beforeBreach) =>
+    bool nyWindow = hour(start, TZ) == 8 and minute(start, TZ) == 30 and finish - start == 27000000
+    if nyWindow
+        f_nyExtensionLabel(start, finish, multiple, direction, target)
+    else
+        f_q7Label(start, finish, multiple, direction, ambiguous, beforeBreach)
+
+f_rangeExtensions(int start, int finish, float price, float meanUp, float meanDown, int firstSide, int breachTime) =>
+    float upper = price + meanUp
+    float lower = price - meanDown
+    float fullWidth = upper - lower
+    bool both = rangeExtensionMode == "Both sides"
+    bool ready = both or (rangeExtensionMode == "First breached side" and firstSide != 0 and not na(breachTime))
+    int lineStart = both ? start : math.max(start, breachTime)
+    if rangeExtensionMode != "Off" and ready and fullWidth > 0 and lineStart < finish
+        array<float> multiples = array.from(1.05, 1.10, 1.15, 1.20, 1.30, 1.40, 1.50, 1.75, 2.00)
+        array<bool> selected = array.from(range105, range110, range115, range120, range130, range140, range150, range175, range200)
+        for i = 0 to array.size(multiples) - 1
+            if array.get(selected, i)
+                float multiple = array.get(multiples, i)
+                string caption = str.tostring(multiple, "0.00") + "x" + (not both and firstSide == 2 ? " ?" : "")
+                if both or firstSide == 1 or firstSide == 2
+                    float levelUp = lower + multiple * fullWidth
+                    [upSuffix, upExplanation] = f_extensionLabel(followForecast ? na : start, finish, multiple, 1, levelUp, firstSide == 2, both)
+                    if showResearchFollowUp and researchFBVerified and start == researchFBWindowStart and finish == rFBEnd
+                        upSuffix := ""
+                        upExplanation := "The verified first-breach future reference is shown in the separate research layer. The original Q7 level geometry is unchanged."
+                    array.push(forecastStatLines, line.new(lineStart, levelUp, finish, levelUp, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
+                    if rangeLevelLabels
+                        array.push(rangeExtensionLabels, label.new(finish, levelUp, caption + upSuffix, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.orange, 100), textcolor = color.rgb(156, 75, 0), size = size.small, tooltip = "Upward full-box multiple: lower + multiple x (upper - lower).\n" + upExplanation))
+                if both or firstSide == -1 or firstSide == 2
+                    float levelDown = upper - multiple * fullWidth
+                    [downSuffix, downExplanation] = f_extensionLabel(followForecast ? na : start, finish, multiple, -1, levelDown, firstSide == 2, both)
+                    if showResearchFollowUp and researchFBVerified and start == researchFBWindowStart and finish == rFBEnd
+                        downSuffix := ""
+                        downExplanation := "The verified first-breach future reference is shown in the separate research layer. The original Q7 level geometry is unchanged."
+                    array.push(forecastStatLines, line.new(lineStart, levelDown, finish, levelDown, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
+                    if rangeLevelLabels
+                        array.push(rangeExtensionLabels, label.new(finish, levelDown, caption + downSuffix, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.orange, 100), textcolor = color.rgb(156, 75, 0), size = size.small, tooltip = "Downward full-box multiple: upper - multiple x (upper - lower).\n" + downExplanation))
+
+f_statLines(int start, int finish, float price, float meanUp, float meanDown, float medianUp, float medianDown, int firstSide, int breachTime) =>
+    f_rangeExtensions(start, finish, price, meanUp, meanDown, firstSide, breachTime)
+    f_meanOuterLines(start, finish, price, meanUp, meanDown)
+    array.push(forecastStatLines, line.new(start, price + meanUp, finish, price + meanUp, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
+    array.push(forecastStatLines, line.new(start, price - meanDown, finish, price - meanDown, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
+    if not na(medianUp) and not na(medianDown)
+        array.push(forecastStatLines, line.new(start, price + medianUp, finish, price + medianUp, xloc = xloc.bar_time, color = color.white, style = line.style_dotted, width = 1))
+        array.push(forecastStatLines, line.new(start, price - medianDown, finish, price - medianDown, xloc = xloc.bar_time, color = color.white, style = line.style_dotted, width = 1))
+
+f_lockedWindow(int start, int finish, float price, float up, float down, float meanUp, float meanDown, float medianUp, float medianDown, string heading, string sourceNote, bool ended, int firstSide, int breachTime) =>
+    box upper = box.new(left = start, top = price + up, right = finish, bottom = price, xloc = xloc.bar_time, border_color = color.teal, bgcolor = color.new(color.teal, 87))
+    box lower = box.new(left = start, top = price, right = finish, bottom = price - down, xloc = xloc.bar_time, border_color = color.maroon, bgcolor = color.new(color.red, 90))
+    f_statLines(start, finish, price, meanUp, meanDown, medianUp, medianDown, firstSide, breachTime)
+    label tag = na // Session/Open/Mean text label removed.
+    [upper, lower, tag]
+
+var box firstUpperBox = na
+var box firstLowerBox = na
+var label firstWindowLabel = na
+var box secondUpperBox = na
+var box secondLowerBox = na
+var label secondWindowLabel = na
+var int selectedWindowTime = na
+var box nyUpperBox = na
+var box nyLowerBox = na
+var label nyWindowLabel = na
+if forecastRenderBar
+    while array.size(forecastStatLines) > 0
+        line.delete(array.pop(forecastStatLines))
+    while array.size(rangeExtensionLabels) > 0
+        label.delete(array.pop(rangeExtensionLabels))
+    selectedWindowTime := barstate.isconfirmed ? time_close : time
+    box.delete(firstUpperBox)
+    box.delete(firstLowerBox)
+    label.delete(firstWindowLabel)
+    box.delete(secondUpperBox)
+    box.delete(secondLowerBox)
+    label.delete(secondWindowLabel)
+    box.delete(nyUpperBox)
+    box.delete(nyLowerBox)
+    label.delete(nyWindowLabel)
+    if showForecast and lockedWindows
+        if not na(firstWindowPrice)
+            [firstUpper, firstLower, firstTag] = f_lockedWindow(firstWindowStart, firstWindowEnd, firstWindowPrice, firstWindowUp, firstWindowDown, firstWindowUp, firstWindowDown, estimateMedianUp, estimateMedianDown, "03:00-05:00 NY", codedLocked0300 ? "Dated code | exact chart open | " + str.format_time(estimateStart, "yyyy-MM-dd", TZ) : "Mean U/D box | white median / orange mean | template", selectedWindowTime >= firstWindowEnd, firstBoxSide, firstBoxBreachTime)
+            firstUpperBox := firstUpper
+            firstLowerBox := firstLower
+            firstWindowLabel := firstTag
+        if not na(secondWindowPrice)
+            [secondUpper, secondLower, secondTag] = f_lockedWindow(secondWindowStart, secondWindowEnd, secondWindowPrice, secondWindowUp, secondWindowDown, secondWindowUp, secondWindowDown, estimateMedianUp0500, estimateMedianDown0500, "05:00-08:30 NY", codedLocked0500 ? "Dated code | exact chart open | " + str.format_time(estimateStart0500, "yyyy-MM-dd", TZ) : "Mean U/D box | white median / orange mean | template", selectedWindowTime >= secondWindowEnd, secondBoxSide, secondBoxBreachTime)
+            secondUpperBox := secondUpper
+            secondLowerBox := secondLower
+            secondWindowLabel := secondTag
+
+// NY owns its 08:30 anchor and endpoint, independently of the two overnight fields.
+bool nyReady = nyEstimateValid and not na(drawNYPrice) and not na(selectedWindowTime) and selectedWindowTime >= drawNYStart
+if forecastRenderBar and showForecast and nyReady
+    string nyHeading = "NY 08:30-" + str.format_time(drawNYEnd, "HH:mm", TZ)
+    string nySource = "Mean U/D | white median / orange mean | source " + str.format_time(estimateStartNY, "yyyy-MM-dd", TZ)
+    [nyUpper, nyLower, nyTag] = f_lockedWindow(drawNYStart, drawNYEnd, drawNYPrice, estimateUpNY, estimateDownNY, estimateUpNY, estimateDownNY, estimateMedianUpNY, estimateMedianDownNY, nyHeading, nySource, selectedWindowTime >= drawNYEnd, nyBoxSide, nyBoxBreachTime)
+    nyUpperBox := nyUpper
+    nyLowerBox := nyLower
+    nyWindowLabel := nyTag
+
+// Table shows the selected window, even if the live chart has later bars loaded.
+bool selectedSecondWindow = not na(selectedWindowTime) and selectedWindowTime >= secondWindowStart
+float selectedLockedPrice = selectedSecondWindow ? secondWindowPrice : firstWindowPrice
+float selectedLockedUp = selectedSecondWindow ? secondWindowUp : firstWindowUp
+float selectedLockedDown = selectedSecondWindow ? secondWindowDown : firstWindowDown
+bool selectedLockedReady = not na(selectedLockedPrice)
+string lockedStatus = na(selectedWindowTime) or selectedWindowTime < firstWindowStart ? "Waiting 03:00" : selectedSecondWindow ? (not secondEstimateValid ? "Need 05:00 code" : not selectedLockedReady ? "Waiting 05:00 open" : selectedWindowTime >= secondWindowEnd ? "Ended 08:30" : "Locked 05:00") : not firstEstimateValid ? "Need 03:00 code" : not selectedLockedReady ? "Missing 03:00 bar" : selectedWindowTime >= firstWindowEnd ? "Ended 05:00" : "Locked 03:00"
+
+var box estimateUpperBox = na
+var box estimateLowerBox = na
+var label estimateLabel = na
+if forecastRenderBar
+    box.delete(estimateUpperBox)
+    box.delete(estimateLowerBox)
+    label.delete(estimateLabel)
+    if showForecast and forecastReady and not lockedWindows and not mainIsNY
+        estimateUpperBox := box.new(left = drawEstimateStart, top = drawEstimatePrice + estimateUp, right = drawEstimateEnd, bottom = drawEstimatePrice, xloc = xloc.bar_time, border_color = color.teal, bgcolor = color.new(color.teal, 87))
+        estimateLowerBox := box.new(left = drawEstimateStart, top = drawEstimatePrice, right = drawEstimateEnd, bottom = drawEstimatePrice - estimateDown, xloc = xloc.bar_time, border_color = color.maroon, bgcolor = color.new(color.red, 90))
+        f_statLines(drawEstimateStart, drawEstimateEnd, drawEstimatePrice, estimateUp, estimateDown, estimateMedianUp, estimateMedianDown, followForecast ? 0 : firstBoxSide, followForecast ? na : firstBoxBreachTime)
+        string estimateDescription = followForecast ? "FOLLOWING CANDLE - imported distances\nU +" + f_price(estimateUp) + " / D -" + f_price(estimateDown) + " pt\nRepositioned template; NOT recalculated" : "Matched average U +" + f_price(estimateUp) + " / D -" + f_price(estimateDown) + " pt\nHistorical containment " + f_percent(containment) + " | n=" + str.tostring(estimateN, "#") + "\nFixed website snapshot"
+        estimateLabel := na // Session/Open/Mean text label removed.
+
+// Dated matched additional-AVR expansion. Anchors and distances come only
+// from the imported cutoff snapshot; chart extremes never move these boxes.
+var array<box> matchedExpansionBoxes = array.new<box>()
+f_matchedExpansion(int start, int finish, float cutoffHigh, float cutoffLow, float extraUp, float extraDown) =>
+    int drawn = 0
+    if extraUp > 0
+        array.push(matchedExpansionBoxes, box.new(left = start, top = cutoffHigh + extraUp, right = finish, bottom = cutoffHigh, xloc = xloc.bar_time, border_color = color.orange, border_width = 1, bgcolor = color.new(color.orange, 84)))
+        drawn += 1
+    if extraDown > 0
+        array.push(matchedExpansionBoxes, box.new(left = start, top = cutoffLow, right = finish, bottom = cutoffLow - extraDown, xloc = xloc.bar_time, border_color = color.orange, border_width = 1, bgcolor = color.new(color.orange, 84)))
+        drawn += 1
+    drawn
+
+if forecastRenderBar
+    while array.size(matchedExpansionBoxes) > 0
+        box.delete(array.pop(matchedExpansionBoxes))
+    if showForecast and showMatchedExpansion and not na(selectedWindowTime)
+        if estimateValid and estimateExpansionValid and not mainIsNY and selectedWindowTime >= estimateStart
+            f_matchedExpansion(estimateStart, estimateEnd, estimateRangeHigh, estimateRangeLow, estimateExtensionUp, estimateExtensionDown)
+        if secondEstimateValid and estimateExpansionValid0500 and selectedWindowTime >= estimateStart0500
+            f_matchedExpansion(estimateStart0500, estimateEnd0500, estimateRangeHigh0500, estimateRangeLow0500, estimateExtensionUp0500, estimateExtensionDown0500)
+        if nyEstimateValid and estimateExpansionValidNY and selectedWindowTime >= estimateStartNY
+            f_matchedExpansion(estimateStartNY, estimateEndNY, estimateRangeHighNY, estimateRangeLowNY, estimateExtensionUpNY, estimateExtensionDownNY)
+
+// Compact table; full definitions and snapshot dates are available on hover.
+string nyStatus = str.length(str.trim(nyCodeSource)) == 0 ? "Need NY code" : not nyEstimateValid ? "Invalid NY code" : not nyReady ? "Waiting 08:30 open" : selectedWindowTime >= drawNYEnd ? "Ended " + str.format_time(drawNYEnd, "HH:mm", TZ) : "Locked 08:30"
+var table panel = table.new(position.top_right, 2, 11, bgcolor = color.new(color.black, 12), border_width = 1)
+if barstate.islast
+    color fg = color.white
+    string fontSize = panelSize == "Tiny" ? size.tiny : panelSize == "Normal" ? size.normal : size.small
+    string clock = not na(asof) ? str.format_time(asof, "HH:mm", TZ) + " NY" : "Waiting"
+    string scenario = not complete ? "Missing bars" : not frozen ? "Forming" : not active ? "Ended" : side == 0 ? "Middle: off" : anchorFailed ? "Invalid anchor" : na(nightAvr) ? "Need AVR" : targetReached ? "Reached" : side == 1 ? "Low + AVR" : "High - AVR"
+    string forecastState = nyReady ? nyStatus : lockedWindows ? lockedStatus : not estimateValid ? str.length(forecastCode) > 0 ? "Invalid code" : "No code" : not forecastReady ? "Not available yet" : followForecast ? "Template" : chartForecastAsOf >= estimateEnd ? "Expired" : "Snapshot"
+    string snapshotTip = codedLocked0300 or codedLocked0500 or codedLockedNY ? "New dated code: each mean window uses its own encoded start/end and the exact chart opening price at that timestamp. Scrolling to a later date never moves these boxes or their expansion anchors. Legacy codes still use visible-day templates." : lockedWindows ? "Two NY windows use exact 03:00 and 05:00 opens. Prices and imported U/D distances remain frozen. First ends 05:00; second ends 08:30. Earlier boxes remain for review on the selected date. No historical matches are recalculated automatically. The optional 05:00 code supplies separate distances; blank disables the second window." : estimateValid ? "Source: " + str.format_time(estimateStart, "yyyy-MM-dd HH:mm", TZ) + " to " + str.format_time(estimateEnd, "yyyy-MM-dd HH:mm", TZ) + " NY. " + (followForecast ? "Only position changes. U/D points and duration remain from this source; matches are NOT recalculated for the chart candle. This is not a historical backtest prediction." : "Fixed website snapshot; recalculate when conditions change.") : "Calculate matched average U/D on the website, then paste its forecast code in Settings."
+    table.cell(panel, 0, 0, "SESSION PATH", text_color = color.aqua, text_size = fontSize)
+    table.cell(panel, 1, 0, clock, text_color = fg, text_size = fontSize, tooltip = "Last completed 5-minute bar. Updates only during 19:30-08:30 NY. " + (not na(asof) ? str.format_time(asof, "yyyy-MM-dd", TZ) : ""))
+    table.cell(panel, 0, 1, "Price / 19:30", text_color = fg, text_size = fontSize)
+    table.cell(panel, 1, 1, f_price(lastPrice) + " / " + f_price(open1930), text_color = fg, text_size = fontSize, tooltip = "Last completed 5-minute close / fixed 19:30 opening price. These values stop updating at 08:30.")
+    table.cell(panel, 0, 2, "Running H / L", text_color = fg, text_size = fontSize)
+    table.cell(panel, 1, 2, f_price(runningHigh) + " / " + f_price(runningLow), text_color = fg, text_size = fontSize)
+    table.cell(panel, 0, 3, "04:30 H / L", text_color = fg, text_size = fontSize)
+    table.cell(panel, 1, 3, f_price(fixedHigh) + " / " + f_price(fixedLow), text_color = fg, text_size = fontSize, tooltip = "Frozen 19:30-04:30 range. Later bars never move these boundaries.")
+    table.cell(panel, 0, 4, "Current U / D", text_color = fg, text_size = fontSize)
+    table.cell(panel, 1, 4, f_price(observedUp) + " / " + f_price(observedDown), text_color = fg, text_size = fontSize, tooltip = "Points from the 19:30 open: U = running high - open; D = open - running low. Observed excursions, not forecasts.")
+    table.cell(panel, 0, 5, "Range / AVR %", text_color = fg, text_size = fontSize)
+    table.cell(panel, 1, 5, f_price(printed) + " / " + f_percent(nightAvr > 0 ? 100 * printed / nightAvr : na), text_color = fg, text_size = fontSize)
+    table.cell(panel, 0, 6, "AVR / scenario", text_color = color.orange, text_size = fontSize)
+    table.cell(panel, 1, 6, f_price(nightAvr) + " | " + scenario, text_color = color.orange, text_size = fontSize, tooltip = avrState + ". AVR is frozen at 19:30; automatic = mean of ten complete NY ranges. The orange box is a scenario, not a probability target.")
+    table.cell(panel, 0, 7, lockedWindows ? "Mean U / D" : followForecast ? "Template U / D" : "Avg future U / D", text_color = color.aqua, text_size = fontSize)
+    table.cell(panel, 1, 7, nyReady ? "+" + f_price(estimateUpNY) + " / -" + f_price(estimateDownNY) : lockedWindows ? (selectedLockedReady ? "+" + f_price(selectedLockedUp) + " / -" + f_price(selectedLockedDown) : "--") : estimateValid ? "+" + f_price(estimateUp) + " / -" + f_price(estimateDown) : "--", text_color = fg, text_size = fontSize, tooltip = snapshotTip)
+    table.cell(panel, 0, 8, "Forecast / " + forecastState, text_color = color.yellow, text_size = fontSize)
+    table.cell(panel, 1, 8, nyReady ? "08:30-" + str.format_time(drawNYEnd, "HH:mm", TZ) + " NY" : lockedWindows ? (selectedSecondWindow ? "05:00-08:30 NY" : "03:00-05:00 NY") : forecastReady ? str.format_time(drawEstimateStart, "MM-dd HH:mm", TZ) + "-" + str.format_time(drawEstimateEnd, "HH:mm", TZ) : "--", text_color = fg, text_size = fontSize, tooltip = snapshotTip)
+    table.cell(panel, 0, 9, "Contained / n", text_color = fg, text_size = fontSize)
+    table.cell(panel, 1, 9, forecastReady and not followForecast and not lockedWindows ? f_percent(containment) + " / " + str.tostring(estimateN, "#") : "--", text_color = fg, text_size = fontSize, tooltip = followForecast or lockedWindows ? "Hidden in template modes: the source sample and containment do not describe the selected chart candle. Recalculate on the website for a dated estimate." : "Historical fraction whose entire future path stayed inside the sample's mean U/D box. In-sample description, not trade win rate. Upper/lower touch frequencies remain on the website.")
+
+    table.cell(panel, 0, 10, "NY forecast", text_color = color.aqua, text_size = fontSize)
+    table.cell(panel, 1, 10, nyStatus, text_color = fg, text_size = fontSize)
+
+f_quarter(float price, float bottom, float top) =>
+    float position = top > bottom ? (price - bottom) / (top - bottom) : na
+    na(position) ? "--" : position < 0 ? "BELOW" : position < 0.25 ? "Q1" : position < 0.5 ? "Q2" : position < 0.75 ? "Q3" : position <= 1 ? "Q4" : "ABOVE"
+
+f_behaviorName(int code) =>
+    code == 1 ? "Higher finish" : code == 2 ? "Lower finish" : code == 3 ? "Trend down then recover" : code == 4 ? "Trend up then fade" : code == 5 ? "Little net change" : "--"
+
+f_inputRow(table t, int row, string name, string value, string font) =>
+    table.cell(t, 0, row, name, text_color = color.silver, text_size = font, text_halign = text.align_left)
+    table.cell(t, 1, row, value, text_color = color.white, text_size = font, text_halign = text.align_right)
+
+var table inputPanel = table.new(inputCorner == "Top left" ? position.top_left : position.bottom_left, 2, 18, bgcolor = color.new(color.black, 12), border_width = 1)
+var string lastLoggedInput = ""
+if forecastRenderBar and showInputTable
+    string font = panelSize == "Tiny" ? size.tiny : panelSize == "Normal" ? size.normal : size.small
+    bool autoNY = not na(array.get(input0830, 0))
+    bool auto0500 = not na(array.get(input0500, 0))
+    array<float> snap = inputClock == "08:30" or inputClock == "Auto" and autoNY ? input0830 : inputClock == "05:00" or inputClock == "Auto" and auto0500 ? input0500 : input0300
+    int stamp = int(array.get(snap, 0))
+    float decision = array.get(snap, 1)
+    float baseline = array.get(snap, 2)
+    float opening = array.get(snap, 3)
+    float top = array.get(snap, 4)
+    float bottom = array.get(snap, 5)
+    float priorTop = array.get(snap, 6)
+    float priorBottom = array.get(snap, 7)
+    int behavior = int(array.get(snap, 8))
+    bool completeInput = array.get(snap, 9) == 1 and baseline > 0 and not na(priorTop) and not na(priorBottom)
+    string dateText = na(stamp) ? "Waiting for cutoff" : str.format_time(stamp, "yyyy-MM-dd", TZ)
+    string timeText = na(stamp) ? inputClock : str.format_time(stamp, "HH:mm", TZ)
+    f_inputRow(inputPanel, 0, "WEBSITE INPUTS", dateText + " / " + timeText, font)
+    f_inputRow(inputPanel, 1, "Contract", syminfo.ticker, font)
+    f_inputRow(inputPanel, 2, "Decision open", f_price(decision), font)
+    f_inputRow(inputPanel, 3, "AVR / source", f_price(baseline) + (manualAvr > 0 ? " / manual" : " / " + str.tostring(array.get(snap, 10), "#") + " NY"), font)
+    f_inputRow(inputPanel, 4, "19:30 open", f_price(opening), font)
+    f_inputRow(inputPanel, 5, "Overnight H / L", f_price(top) + " / " + f_price(bottom), font)
+    f_inputRow(inputPanel, 6, "Prior NY H / L", f_price(priorTop) + " / " + f_price(priorBottom), font)
+    f_inputRow(inputPanel, 7, "AVR printed", f_percent(baseline > 0 ? 100 * (top - bottom) / baseline : na), font)
+    f_inputRow(inputPanel, 8, "U / D from 19:30", f_price(top - opening) + " / " + f_price(opening - bottom), font)
+    f_inputRow(inputPanel, 9, "Price in night range", f_percent(top > bottom ? 100 * (decision - bottom) / (top - bottom) : na), font)
+    f_inputRow(inputPanel, 10, "Price vs prior BBOX", f_quarter(decision, priorBottom, priorTop), font)
+    f_inputRow(inputPanel, 11, "Last-hour rule", f_behaviorName(behavior), font)
+    bool asiaReady = array.get(snap, 14) == 1
+    bool londonReady = array.get(snap, 18) == 1
+    f_inputRow(inputPanel, 12, "Asia close vs BBOX", asiaReady ? f_quarter(array.get(snap, 11), priorBottom, priorTop) : "Not complete", font)
+    f_inputRow(inputPanel, 13, "Asia close / own range", asiaReady ? f_quarter(array.get(snap, 11), array.get(snap, 13), array.get(snap, 12)) : "Not complete", font)
+    f_inputRow(inputPanel, 14, "London close vs BBOX", londonReady ? f_quarter(array.get(snap, 15), priorBottom, priorTop) : "Known at 08:30", font)
+    f_inputRow(inputPanel, 15, "London close / own range", londonReady ? f_quarter(array.get(snap, 15), array.get(snap, 17), array.get(snap, 16)) : "Known at 08:30", font)
+    f_inputRow(inputPanel, 16, "Input status", na(stamp) ? "Waiting for selected bar" : completeInput ? "Frozen at cutoff" : "Incomplete - check bars / AVR", font)
+    f_inputRow(inputPanel, 17, "Tags / session shapes", "Review manually", font)
+    string packet = "ESPI1|" + dateText + "|" + timeText + "|" + syminfo.tickerid + "|" + f_price(decision) + "|" + str.tostring(baseline, "#.######") + "|" + f_price(opening) + "|" + f_price(top) + "|" + f_price(bottom) + "|" + f_price(priorTop) + "|" + f_price(priorBottom) + "|" + str.tostring(behavior) + "|1|" + (manualAvr > 0 ? "manual" : "10NY")
+    if logInput and completeInput and packet != lastLoggedInput
+        log.info("{0}", packet)
+        lastLoggedInput := packet
+
+
+
+// EBPR1 is independent of the SPES1 forecast parser and drawing arrays.
+// A malformed return code must never disable the forecast boxes.
+var array<string> brParts = str.split(str.trim(bboxReturnCode), "|")
+bool brHeader = array.size(brParts) == 11 and array.get(brParts, 0) == "EBPR1"
+int brStart = brHeader ? int(str.tonumber(array.get(brParts, 1))) : na
+int brEnd = brHeader ? int(str.tonumber(array.get(brParts, 2))) : na
+float brSide = brHeader ? str.tonumber(array.get(brParts, 3)) : na
+float brGroup = brHeader ? str.tonumber(array.get(brParts, 4)) : na
+float brHits = brHeader ? str.tonumber(array.get(brParts, 5)) : na
+float brCount = brHeader ? str.tonumber(array.get(brParts, 6)) : na
+float brLo = brHeader ? str.tonumber(array.get(brParts, 7)) : na
+float brHi = brHeader ? str.tonumber(array.get(brParts, 8)) : na
+int brAnchor = brHeader ? int(str.tonumber(array.get(brParts, 9))) : na
+float brConditional = brHeader ? str.tonumber(array.get(brParts, 10)) : na
+float brPercent = brCount > 0 ? 100 * brHits / brCount : na
+bool brValid = brHeader and not na(brStart) and not na(brEnd) and not na(brAnchor) and brStart > 0 and brStart >= brAnchor and brEnd > brStart and brEnd - brAnchor <= 21600000 and (brSide == 1 or brSide == -1) and (brGroup == 0 or brGroup == 1 or brGroup == 2 or brGroup == 3) and (brConditional == 0 or brConditional == 1) and brCount >= 1 and brCount == math.floor(brCount) and brHits >= 0 and brHits <= brCount and brHits == math.floor(brHits) and brLo >= 0 and brHi <= 100 and brLo <= brPercent and brHi >= brPercent
+var float brEdge = na
+// Freeze the prior NY boundary when the encoded observation/update is reached.
+// Reading priorNyLow at the final chart candle could accidentally use a newer NY box.
+if brValid and inputWithinCursor and time <= brStart and time_close > brStart and priorNyHigh > priorNyLow
+    brEdge := brSide == 1 ? priorNyHigh : priorNyLow
+var line brLine = na
+var label brLabel = na
+if forecastRenderBar
+    line.delete(brLine)
+    label.delete(brLabel)
+    brLine := na
+    brLabel := na
+    if showBBoxReturn and str.length(str.trim(bboxReturnCode)) > 0
+        color brPurple = color.rgb(150, 55, 220)
+        if brValid and not na(brEdge)
+            string brWindow = str.format_time(brStart, "yyyy-MM-dd HH:mm", TZ) + " to " + str.format_time(brEnd, "HH:mm", TZ) + " NY"
+            string brState = brGroup == 1 ? "Outside both, same direction" : brGroup == 2 ? "Outside both, opposite directions" : brGroup == 3 ? "Outside BBOX, inside SessionPath" : "Older combined opposite/inside reference"
+            string brNote = "Q6 historical close-return frequency; " + str.tostring(brHits, "#") + "/" + str.tostring(brCount, "#") + " dates. 95% interval " + str.tostring(brLo, "#.0") + "% to " + str.tostring(brHi, "#.0") + "%.\n" + brWindow + ". " + brState + ".\nObservation block " + str.format_time(brAnchor, "HH:mm", TZ) + " to " + str.format_time(brAnchor + 1740000, "HH:mm", TZ) + ". " + (brConditional == 1 ? "Conditional on no earlier close back inside by the line start." : "Original observation reference; use the matching mode shown on the website.") + "\nA later completed 5m close must be inside the whole BBOX. A wick touch is not a return. Prior complete NY 09:30-16:00 range on this contract. ES Mean reference imported from the website; check the source model and historical cutoff there. Not a trade win rate or automatic live update."
+            brLine := line.new(brStart, brEdge, brEnd, brEdge, xloc = xloc.bar_time, color = brPurple, style = line.style_solid, width = 3)
+            brLabel := label.new(int((brStart + brEnd) / 2), brEdge, "Hist " + str.tostring(brPercent, "#.0") + "% close back inside", xloc = xloc.bar_time, style = label.style_label_down, color = color.new(brPurple, 100), textcolor = brPurple, size = size.tiny, tooltip = brNote)
+        else
+            string brProblem = not brValid ? "BBOX return: invalid EBPR1 code" : time < brStart ? "BBOX return: waiting for coded date/time" : "BBOX return: load the coded date and a complete prior NY session"
+            brLabel := label.new(time, close, brProblem, xloc = xloc.bar_time, style = label.style_label_left, color = color.new(brPurple, 15), textcolor = color.white, size = size.tiny)
+
+
+
+// --- Independent research display. It cannot alter or disable Mean/AVR boxes. ---
+var array<line> rLines = array.new<line>()
+var array<label> rLabels = array.new<label>()
+var table researchPanel = table.new(position.bottom_right, 2, 8, bgcolor = color.new(color.black, 15), border_width = 1)
+if forecastRenderBar
+    while array.size(rLines) > 0
+        line.delete(array.pop(rLines))
+    while array.size(rLabels) > 0
+        label.delete(array.pop(rLabels))
+    table.clear(researchPanel, 0, 0, 1, 7)
+    if showResearchFollowUp
+        array<float> selectedBreach = researchSnapshotWindow == "03:00-05:00" ? rBreach0300 : researchSnapshotWindow == "05:00-08:30" ? rBreach0500 : researchSnapshotWindow == "08:30-16:00" ? rBreachNY : not na(array.get(rBreachNY, 0)) and chartForecastAsOf >= int(array.get(rBreachNY, 0)) ? rBreachNY : not na(array.get(rBreach0500, 0)) and chartForecastAsOf >= int(array.get(rBreach0500, 0)) ? rBreach0500 : rBreach0300
+        bool breachDetected = array.get(selectedBreach, 4) == 1 and not na(array.get(selectedBreach, 7))
+        string selectedWindow = not na(array.get(selectedBreach, 0)) ? str.format_time(int(array.get(selectedBreach, 0)), "HH:mm", TZ) + "-" + str.format_time(int(array.get(selectedBreach, 1)), "HH:mm", TZ) : "Need dated Mean code"
+        string observationText = breachDetected ? f_rside(selectedBreach) + " / " + f_rtype(selectedBreach) + " / " + str.format_time(int(array.get(selectedBreach, 7)), "HH:mm", TZ) : "Waiting for first completed breach"
+        if array.get(selectedBreach, 4) == 0
+            observationText := "Missing five-minute history"
+        string epStatus = str.length(str.trim(endpointResearchCode)) == 0 ? "Paste website continuation code" : not rEPValid ? "Invalid / wrong-market / future-data code" : not researchEPVerified ? "Waiting / chart snapshot mismatch" : "Verified " + f_rtext(rEP, 18)
+        string fbStatus = str.length(str.trim(breachResearchCode)) == 0 ? "Paste first-breach website code" : not rFBValid ? "Invalid / wrong-market / future-data code" : not researchFBVerified ? "Waiting / first-breach snapshot mismatch" : rFBFlags >= 4 ? "Verified / experimental strength" : "Verified / earlier-date reference"
+        table.cell(researchPanel, 0, 0, "RESEARCH FOLLOW-UP", text_color = color.aqua, text_size = size.tiny)
+        table.cell(researchPanel, 1, 0, selectedWindow, text_color = color.white, text_size = size.tiny)
+        table.cell(researchPanel, 0, 1, "First breach", text_color = color.silver, text_size = size.tiny)
+        table.cell(researchPanel, 1, 1, observationText, text_color = color.white, text_size = size.tiny, tooltip = f_rsnapshot(selectedBreach) + "\nEnable Write research snapshots to Pine Logs, then copy SFB1 into the website. Wick-only is already inside and is never counted as a later return. Both-side first candles have unknown intrabar order.")
+        table.cell(researchPanel, 0, 2, "Next window", text_color = color.silver, text_size = size.tiny)
+        table.cell(researchPanel, 1, 2, epStatus, text_color = researchEPVerified ? color.aqua : color.silver, text_size = size.tiny)
+        table.cell(researchPanel, 0, 3, "New high / low / both", text_color = color.silver, text_size = size.tiny)
+        table.cell(researchPanel, 1, 3, researchEPVerified ? f_rprob(rEP, 8) + " / " + f_rprob(rEP, 11) + " / " + f_rprob(rEP, 14) : "--", text_color = color.white, text_size = size.tiny, tooltip = researchEPVerified ? f_rtip(rEP, 8) + "\n" + f_rtip(rEP, 11) + "\n" + f_rtip(rEP, 14) + "\nBoth is an overlapping outcome; high and low probabilities do not sum to 100%. Consult the ES endpoint-continuation study for evidence beyond running position and printed AVR." : "Frozen high/low since 19:30, measured before the following window begins. One tick beyond qualifies; equal touch does not.")
+        table.cell(researchPanel, 0, 4, "Breach reference", text_color = color.silver, text_size = size.tiny)
+        table.cell(researchPanel, 1, 4, fbStatus, text_color = researchFBVerified ? color.aqua : color.silver, text_size = size.tiny)
+        bool wickOnly = f_rtext(rFB, 18) == "WICK_ONLY"
+        string returnState = not researchFBVerified ? "--" : wickOnly ? "N/A - wick closed inside" : not na(array.get(rFBObserved, 15)) ? "RETURNED " + str.format_time(int(array.get(rFBObserved, 15)), "HH:mm", TZ) : chartForecastAsOf >= math.min(rFBEnd, rFBStart + 1200000) ? "NOT RETURNED by deadline" : "Awaiting later closes"
+        table.cell(researchPanel, 0, 5, "Close inside <=20m", text_color = color.silver, text_size = size.tiny)
+        table.cell(researchPanel, 1, 5, researchFBVerified and not wickOnly ? f_rprob(rFB, 8) + " ref / " + returnState : returnState, text_color = color.white, text_size = size.tiny, tooltip = researchFBVerified ? f_rtip(rFB, 8) + "\nReturn uses only subsequent completed closes, includes the boundary, and stops at the original window endpoint. If fewer than four candles remain, the horizon is truncated and no full-20-minute claim applies. This is the reference at first confirmation, not a remaining-time estimate." : "")
+        string target120State = not researchFBVerified ? "--" : array.get(rFBObserved, 13) == 1 ? "ALREADY on signal" : not na(array.get(rFBObserved, 16)) ? "REACHED later" : chartForecastAsOf >= rFBEnd ? "UNREACHED at endpoint" : "UNREACHED"
+        string target130State = not researchFBVerified ? "--" : array.get(rFBObserved, 14) == 1 ? "ALREADY on signal" : not na(array.get(rFBObserved, 17)) ? "REACHED later" : chartForecastAsOf >= rFBEnd ? "UNREACHED at endpoint" : "UNREACHED"
+        table.cell(researchPanel, 0, 6, "Future 1.20x", text_color = color.orange, text_size = size.tiny)
+        table.cell(researchPanel, 1, 6, researchFBVerified ? (array.get(rFBObserved, 13) == 1 ? "" : f_rprob(rFB, 11) + " ref / ") + target120State : "--", text_color = color.white, text_size = size.tiny, tooltip = researchFBVerified ? f_rtip(rFB, 11) + "\nLater wick reaches target after the first breach candle. Already-hit signal targets are excluded from the future reference. Status follows completed chart candles through the original endpoint; the percentage itself stays the original first-confirmation reference." : "")
+        table.cell(researchPanel, 0, 7, "Future 1.30x", text_color = color.orange, text_size = size.tiny)
+        table.cell(researchPanel, 1, 7, researchFBVerified ? (array.get(rFBObserved, 14) == 1 ? "" : f_rprob(rFB, 14) + " ref / ") + target130State : "--", text_color = color.white, text_size = size.tiny, tooltip = researchFBVerified ? f_rtip(rFB, 14) : "")
+        if researchEPVerified
+            array.push(rLines, line.new(rEPStart, f_rnum(rEP, 5), rEPEnd, f_rnum(rEP, 5), xloc = xloc.bar_time, color = color.aqua, style = line.style_dashed, width = 1))
+            array.push(rLines, line.new(rEPStart, f_rnum(rEP, 6), rEPEnd, f_rnum(rEP, 6), xloc = xloc.bar_time, color = color.aqua, style = line.style_dashed, width = 1))
+            array.push(rLabels, label.new(rEPEnd, f_rnum(rEP, 5), "New running high " + f_rprob(rEP, 8) + " ref" + (rEPHigher ? " / REACHED" : ""), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.aqua, 100), textcolor = color.aqua, size = size.tiny, tooltip = f_rtip(rEP, 8)))
+            array.push(rLabels, label.new(rEPEnd, f_rnum(rEP, 6), "New running low " + f_rprob(rEP, 11) + " ref" + (rEPLower ? " / REACHED" : ""), xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.aqua, 100), textcolor = color.aqua, size = size.tiny, tooltip = f_rtip(rEP, 11)))
+        if researchFBVerified
+            float upper = f_rnum(rFB, 5)
+            float lower = f_rnum(rFB, 6)
+            bool upwards = f_rtext(rFB, 7) == "U"
+            for i = 0 to 1
+                float multiple = i == 0 ? 1.2 : 1.3
+                float target = upwards ? lower + multiple * (upper - lower) : upper - multiple * (upper - lower)
+                string targetState = i == 0 ? target120State : target130State
+                bool already = array.get(rFBObserved, i == 0 ? 13 : 14) == 1
+                int probabilityIndex = i == 0 ? 11 : 14
+                array.push(rLines, line.new(rFBStart, target, rFBEnd, target, xloc = xloc.bar_time, color = color.orange, style = line.style_dotted, width = 1))
+                array.push(rLabels, label.new(rFBEnd, target, str.tostring(multiple, "0.00") + "x first-breach future " + (already ? "" : f_rprob(rFB, probabilityIndex) + " ref / ") + targetState, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.orange, 100), textcolor = color.orange, size = size.tiny, tooltip = f_rtip(rFB, probabilityIndex)))
+            if not wickOnly
+                float edge = upwards ? upper : lower
+                int returnDeadline = math.min(rFBEnd, rFBStart + 1200000)
+                array.push(rLines, line.new(rFBStart, edge, returnDeadline, edge, xloc = xloc.bar_time, color = color.aqua, style = line.style_solid, width = 1))
+                array.push(rLabels, label.new(returnDeadline, edge, "Close inside <=20m " + f_rprob(rFB, 8) + " ref", xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.aqua, 100), textcolor = color.aqua, size = size.tiny, tooltip = f_rtip(rFB, 8)))
+// --- End research display. ---

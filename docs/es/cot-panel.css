@@ -1,0 +1,127 @@
+.cot-tool-card h3{color:#d4bbff}
+#cot-positioning-dialog{--cot-muted:#b5c5de;--cot-border:#d9e6ff24;position:fixed;inset:20px;margin:auto;width:min(1130px,calc(100vw - 40px));max-width:none;height:min(940px,calc(100dvh - 40px));max-height:none;padding:0;border:1px solid #d9e4ff43;border-radius:26px!important;background:linear-gradient(145deg,#303047fa,#101d35fc)!important;color:#eff3fc;box-shadow:0 25px 100px #0009;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#8996b369 transparent;font-family:inherit}
+#cot-positioning-dialog::backdrop{background:#02071399;backdrop-filter:blur(4px)}
+#cot-positioning-dialog *{box-sizing:border-box}
+#cot-positioning-dialog .cot-panel-header{position:sticky;top:0;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:25px 28px 20px;border-bottom:1px solid var(--cot-border);background:linear-gradient(115deg,#303047,#202b43);box-shadow:0 5px 18px #08112625}
+#cot-positioning-dialog .eyebrow{font-size:11px;letter-spacing:.13em;color:#d2c0f3;line-height:1.5}
+#cot-positioning-dialog h2{margin:8px 0;font-size:28px;line-height:1.2;font-weight:550;letter-spacing:-.6px}
+#cot-positioning-dialog .cot-panel-description{margin:0;color:var(--cot-muted);font-size:13px;line-height:1.6}
+#cot-positioning-dialog .cot-close{width:44px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid #dce9ff37;border-radius:13px;background:#dce9ff09;color:#f0f3ff;font-size:27px;line-height:1}
+#cot-positioning-dialog .cot-panel-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 28px 12px}
+#cot-positioning-dialog .cot-market-tabs{display:flex;flex-wrap:wrap;gap:8px}
+#cot-positioning-dialog .cot-market-tab{width:auto;min-height:44px;padding:10px 15px;border:1px solid #c9b1f747;border-radius:14px;background:#bc9ef10b;color:#d6c7ee;font-size:13px;line-height:1.3}
+#cot-positioning-dialog .cot-market-tab[aria-pressed="true"]{color:#f1e7ff;border-color:#c7adf5a6;background:linear-gradient(135deg,#af8add35,#c3acf21a);box-shadow:inset 0 1px 0 #f2e2ff18}
+#cot-positioning-dialog .cot-reload{width:auto;min-height:44px;padding:9px 13px;border-radius:12px;font-size:12px;flex:0 0 auto}
+#cot-positioning-dialog .cot-panel-status{margin:0;padding:0 28px 16px;color:#c6d4e9;font-size:12px;line-height:1.7;font-variant-numeric:tabular-nums}
+#cot-positioning-dialog .cot-panel-body{padding:0 28px 28px}
+#cot-positioning-dialog .cot-snapshot-note{display:flex;flex-wrap:wrap;align-items:center;gap:7px 11px;color:#b5c5dd;font-size:11px;line-height:1.6;margin:0 0 16px}
+#cot-positioning-dialog .cot-snapshot-badge{padding:4px 9px;border-radius:20px;background:#c7b0ed16;border:1px solid #c7b0ed44;color:#dac8f8}
+#cot-positioning-dialog .cot-units-note{flex-basis:100%;color:#c6d3e8}
+#cot-positioning-dialog .cot-bias{padding:23px 24px;border-radius:20px;background:linear-gradient(130deg,#bba7e817,#05132624);border:1px solid #ccb2f050;margin-bottom:17px}
+#cot-positioning-dialog .cot-bias-bullish{border-color:#8fe2c755;background:linear-gradient(130deg,#6ad6b115,#071e2b27)}
+#cot-positioning-dialog .cot-bias-bearish{border-color:#ed9eb655;background:linear-gradient(130deg,#ea9ab215,#24132427)}
+#cot-positioning-dialog .cot-section-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#d5c6ed;line-height:1.4}
+#cot-positioning-dialog .cot-bias h3{font-weight:550;font-size:25px;line-height:1.35;letter-spacing:-.3px;margin:8px 0 11px;color:#f0e8ff}
+#cot-positioning-dialog .cot-bias-bullish h3{color:#a7e9d6}
+#cot-positioning-dialog .cot-bias-bearish h3{color:#f1b0c2}
+#cot-positioning-dialog .cot-bias-summary{font-size:14px;line-height:1.8;margin:0;color:#e0e7f4;max-width:85ch}
+#cot-positioning-dialog .cot-bias-evidence{margin:13px 0 0;padding-left:18px;color:#c8d5e9;display:grid;gap:7px;font-size:12px;line-height:1.75}
+#cot-positioning-dialog .cot-small-note{font-size:11px;line-height:1.7;margin:10px 0 0;color:var(--cot-muted)}
+#cot-positioning-dialog .cot-open-interest{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 24px}
+#cot-positioning-dialog .cot-open-interest>.cot-metric{padding:16px;border:1px solid var(--cot-border);border-radius:15px;background:#dbe6ff06}
+#cot-positioning-dialog .cot-metric{min-width:0;display:flex;flex-direction:column;gap:6px;font-variant-numeric:tabular-nums}
+#cot-positioning-dialog .cot-metric-label{color:#bdcbe1;font-size:11px;line-height:1.5}
+#cot-positioning-dialog .cot-metric-value{color:#edf1fb;font-size:19px;line-height:1.35;font-weight:550;overflow-wrap:anywhere}
+#cot-positioning-dialog .cot-metric-detail{font-size:10px;line-height:1.55;color:#a7b8d3;overflow-wrap:anywhere}
+#cot-positioning-dialog .cot-positive .cot-metric-value,#cot-positioning-dialog .cot-position-badge.cot-positive{color:#92e4cc}
+#cot-positioning-dialog .cot-negative .cot-metric-value,#cot-positioning-dialog .cot-position-badge.cot-negative{color:#f0a5b8}
+#cot-positioning-dialog .cot-section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px 24px;flex-wrap:wrap;margin:0 0 14px}
+#cot-positioning-dialog .cot-section-heading h3,#cot-positioning-dialog .cot-history h3{font-size:18px;font-weight:550;line-height:1.5;margin:0}
+#cot-positioning-dialog .cot-section-heading p{max-width:68ch;margin:0}
+#cot-positioning-dialog .cot-reported-note{font-size:11px;line-height:1.7;color:#bdcbe2;margin:-4px 0 15px}
+#cot-positioning-dialog .cot-participant-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:14px}
+#cot-positioning-dialog .cot-participant{min-width:0;padding:20px;border:1px solid #d3e1ff2d;border-radius:20px;background:linear-gradient(145deg,#dce6ff07,#07172c24)}
+#cot-positioning-dialog .cot-participant-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#cot-positioning-dialog .cot-participant-heading h3{font-size:16px;font-weight:550;line-height:1.5;margin:0;color:#edf1fb}
+#cot-positioning-dialog .cot-position-badge{font-size:10px;border:1px solid #d4e0f732;padding:4px 8px;border-radius:12px;line-height:1.4;white-space:nowrap}
+#cot-positioning-dialog .cot-participant-role{font-size:11px;line-height:1.7;color:#aabdd8;margin:8px 0 0}
+#cot-positioning-dialog .cot-position-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+#cot-positioning-dialog .cot-weekly-change{margin-top:17px;padding-top:14px;border-top:1px solid #d5e5ff1d}
+#cot-positioning-dialog .cot-weekly-change h4{font-size:11px;line-height:1.5;font-weight:500;color:#c9d5e9;margin:0}
+#cot-positioning-dialog .cot-weekly-change .cot-position-grid{margin-top:10px}
+#cot-positioning-dialog .cot-weekly-change .cot-metric-value{font-size:17px}
+#cot-positioning-dialog .cot-mechanism{font-size:12px;line-height:1.7;color:#d0d9ed;margin:14px 0 0;padding:10px 12px;border-left:2px solid #bd9cf27d;background:#baa3e807;border-radius:0 8px 8px 0}
+#cot-positioning-dialog .cot-ratio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:15px}
+#cot-positioning-dialog .cot-ratio-grid .cot-metric-value{font-size:18px}
+#cot-positioning-dialog .cot-participant-details{border-top:1px solid #d5e5ff1b;margin-top:16px;padding-top:13px}
+#cot-positioning-dialog summary{cursor:pointer;font-size:12px;line-height:1.7;color:#d7c8ef;min-height:32px;padding:4px 0}
+#cot-positioning-dialog .cot-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px;padding-top:14px}
+#cot-positioning-dialog .cot-detail-grid .cot-metric-value{font-size:16px}
+#cot-positioning-dialog .cot-history{margin-top:23px;padding:20px;border:1px solid var(--cot-border);border-radius:20px;background:#dbe6ff04}
+#cot-positioning-dialog .cot-history-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+#cot-positioning-dialog .cot-history-heading p{margin:4px 0 0}
+#cot-positioning-dialog .cot-history-select{display:flex;flex-direction:column;gap:6px;min-width:190px;max-width:300px;color:#c0cee4;font-size:11px;line-height:1.5}
+#cot-positioning-dialog select{width:100%;min-width:0;min-height:44px;padding:9px 12px;border:1px solid #d5e3ff35;border-radius:12px;background:#10192e;color:#edf2ff;font-family:inherit;font-size:13px}
+#cot-positioning-dialog .cot-history-plot{margin-top:12px}
+#cot-positioning-dialog .cot-history-plot svg{display:block;width:100%;height:auto;min-height:145px;max-height:240px;overflow:visible}
+#cot-positioning-dialog .cot-chart-line{fill:none;stroke:#c6adf7;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+#cot-positioning-dialog .cot-chart-dot{fill:#dbc9ff;stroke:#302445;stroke-width:2}
+#cot-positioning-dialog .cot-chart-grid{stroke:#c5d7fa21;stroke-width:1;vector-effect:non-scaling-stroke}
+#cot-positioning-dialog .cot-chart-zero{stroke:#b7cbea67;stroke-width:1;stroke-dasharray:4 5;vector-effect:non-scaling-stroke}
+#cot-positioning-dialog .cot-chart-label{font-size:12px;fill:#adbed8}
+#cot-positioning-dialog .cot-history-latest{font-size:11px;line-height:1.6;color:#d3c2f3;margin:0;text-align:right;font-variant-numeric:tabular-nums}
+#cot-positioning-dialog .cot-methodology{margin-top:17px;padding:16px 19px;border:1px solid var(--cot-border);border-radius:16px;background:#dbe6ff03}
+#cot-positioning-dialog .cot-methodology>summary{font-size:13px;color:#d7def0}
+#cot-positioning-dialog .cot-definition-list{display:grid;grid-template-columns:minmax(140px,.7fr) minmax(0,2fr);gap:10px 22px;margin:14px 0 0;font-size:12px;line-height:1.75}
+#cot-positioning-dialog .cot-definition-list dt{font-weight:550;color:#d7dff0}
+#cot-positioning-dialog .cot-definition-list dd{margin:0;color:#b7c7df;overflow-wrap:anywhere}
+#cot-positioning-dialog .cot-caveats{margin:14px 0 0;padding-left:18px;display:grid;gap:7px;color:#b9c8de;font-size:11px;line-height:1.75}
+#cot-positioning-dialog .cot-source-links{display:flex;flex-wrap:wrap;gap:10px 20px;margin-top:17px}
+#cot-positioning-dialog .cot-source-links a{color:#d9c5ff;text-decoration:underline;text-underline-offset:4px;font-size:12px;line-height:1.7}
+#cot-positioning-dialog .cot-cross-market-note{margin:19px 0 0;font-size:11px;color:#b8c8df;line-height:1.75}
+#cot-positioning-dialog .cot-table-scroll{max-width:100%;overflow-x:auto;margin-top:14px;border:1px solid #cfddf623;border-radius:12px;scrollbar-width:thin;scrollbar-color:#8996b369 transparent}
+#cot-positioning-dialog .cot-comparison-table{width:100%;min-width:670px;border-collapse:collapse;font-size:12px;line-height:1.6;font-variant-numeric:tabular-nums}
+#cot-positioning-dialog .cot-comparison-table caption{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#cot-positioning-dialog .cot-comparison-table th,#cot-positioning-dialog .cot-comparison-table td{padding:12px 14px;border-bottom:1px solid #cfddf61c;text-align:right}
+#cot-positioning-dialog .cot-comparison-table th:first-child{text-align:left;color:#d4dff0}
+#cot-positioning-dialog .cot-comparison-table thead th{font-weight:500;font-size:11px;color:#b6c8e1;background:#c5d7f708}
+#cot-positioning-dialog .cot-comparison-table tbody th{font-weight:500}
+#cot-positioning-dialog .cot-comparison-table tr:last-child :is(th,td){border-bottom:0}
+#cot-positioning-dialog .cot-comparison-table td.cot-positive{color:#92e4cc}
+#cot-positioning-dialog .cot-comparison-table td.cot-negative{color:#f0a5b8}
+#cot-positioning-dialog :is(button,select,summary,a):focus-visible{outline:2px solid #cfb9ff;outline-offset:4px}
+@media(max-width:700px){
+  #cot-positioning-dialog{inset:8px;width:calc(100vw - 16px);height:calc(100dvh - 16px);border-radius:22px!important}
+  #cot-positioning-dialog .cot-panel-header{padding:20px 17px 17px;gap:12px}
+  #cot-positioning-dialog h2{font-size:25px}
+  #cot-positioning-dialog .cot-panel-controls{padding:17px 17px 12px;align-items:flex-start;flex-wrap:wrap}
+  #cot-positioning-dialog .cot-market-tabs{flex:1 1 auto}
+  #cot-positioning-dialog .cot-reload{margin-left:auto}
+  #cot-positioning-dialog .cot-market-tab{padding:10px 12px;font-size:12px}
+  #cot-positioning-dialog .cot-panel-status{padding:0 17px 14px}
+  #cot-positioning-dialog .cot-panel-body{padding:0 17px 20px}
+  #cot-positioning-dialog .cot-bias{padding:18px 17px}
+  #cot-positioning-dialog .cot-bias h3{font-size:22px}
+  #cot-positioning-dialog .cot-bias-summary{font-size:13px}
+  #cot-positioning-dialog .cot-open-interest{grid-template-columns:1fr;gap:8px;margin-bottom:20px}
+  #cot-positioning-dialog .cot-open-interest>.cot-metric{padding:13px 14px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;align-items:center}
+  #cot-positioning-dialog .cot-open-interest .cot-metric-value{text-align:right;font-size:19px}
+  #cot-positioning-dialog .cot-open-interest .cot-metric-detail{grid-column:1/-1}
+  #cot-positioning-dialog .cot-participant-grid{grid-template-columns:1fr;gap:12px}
+  #cot-positioning-dialog .cot-participant{padding:17px 15px}
+  #cot-positioning-dialog .cot-position-grid{gap:9px}
+  #cot-positioning-dialog .cot-metric-value{font-size:18px}
+  #cot-positioning-dialog .cot-weekly-change .cot-metric-value{font-size:16px}
+  #cot-positioning-dialog .cot-history{padding:17px 13px}
+  #cot-positioning-dialog .cot-history-heading{display:block}
+  #cot-positioning-dialog .cot-history-select{margin-top:13px;max-width:none;min-width:0}
+  #cot-positioning-dialog select{font-size:16px}
+  #cot-positioning-dialog .cot-history-plot svg{min-height:145px}
+  #cot-positioning-dialog .cot-chart-label{font-size:16px}
+  #cot-positioning-dialog .cot-definition-list{display:block}
+  #cot-positioning-dialog .cot-definition-list dt{margin-top:13px}
+  #cot-positioning-dialog .cot-definition-list dd{margin-top:3px}
+  #cot-positioning-dialog summary{min-height:44px;padding:10px 0}
+  #cot-positioning-dialog .cot-methodology{padding:10px 15px}
+}
+@media(max-width:360px){#cot-positioning-dialog .cot-position-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#cot-positioning-dialog .cot-position-grid>.cot-metric:last-child{grid-column:1/-1}#cot-positioning-dialog .cot-ratio-grid{grid-template-columns:1fr}}

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en" data-startup="loading" data-loading-cover="loading"><head><style id="loading-cover-styles">/* Critical first-paint styles are inlined before any external stylesheet. */
+html[data-loading-cover]{background:#000!important;overflow:hidden!important}
+html[data-loading-cover] body{overflow:hidden!important}
+html[data-loading-cover="loading"] body>:not(#sessionpath-loading):not(script):not(style):not(noscript),
+html[data-loading-cover="error"] body>:not(#sessionpath-loading):not(script):not(style):not(noscript){visibility:hidden!important}
+#sessionpath-loading{position:fixed;inset:0;z-index:2147483647;display:grid;place-content:center;justify-items:center;gap:24px;padding:24px;background:#000;color:#fff;text-align:center;opacity:1;isolation:isolate;transition:opacity .55s ease;box-sizing:border-box}
+#sessionpath-loading[hidden]{display:none!important}
+#sessionpath-loading [hidden]{display:none!important}
+#sessionpath-loading .loading-title{margin:0;max-width:95vw;font-family:Arial,Helvetica,sans-serif;font-size:clamp(12.8px,2.72vw,36.8px);font-weight:900;line-height:1.12;letter-spacing:-.055em;color:#f6f6f8;text-wrap:balance;text-shadow:0 1px 0 #d0d0d5,0 2px 0 #aaaab2,0 3px 0 #85858f,0 4px 0 #686871,0 5px 0 #50505a,0 6px 0 #3b3b44,0 7px 0 #292931,0 11px 16px #15151c;transform:perspective(900px) rotateX(8deg);user-select:none}
+#sessionpath-loading #loading-note{max-width:340px;margin:0;font:400 15px/1.5 Arial,Helvetica,sans-serif;color:#bdbdc7}
+#sessionpath-loading #loading-retry{padding:11px 24px;border:1px solid #686872;border-radius:12px;background:#17171d;color:#fff;font:700 15px/1.3 Arial,Helvetica,sans-serif;cursor:pointer}
+#sessionpath-loading #loading-retry:focus-visible{outline:2px solid #fff;outline-offset:5px}
+html[data-loading-cover="fading"] #sessionpath-loading{opacity:0}
+html[data-loading-cover] *,html[data-loading-cover] *::before,html[data-loading-cover] *::after{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){#sessionpath-loading{transition:none}#sessionpath-loading .loading-title{transform:none}}
+html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{transition:none}
+
+#sessionpath-loading .loading-brand{display:flex;align-items:center;justify-content:center;gap:14px;perspective:700px}
+#sessionpath-loading .loading-title{display:grid;white-space:nowrap;text-wrap:initial;text-shadow:0 1px 0 #aaaab2,0 2px 0 #686871,0 3px 0 #292931,0 5px 8px #15151c}
+#sessionpath-loading .loading-title::after{content:attr(data-full-title);visibility:hidden;grid-area:1/1}
+#sessionpath-loading .loading-title{min-height:1.12em}
+#sessionpath-loading #loading-coin{width:clamp(48px,7vw,84px);height:clamp(48px,7vw,84px);object-fit:contain;flex:none;backface-visibility:visible;transform-style:preserve-3d}
+
+#sessionpath-loading #loading-typed{grid-area:1/1;text-align:left}
+
+/* A softly lit floor makes the coin shadow visible against the black cover. */
+#sessionpath-loading .loading-brand{position:relative;isolation:isolate}
+#sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::before{content:"";position:absolute;pointer-events:none;z-index:-2;left:calc(clamp(48px,7vw,84px)/2);top:50%;width:260px;height:180px;transform:translate(-50%,-35%);background:radial-gradient(ellipse,rgba(114,126,148,.19) 0%,rgba(83,94,114,.10) 35%,transparent 70%)}
+#sessionpath-loading .loading-brand:has(#loading-coin:not([hidden]))::after{content:"";position:absolute;pointer-events:none;z-index:-1;left:calc(clamp(48px,7vw,84px)/2);top:calc(50% + clamp(48px,7vw,84px)/2 + 7px);width:clamp(42px,6vw,72px);height:12px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.95) 0%,rgba(0,0,0,.6) 42%,transparent 74%);filter:blur(2px)}
+
+
+/* Fade layers independently: the illuminated coin shadow leaves last. */
+#sessionpath-loading{background:transparent;transition:none}
+#sessionpath-loading::before{content:"";position:absolute;inset:0;background:#000;z-index:-3;opacity:1;transition:opacity .55s ease}
+#sessionpath-loading .loading-title,#sessionpath-loading #loading-coin{opacity:1;transition:opacity .4s ease}
+#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{opacity:1;transition:opacity .3s ease .55s}
+html[data-loading-cover="fading"] #sessionpath-loading{opacity:1}
+html[data-loading-cover="fading"] #sessionpath-loading::before,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-title,
+html[data-loading-cover="fading"] #sessionpath-loading #loading-coin,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::before,
+html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::after{opacity:0}
+@media(prefers-reduced-motion:reduce){#sessionpath-loading *,#sessionpath-loading::before,#sessionpath-loading .loading-brand::before,#sessionpath-loading .loading-brand::after{transition:none!important}}
+
+/* Original acrylic artwork on both faces, with an extruded reflective silhouette.
+   The source images are shared with the market panels; no replacement logo. */
+#sessionpath-loading #loading-coin{--coin-size:clamp(48px,7vw,84px);--coin-art:url("../assets/emblems/cl-acrylic-v1.webp");--coin-depth:calc(var(--coin-size)*.065);width:var(--coin-size);height:var(--coin-size);position:relative;perspective:700px;transform-style:preserve-3d}
+#loading-coin[data-market="ES"]{--coin-art:url("../assets/emblems/es-acrylic-v1.webp")!important}
+#loading-coin-rotor{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateY(0deg)}
+#loading-coin .coin-face,#loading-coin .coin-rim{position:absolute;inset:0;pointer-events:none}
+#loading-coin .coin-face{background:var(--coin-art) center/118% 118% no-repeat;backface-visibility:hidden;transform:translateZ(calc(var(--coin-depth)*.5))}
+#loading-coin .coin-face.back{transform:rotateY(180deg) translateZ(calc(var(--coin-depth)*.5))}
+#loading-coin .coin-rim{mask:var(--coin-art) center/118% 118% no-repeat;background:linear-gradient(125deg,#e5f5ff 4%,#617d9a 20%,#22354d 33%,#d8edff 45%,#ffe9c9 53%,#536f8c 69%,#cce6f8 84%,#f4faff);transform:translateZ(calc(var(--coin-depth)*var(--slice)));backface-visibility:visible}
+#loading-coin .coin-rim:nth-child(3n){background:linear-gradient(125deg,#eaf7ff,#617b9a 28%,#f3faff 46%,#8fa6bf 57%,#253b55 77%,#d4e8fa)}
+</style><script src="background-picker.js?v=mountains-11"></script>
+<meta name="sessionpath-context-endpoint" content=""><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="ES session planning: estimate remaining upside, downside and range expansion from historical analogues."><title>SessionPath.By LUI</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101520'/%3E%3Cpath d='M5 23L12 15L18 19L27 8' fill='none' stroke='%2368e4c0' stroke-width='3'/%3E%3C/svg%3E"><link rel="stylesheet" href="style-v5.css"><link rel="stylesheet" href="workspace-v6.css"><script type="module" src="es-startup.mjs?v=research-followup-20261028"></script><link rel="stylesheet" href="night-v7.css"><link rel="stylesheet" href="replay-v8.css"><link rel="stylesheet" href="screenshot-review.css?v=matched-days-20261023"><link rel="stylesheet" href="forecast-context.css"><link rel="stylesheet" href="instrument.css"><link rel="stylesheet" href="device-view.css"><link rel="stylesheet" href="clean-workflow.css?v=tools-slide-20261022"><link rel="stylesheet" href="market-emblem.css"><link rel="stylesheet" href="sunset-layout.css?v=mountains-11"><link rel="stylesheet" href="probability-finish.css"><link rel="stylesheet" href="auto-fill.css?v=ny0830-20261022"><link rel="stylesheet" href="forecast-motion.css?v=percentile-2"><link rel="stylesheet" href="cursor-fireworks.css?v=2"><link rel="stylesheet" href="news-desk.css?v=discord-20261023"><link rel="stylesheet" href="cot-panel.css?v=1"><link rel="stylesheet" href="bbox-live.css?v=smooth-live-20261023">
+<link rel="stylesheet" href="startup.css?v=20261023">
+<style id="sessionpath-brand-style">
+.topbar .brand{gap:8px;flex-shrink:0}.topbar .site-brand-logo{display:block;width:210px;height:70px;object-fit:contain}.topbar .brand small{padding-left:0}
+#sessionpath-loading .loading-site-logo{display:none;object-fit:contain;width:min(360px,80vw);height:auto;opacity:1;transition:opacity .4s ease}
+#sessionpath-loading:has(#loading-coin[hidden]) .loading-site-logo{display:block}
+html[data-loading-cover="fading"] #sessionpath-loading .loading-site-logo{opacity:0}
+@media(max-width:600px){.topbar .site-brand-logo{width:174px;height:58px}.topbar .brand small{font-size:10px}}
+</style>
+<link rel="stylesheet" href="research-followup.css?v=20261028"></head>
+<body><section id="sessionpath-loading" aria-label="Loading SessionPath" aria-busy="true"><img class="loading-site-logo" src="../assets/brand/sessionpath-logo-v1.webp" alt="SessionPath" width="360" height="120"><div class="loading-brand"><div id="loading-coin" hidden aria-hidden="true"><div id="loading-coin-rotor"><i class="coin-rim" style="--slice:-0.4583"></i><i class="coin-rim" style="--slice:-0.3750"></i><i class="coin-rim" style="--slice:-0.2917"></i><i class="coin-rim" style="--slice:-0.2083"></i><i class="coin-rim" style="--slice:-0.1250"></i><i class="coin-rim" style="--slice:-0.0417"></i><i class="coin-rim" style="--slice:0.0417"></i><i class="coin-rim" style="--slice:0.1250"></i><i class="coin-rim" style="--slice:0.2083"></i><i class="coin-rim" style="--slice:0.2917"></i><i class="coin-rim" style="--slice:0.3750"></i><i class="coin-rim" style="--slice:0.4583"></i><span class="coin-face back"></span><span class="coin-face front"></span></div></div><h1 id="loading-title" class="loading-title" aria-label="SessionPath center" data-full-title="SessionPath center"><span id="loading-typed" aria-hidden="true"></span></h1></div><p id="loading-note" role="status" hidden></p><button id="loading-retry" type="button" hidden>Retry loading</button></section><script id="loading-cover-controller">// Inlined immediately after the cover in index.html, before module loading starts.
+(()=>{
+ const root=document.documentElement,cover=document.getElementById('sessionpath-loading');
+ const note=document.getElementById('loading-note'),retry=document.getElementById('loading-retry');
+ const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),coin=document.getElementById('loading-coin'),rotor=document.getElementById('loading-coin-rotor');
+ const transferKey='sessionpath-loading-transition';
+ const markets={ES:{name:'S&P 500',image:'../assets/emblems/es-acrylic-staging.svg'}};
+ const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
+ let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,spin,audio;
+ const artwork=new Map();
+ function prepareArtwork(market){
+  if(!window.Image)return Promise.resolve();
+  if(!artwork.has(market)){
+   const img=new window.Image();img.src=markets[market].image;
+   artwork.set(market,img.decode().catch(()=>{}));
+  }
+  return artwork.get(market);
+ }
+ // Reuse the exact panel artwork; prepare it before the short transition starts.
+ function prepareTransition(){prepareCoinSound();for(const market of Object.keys(markets))void prepareArtwork(market);}
+ // A real recorded coin sound; preloading is deferred until a user gesture.
+ function prepareCoinSound(){try{if(!audio&&window.Audio){audio=new window.Audio('../assets/audio/coin-cling.mp3');audio.preload='auto';audio.volume=.65;audio.load();}}catch{}}
+ function cling(){try{prepareCoinSound();if(audio){audio.currentTime=0;void audio.play().catch(()=>{});}}catch{}}
+ document.addEventListener('pointerdown',prepareTransition,{once:true,passive:true});
+ document.addEventListener('keydown',prepareTransition,{once:true});
+ function present(market,elapsed=0,sound=false){
+  clearTimeout(typeTimer);spin?.cancel();
+  const info=markets[market],text=info?.name||'SessionPath center';
+  title.setAttribute('aria-label',text);title.dataset.fullTitle=text;
+  coin.hidden=!info;
+  if(info){coin.dataset.market=market;}
+  const tick=()=>{const elapsedNow=performance.now()-began;typed.textContent=text.slice(0,Math.min(text.length,Math.floor(text.length*elapsedNow/815)));if(elapsedNow<815)typeTimer=setTimeout(tick,Math.min(16,815-elapsedNow));};
+  if(reduced())typed.textContent=text;else tick();
+  let coinDone=Promise.resolve();
+  if(info&&!reduced()&&elapsed<600){
+   const run=generation;
+   coinDone=Promise.race([prepareArtwork(market),new Promise(resolve=>setTimeout(resolve,400))]).then(()=>{
+    if(run!==generation||!rotor)return;
+    spin=rotor.animate([{transform:'rotateY(0deg)'},{transform:'rotateY(1080deg)'}],{duration:600,easing:'cubic-bezier(.18,.62,.26,1)',fill:'both'});
+    return spin.finished.catch(()=>{});
+   });
+  }
+  if(sound)cling();
+  return Promise.all([coinDone,new Promise(resolve=>setTimeout(resolve,reduced()?0:Math.max(0,815-elapsed)))]);
+ }
+ const locked=new Map();
+ function lock(){for(const el of document.body.children){if(el===cover||['SCRIPT','STYLE','NOSCRIPT'].includes(el.tagName))continue;if(!locked.has(el))locked.set(el,el.inert);el.inert=true;}}
+ function unlock(){for(const [el,value] of locked)el.inert=value;locked.clear();}
+ function clear(){clearTimeout(delay);clearTimeout(finish);clearTimeout(watchdog);}
+ function show(market=null,elapsed=0,sound=false){
+  clear();generation++;began=performance.now()-elapsed;cover.hidden=false;
+  cover.style.removeProperty('opacity');root.dataset.loadingCover='loading';
+  cover.setAttribute('aria-busy','true');note.hidden=true;retry.hidden=true;lock();const presentation=present(market,elapsed,sound);
+  watchdog=setTimeout(()=>failure('Loading is taking longer than usual. You can retry.'),30000);
+  return presentation;
+ }
+ function failure(message){
+  if(cover.hidden)return;
+  clear();generation++;root.dataset.loadingCover='error';cover.setAttribute('aria-busy','false');
+  note.textContent=message;note.hidden=false;retry.hidden=false;lock();
+ }
+ function dismiss(){
+  if(cover.hidden||navigating||root.dataset.loadingCover==='fading')return;
+  clear();const run=++generation;
+  const quiet=reduced();
+  delay=setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   if(run!==generation||navigating)return;
+   // The ready panels have completed layout before they become visible behind the fade.
+   root.dataset.loadingCover='fading';cover.setAttribute('aria-busy','false');
+   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:900);
+  })),quiet?0:Math.max(0,815-(performance.now()-began)));
+ }
+ function state(){
+  if(navigating)return;
+  if(root.dataset.startup==='ready')dismiss();
+  else if(root.dataset.startup==='failed')failure('SessionPath could not finish loading. Please retry.');
+ }
+ retry.addEventListener('click',()=>location.reload());
+ document.addEventListener('sessionpath:instrument-change',event=>{
+  const market=event.detail?.instrument;if(!markets[market])return;
+  navigating=true;try{sessionStorage.setItem(transferKey,JSON.stringify({market,at:Date.now()}));}catch{}
+  event.detail.finished=show(market,0,true);
+ });
+ document.addEventListener('DOMContentLoaded',()=>{lock();state();},{once:true});
+ new MutationObserver(state).observe(root,{attributes:true,attributeFilter:['data-startup']});
+ // A history-restored page must not retain the outgoing market's black cover.
+ window.addEventListener('pageshow',event=>{if(event.persisted){navigating=false;show();state();}});
+ let transfer=null;try{transfer=JSON.parse(sessionStorage.getItem(transferKey)||'null');sessionStorage.removeItem(transferKey);}catch{}
+ const age=transfer?Date.now()-transfer.at:Infinity;
+ if(transfer&&markets[transfer.market]&&age>=0&&age<15000&&new URL(location.href).searchParams.get('instrument')===transfer.market)show(transfer.market,age);
+ else show();
+ state();
+})();
+</script><noscript><style>#sessionpath-loading{display:none!important}html[data-loading-cover] body>*{visibility:visible!important}</style><p>Enable JavaScript to load SessionPath.</p></noscript><div class="meteor-layer" aria-hidden="true"><i class="meteor"></i><i class="meteor"></i><i class="meteor"></i></div><header class="topbar"><a class="brand" href="#conditions"><img class="site-brand-logo" src="../assets/brand/sessionpath-logo-v1.webp" alt="SessionPath" width="240" height="80"><small>By LUI</small></a><nav aria-label="Page sections"><a href="#conditions">Conditions</a><a href="#projection">Movement estimate</a><a href="#sessions-section">Session probabilities</a><a href="#ny-reference">NY planning</a><a href="#indicator-section">TradingView</a><a href="#tags-section">Tags</a><a href="#evidence">Charts</a></nav><div class="top-actions"><span class="private-label">PRIVATE WORKSPACE</span><button id="motion-toggle" class="quiet" aria-label="Pause animation" title="Pause animation">Ⅱ</button><a href="https://chatgpt.com/space/page_83ac5c1b525081919fcf81cb5b19489a" target="_blank" rel="noopener">Playbook</a><button id="method-btn" class="quiet" aria-label="Open help">?</button></div></header>
+<main><section id="conditions"><div class="page-heading"><div><h1>ES</h1></div><div id="dataset-status" class="dataset-status">Loading the research archive…</div></div>
+<form id="scenario-form" autocomplete="off"><div class="planning-bar"><input id="window" type="hidden" value="1930-0500"><label>Decision time · ET<select id="asof"><option value="03:00">03:00 → 05:00</option><option value="05:00">05:00 → 08:30</option></select></label><input id="trading-date" type="hidden"><button id="analyze-btn" class="primary" type="submit">Forecast</button></div>
+<p id="window-help" class="field-help" hidden></p><div class="replay-picker"><label><input id="replay-toggle" type="checkbox"> Replay</label><span id="replay-date-wrap" hidden><input id="replay-date" type="date" aria-label="Replay trading date"></span><span id="date-label"></span></div>
+<div class="condition-grid"><fieldset><legend>Price & range</legend><div class="fields three"><label>Decision open<input id="price" type="number" step="0.01" placeholder="94.31"></label><label>AVR · points<input id="avr" type="number" min="0.01" step="any" placeholder="2.40"></label><label>AVR printed · %<input id="printed" type="number" min="0" max="2000" step="0.1" placeholder="75"></label></div><div class="fields three"><label>High since 19:30<input id="range-high" type="number" step="0.01" placeholder="Optional"></label><label>Low since 19:30<input id="range-low" type="number" step="0.01" placeholder="Optional"></label><label>Price inside current range<select id="range-position"><option value="">Any / unknown</option><option value="0.1">Near current low</option><option value="0.3">Lower part</option><option value="0.5">Around midpoint</option><option value="0.7">Upper part</option><option value="0.9">Near current high</option></select></label></div><p id="range-help" class="field-help" hidden>High and low calculate printed AVR and exact range position. Otherwise enter the percentage and choose a position.</p></fieldset>
+<details class="input-more"><summary>Context & prior session</summary><fieldset><legend hidden>Context</legend><div class="fields three"><label>Prior NY low<input id="prior-low" type="number" step="0.01" placeholder="Optional"></label><label>Prior NY high<input id="prior-high" type="number" step="0.01" placeholder="Optional"></label><label>Price vs prior NY range<select id="location"><option value="">Any / unknown</option><option value="BELOW">Below prior low</option><option value="Q1">Q1 · bottom quarter</option><option value="Q2">Q2 · below midpoint</option><option value="Q3">Q3 · above midpoint</option><option value="Q4">Q4 · top quarter</option><option value="ABOVE">Above prior high</option></select></label></div><div class="fields three"><label>Last hour's behavior<select id="behavior"><option value="">Any / not specified</option><option>Higher finish</option><option>Lower finish</option><option>Trend up then fade</option><option>Trend down then recover</option><option>Little net change</option></select></label><label><span id="up-label">Up from 19:30 · points</span><input id="up" type="number" min="0" step="any" placeholder="Optional"></label><label><span id="down-label">Down from 19:30 · points</span><input id="down" type="number" min="0" step="any" placeholder="Optional"></label></div><div class="fields"><label>19:30 open · optional<input id="open1930" type="number" step="0.01" placeholder="From chart indicator"></label><label>U/D input units<select id="ud-units"><option value="points" selected>Price points</option><option value="percent">Percent of AVR</option></select></label></div><p id="ud-help" class="field-help" hidden></p></fieldset></details></div>
+<div class="control-row"><div class="fields"><label>Match tags<select id="tag-mode"><option value="all">ALL selected tags</option><option value="any">ANY selected tag</option></select></label><label>Closest cases<select id="sample-size"><option>20</option><option selected>50</option><option>100</option><option>200</option><option value="ALL">ALL</option></select></label><label>Archive<select id="year"><option value="">2022–2026</option><option>2022</option><option>2023</option><option>2024</option><option>2025</option><option>2026</option></select></label></div><div class="button-row"><a href="#tags-section" class="quiet">Choose tags <span id="selected-count">0</span></a><button id="save-checkpoint" type="button" class="quiet">Save snapshot</button><button id="reset-btn" type="button" class="text-button">Reset</button></div></div><div id="form-error" role="alert"></div></form>
+<div class="checkpoint-bar"><div><span class="eyebrow">AS THE SESSION DEVELOPS</span><p>Move the time forward, update your inputs, and keep earlier checkpoints.</p><label style="flex-direction:row;align-items:center;margin-top:12px"><input id="use-checkpoints" type="checkbox" checked> Match earlier checkpoints from this trading date</label></div><div id="checkpoints" class="checkpoint-list"></div></div></section>
+<section id="projection" aria-live="polite"><div id="result-header"></div><div id="forecast"></div><div id="range-assessment"></div></section>
+<section id="comparison" class="panel"><div class="eyebrow">05 / COMPARISON</div><h2>Compare samples</h2><div class="fields"><label>Sample A<select id="compare-a"><option>20</option><option selected>50</option><option>100</option><option>200</option><option>ALL</option></select></label><label>Sample B<select id="compare-b"><option>20</option><option>50</option><option>100</option><option selected>200</option><option>ALL</option></select></label></div><div id="comparison-results"></div><details class="session-note"><summary>Model checks</summary><div id="validation-results"></div></details></section><section id="sessions-section" class="panel"><div class="section-heading"><div><div class="eyebrow">04 / SESSION PATHS</div><h2>Session paths</h2></div><div class="button-row"><label class="inline-check"><input id="sequence-explore" type="checkbox"> Explore sequences</label><button id="clear-sequence" class="quiet">Clear sequence</button></div></div><div id="session-cards" class="session-cards"></div><p class="compact-note">Historical frequencies · separate from U/D matching.</p><details class="session-note"><summary>Session timing and shape definitions</summary><p>All times are New York local time, including daylight saving time. *NTA uses available bars from the prior NY 16:00 close to the 19:30 Asia anchor. Normally 16:00–16:55 and 18:00–19:25; Monday includes Friday’s last hour and Sunday’s reopening. The closed period is not filled with invented bars. Asia is 19:30–02:00, London 03:00–08:30, NY 09:30–16:00 (end times excluded). The 02:00–03:00 and 08:30–09:30 handoffs are outside these shape labels.</p><p>Shapes retain the workbook rules. “Up/down finish” means a close in the upper/lower quarter with the corresponding order of extremes, not necessarily a positive/negative open-to-close return. Narrow range takes precedence. Hover a bar for its exact definition.</p></details></section>
+<section id="ny-reference" class="panel"></section>
+<section id="indicator-section" class="panel">
+<div class="section-heading"><h2>Chart export</h2><a class="quiet" href="data/es/session-path-es-v1.0.pine" download="SessionPath-ES-v1.0.pine">Indicator ES / MES v1.0</a></div><input id="box-horizon" type="hidden" value="window"><div id="box-result"></div>
+<div class="forecast-transfer"><label>Forecast code for TradingView<textarea id="forecast-code" readonly spellcheck="false" rows="2" placeholder="Enter current price and AVR, then update the estimate."></textarea></label></div>
+<div class="button-row"><button id="copy-forecast-code" class="primary" disabled>Copy code</button><button id="download-pine" class="quiet" disabled>Download script</button><button id="copy-pine" class="quiet" disabled>Copy script</button><span id="pine-status" role="status"></span></div>
+<details id="pine-code-details" class="session-note"><summary>View generated Pine Script</summary><label>Pine Script source<textarea id="pine-source" readonly spellcheck="false" rows="14" placeholder="Add current price and AVR to generate the script."></textarea></label></details>
+<p class="field-help">Imported research only. Chart history does not recalculate these matches. Use the matching delivery contract and a standard five-minute chart.</p>
+</section>
+
+<section id="tags-section" class="panel tag-panel"><div class="section-heading"><div><div class="eyebrow">OBSERVED CONTEXT</div><h2>Conditions & tags <span id="tag-count" class="pill">0 selected</span></h2><p>Choose only conditions observed by your decision time.</p></div><div class="button-row"><button id="mode-btn" class="quiet">Browse completed-day tags</button><button id="clear-tags" class="quiet">Clear tags</button><a class="quiet" href="#projection">Back to estimate ↑</a></div></div><div class="tag-toolbar"><label>Find a tag<input id="tag-search" type="search" placeholder="Search available context tags"></label><div id="selected-tags" class="chips"></div></div><div id="tag-options" class="all-tags"></div><details class="session-note"><summary>What happened to the data-quality tags?</summary><p>They were evidence warnings, not market signals. Missing-bar cases are excluded from the affected calculation automatically. ORDER_CHECK flags uncertain ordering within a five-minute bar; COVERAGE_CHECK flags incomplete source coverage. Their notes remain attached to historical evidence instead of appearing as trading filters.</p></details></section>
+<section id="evidence" class="panel evidence-panel"><div class="section-heading"><div><div class="eyebrow">COMPARE THE ACTUAL CHARTS</div><h2>Historical evidence</h2><p id="cohort-note"></p></div><div class="button-row"><label>Charts per page<select id="gallery-size"><option value="5" selected>5 charts</option><option value="10">10 charts</option></select></label><button id="gallery-prev" class="quiet" aria-label="Previous group of charts">← Previous</button><span id="gallery-page" class="pill"></span><button id="gallery-next" class="quiet" aria-label="Next group of charts">Next →</button></div></div><p class="field-help">Click any chart to enlarge it. Use ← / → to move through the matches without closing the viewer. Full-day charts reveal later outcomes.</p><div id="gallery" class="gallery"></div></section>
+<footer hidden><span>SESSION PATH · RESEARCH SNAPSHOT</span><span>Manual market inputs · checkpoints saved on this browser · original charts stay local</span></footer></main>
+<dialog id="chart-dialog" class="chart-dialog"><div class="viewer-toolbar"><button id="viewer-prev" class="quiet" aria-label="Previous screenshot">←</button><div><h2 id="viewer-title"></h2><p id="viewer-subtitle"></p></div><button id="viewer-next" class="quiet" aria-label="Next screenshot">→</button><button id="viewer-zoom" class="quiet">Actual size</button><a id="viewer-source" class="quiet" target="_blank" rel="noopener noreferrer">Original ↗</a><button class="close-dialog" aria-label="Close chart viewer">×</button></div><div id="viewer-image-area"><img id="viewer-image" alt=""></div><div id="viewer-details"></div></dialog>
+<dialog id="method-dialog"><div class="dialog-head"><h2>Reading the movement estimate</h2><button class="close-dialog" aria-label="Close explanation">×</button></div><div id="method-body"></div></dialog>
+<button id="edge-left" class="edge-arrow" aria-label="Move workspace left">‹</button><button id="edge-right" class="edge-arrow" aria-label="Move workspace right">›</button><dialog id="dictionary-dialog"><div class="dialog-head"><h2>Tag dictionary · five examples</h2><button class="close-dialog" aria-label="Close dictionary">×</button></div><div class="fields"><label>Find a definition<input id="dictionary-search" type="search" placeholder="Search tags, shapes or behavior"></label><label>Tag or behavior<select id="dictionary-select"></select></label></div><div id="dictionary-content"></div></dialog><div id="toast" role="status"></div><div class="ambient-footer"><span>ES / RESEARCH WORKSPACE</span><span>New York time · 03:00—05:00 / 05:00—08:30</span></div></body></html>
+

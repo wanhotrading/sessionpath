@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "checks": {
+    "window_first_breach": 3576,
+    "previous_endpoint": 2337,
+    "target_outcomes": 23643,
+    "full_event_reconstructions": 2627,
+    "independent_bruteforce_predictions": 198,
+    "score_reconciliations": 66
+  },
+  "unique_events": 2627,
+  "primary_comparisons": 48,
+  "total_comparisons": 66,
+  "predicted_event_rows": 22045,
+  "sourceForecastFilesUnchanged": true,
+  "protocolHashUnchanged": true
+}

@@ -1,0 +1,298 @@
+{
+  "instrument": "ES",
+  "status": "PASS",
+  "nativeDataAudit": "PASS",
+  "forecastAudit": "PASS",
+  "researchAudit": "PASS",
+  "completedStages": 25,
+  "pipelineStatus": "RESEARCH_COMPLETE",
+  "priorOnlyForecasts": 7239,
+  "sourceSHA256": {
+    "days.json": "8f441fcbb150b2df8cabeff86ebbec66a08fe09951c049fc25a595a718a90c45",
+    "timeline.json": "7eba5ed1c5956ffaed5ce7ff600ce9372c6eab5e72f9bcb7fc84f036ddbb4dcf",
+    "manifest.json": "0cdfd3141a292588fff61958b0c6f9bf8f523e7f010010051bcb0488e65aa176"
+  },
+  "nyIndependentAssertions": 598796,
+  "firstBreachEvents": 2627,
+  "endpointEvents": 2356,
+  "compactRows": 4983,
+  "supportedTime": [
+    {
+      "market": "ES",
+      "window": "03-05",
+      "outcome": "reach120",
+      "n": 439,
+      "relativeBrierReduction": 0.06265900743830623,
+      "holmP": 0.01599466844385205
+    },
+    {
+      "market": "ES",
+      "window": "03-05",
+      "outcome": "reach130",
+      "n": 479,
+      "relativeBrierReduction": 0.08302895712311575,
+      "holmP": 0.01599466844385205
+    },
+    {
+      "market": "ES",
+      "window": "05-0830",
+      "outcome": "reach120",
+      "n": 464,
+      "relativeBrierReduction": 0.04625710788659767,
+      "holmP": 0.04498500499833389
+    },
+    {
+      "market": "ES",
+      "window": "05-0830",
+      "outcome": "reach130",
+      "n": 496,
+      "relativeBrierReduction": 0.07604923065543066,
+      "holmP": 0.01599466844385205
+    }
+  ],
+  "files": [
+    {
+      "path": "bbox-return-v2.json",
+      "bytes": 454685,
+      "sha256": "94c50d89a1274114ca34ab991e72db1058d49d2089d65b161f43453df2a7c969",
+      "schema": [
+        "instrument",
+        "version",
+        "basis",
+        "generated",
+        "definition",
+        "columns",
+        "coverage",
+        "days"
+      ]
+    },
+    {
+      "path": "days.json",
+      "bytes": 1022623,
+      "sha256": "2911a6fc3bde29f1712093ff92e58c73f683f88b4b5a8a244024cc5c41a3705f",
+      "schema": "array"
+    },
+    {
+      "path": "direction-utilization.json",
+      "bytes": 1829658,
+      "sha256": "876de673151cdf2dc7b3f117fef698dfc10c737c6f88455a472e6bd0f75ab071",
+      "schema": [
+        "instrument",
+        "version",
+        "definitions",
+        "rows",
+        "exclusions"
+      ]
+    },
+    {
+      "path": "double-break-0430-data.json",
+      "bytes": 205583,
+      "sha256": "b5da5d32d63057c2a799394565de2a1312c1a45d16c967793d5c5c59598f2753",
+      "schema": [
+        "instrument",
+        "version",
+        "created",
+        "levels",
+        "definitions",
+        "markets"
+      ]
+    },
+    {
+      "path": "ny-sessionpath-extension-data.json",
+      "bytes": 2061380,
+      "sha256": "e68f3bc6899460118d4018f05fef3125846c879a26f7d1cca6efee2b8b8d6a42",
+      "schema": [
+        "instrument",
+        "version",
+        "created",
+        "levels",
+        "methods",
+        "cohorts",
+        "definitions",
+        "markets",
+        "groups"
+      ]
+    },
+    {
+      "path": "orange-box-fill-data.json",
+      "bytes": 1710104,
+      "sha256": "a83a49a1a2dbe244c986cae4abb0d5bbff0c92dcff24b1004814950f3b302f0b",
+      "schema": [
+        "instrument",
+        "version",
+        "created",
+        "fields",
+        "definitions",
+        "markets"
+      ]
+    },
+    {
+      "path": "planner-extra.json",
+      "bytes": 124174,
+      "sha256": "e53c09bc75ea6dc89f01a4b127015e00788db73da352a0e45a4d86b793786c04",
+      "schema": [
+        "instrument",
+        "version",
+        "days",
+        "ntaDefinition"
+      ]
+    },
+    {
+      "path": "research-observations.json",
+      "bytes": 12832345,
+      "sha256": "25b0a93c1479046cf50561d002c00c1631b66d231e28b5ff8da58885f6885dae",
+      "schema": [
+        "instrument",
+        "forecast",
+        "occupancy",
+        "avr",
+        "bbox",
+        "overnight",
+        "reversals"
+      ]
+    },
+    {
+      "path": "research-probabilities-v1.json",
+      "bytes": 171414,
+      "sha256": "236cc903284cf5d9b1057184f04750d1fb98c875ba080c2f4e35f7b1c212c5b7",
+      "schema": [
+        "instrument",
+        "schemaVersion",
+        "created",
+        "studyRange",
+        "policy",
+        "enums",
+        "columns",
+        "provenance",
+        "endpoint",
+        "breach"
+      ]
+    },
+    {
+      "path": "research-reconstruction-observations.json",
+      "bytes": 13068814,
+      "sha256": "aaf03347abf0646d9a922f29e7a9dce3b2e1a3d89705f11c10fa0adfbf7007dc",
+      "schema": [
+        "instrument",
+        "forecast",
+        "occupancy",
+        "avr",
+        "bbox",
+        "overnight",
+        "reversals"
+      ]
+    },
+    {
+      "path": "research-reconstruction-results.json",
+      "bytes": 679797,
+      "sha256": "4359588502c360d4e18febc26594cd4f6a172d68df76bb355ff63c073537665f",
+      "schema": [
+        "instrument",
+        "definitions",
+        "coverage",
+        "respect",
+        "respectByYear",
+        "directional",
+        "jointSimple",
+        "jointDirection",
+        "nyBaseline",
+        "avrTransitions",
+        "avrCombos",
+        "avrNYCombos",
+        "overnight",
+        "overnightByYear",
+        "bbox",
+        "reversals",
+        "forecastExtensions",
+        "validation",
+        "forecastExtensionsByFirstSide",
+        "bboxOpeningSensitivity",
+        "directionByYear"
+      ]
+    },
+    {
+      "path": "research-results.json",
+      "bytes": 679320,
+      "sha256": "acbc8d73ef65ca9cb6d9b4d68fa522a7c2cb7ba8a54d4aaa874fb37883a9b695",
+      "schema": [
+        "instrument",
+        "definitions",
+        "coverage",
+        "respect",
+        "respectByYear",
+        "directional",
+        "jointSimple",
+        "jointDirection",
+        "nyBaseline",
+        "avrTransitions",
+        "avrCombos",
+        "avrNYCombos",
+        "overnight",
+        "overnightByYear",
+        "bbox",
+        "reversals",
+        "forecastExtensions",
+        "validation",
+        "forecastExtensionsByFirstSide",
+        "bboxOpeningSensitivity",
+        "directionByYear"
+      ]
+    },
+    {
+      "path": "tags.json",
+      "bytes": 8039,
+      "sha256": "6dee6460b5e013b6293a0ffc152e1f7ac9e9260a1dfd838172ecf16948db1d9a",
+      "schema": "array"
+    },
+    {
+      "path": "tail-event-ny-data.json",
+      "bytes": 90284,
+      "sha256": "67a6dc3ce3c896c201678976743f0c1ff7cce6f936ae78d2ea4d379f50f27349",
+      "schema": [
+        "instrument",
+        "created",
+        "definitions",
+        "summaries",
+        "excluded"
+      ]
+    },
+    {
+      "path": "tail-event-ny-expanded.json",
+      "bytes": 1987725,
+      "sha256": "8488df8c6f6ccf63704979c158e1d2f4ea07ee49fd113bbed733834bec80604b",
+      "schema": [
+        "instrument",
+        "version",
+        "created",
+        "definitions",
+        "coverage",
+        "groups"
+      ]
+    },
+    {
+      "path": "timeline.json",
+      "bytes": 8643092,
+      "sha256": "7eba5ed1c5956ffaed5ce7ff600ce9372c6eab5e72f9bcb7fc84f036ddbb4dcf",
+      "schema": [
+        "instrument",
+        "startMinute",
+        "stepMinutes",
+        "priceScale",
+        "rows"
+      ]
+    },
+    {
+      "path": "validation-summary.json",
+      "bytes": 1693,
+      "sha256": "c8b28cc038fe0e09805711f32d0e4f94db8d0c6f502c8a218c944b05de7cfa89",
+      "schema": [
+        "instrument",
+        "status",
+        "generated",
+        "checks",
+        "groups"
+      ]
+    }
+  ],
+  "limitations": "Independent native ES research passed. Website/indicator readiness separately requires Pine compilation and UI acceptance; this file does not activate either."
+}

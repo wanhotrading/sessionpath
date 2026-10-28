@@ -1,0 +1,92 @@
+{
+  "instrument": "ES",
+  "stage": "PREPARED_NOT_RUN",
+  "created": "2026-10-28T07:21:44.895Z",
+  "source": "Native ES explicit quarterly contracts; no CL/NQ fitted outcomes or rates.",
+  "clocks": {
+    "timezone": "America/New_York",
+    "asia": "19:30–02:00",
+    "windows": [
+      "03:00–05:00",
+      "05:00–08:30",
+      "08:30–16:00"
+    ],
+    "nyBBOX": "09:30–16:00 prior complete same-contract NY session",
+    "avr": "Ten prior complete same-contract NY session high-low ranges"
+  },
+  "codeMarker": "SPES1",
+  "coverage": "Target2022-01-03–2026-10-20; actual coverage must be accepted by database audit before execution.",
+  "commands": [
+    "node work/es-build-forecasts.mjs",
+    "node work/es-prepare-seven-studies.mjs",
+    "node work/es-seven-studies.mjs",
+    "node work/es-extend-q6.mjs",
+    "node work/es-build-bbox-return.mjs",
+    "node work/es-prepare-seven-studies.mjs --earlier-only",
+    "node work/es-earlier-seven-studies.mjs",
+    "node work/es-earlier-extend-q6.mjs",
+    "node work/es-earlier-build-bbox-return.mjs",
+    "node work/es-build-bbox-direction-study.mjs",
+    "node work/es-rebuild-utilization-direction.mjs",
+    "node work/es-build-orange-box-fill-study.mjs",
+    "node work/es-build-double-break-study.mjs",
+    "node work/es-build-tail-event-ny.mjs",
+    "node work/es-build-tail-ny-expanded.mjs",
+    "node work/es-build-ny-sessionpath-extension.mjs",
+    "node work/es-ny-extension-independent-audit.mjs",
+    "node work/es-build-first-breach-study.mjs",
+    "python work/es-analyze-first-breach-study.py",
+    "python work/es-audit-first-breach-study.py",
+    "node work/es-build-endpoint-continuation.mjs",
+    "python work/es-analyze-endpoint-continuation.py",
+    "python work/es-audit-endpoint-continuation.py",
+    "node work/es-build-research-probabilities.mjs",
+    "node work/es-finalize-research.mjs"
+  ],
+  "dependencies": [
+    "outputs/es-model/days.json",
+    "outputs/es-model/timeline.json",
+    "outputs/es-model/research-days.json",
+    "outputs/es-model/manifest.json",
+    "outputs/es-database/session-features.json"
+  ],
+  "provenance": [
+    {
+      "source": "work/nq-engine/window-engine.mjs",
+      "esCopy": "work/es-engine/window-engine.mjs",
+      "sha256": "51c2d41a09ba97edf403965314912ac31dec45e8d99ec80ac025a530e2212b8a",
+      "change": "None: generic math only; no fitted NQ rates."
+    },
+    {
+      "source": "work/nq-engine/planner-v3.mjs",
+      "esCopy": "work/es-engine/planner-v3.mjs",
+      "sha256": "bcf249e09ae7760015103e7bb09552ddaeb84bf42eeaccd677bc25b65ef646bd",
+      "change": "None: generic math only; no fitted NQ rates."
+    },
+    {
+      "source": "work/nq-engine/ny-reference-v5.mjs",
+      "esCopy": "work/es-engine/ny-reference-v5.mjs",
+      "sha256": "9a1ad85e80885b79244db11f3f51dcd6ea212075841bac23d803013f603936e6",
+      "change": "None: generic math only; no fitted NQ rates."
+    },
+    {
+      "source": "work/nq-engine/indicator-v5.mjs",
+      "esCopy": "work/es-engine/indicator-v5.mjs",
+      "sha256": "ec2c50a27b0ce729c75c9b2b9bf33541e1021c5c091cdca43c85d53b360a8f1a",
+      "change": "None: generic math only; no fitted NQ rates."
+    },
+    {
+      "source": "work/nq-engine/forecast-context.mjs",
+      "esCopy": "work/es-engine/forecast-context.mjs",
+      "sha256": "81ff878f169d9b659c379533fbd5c54052f665b01248c7eeb087187dc6c46f5b",
+      "change": "None: generic math only; no fitted NQ rates."
+    },
+    {
+      "source": "work/nq-engine/research-core.mjs",
+      "esCopy": "work/es-engine/research-core.mjs",
+      "sha256": "6413326ef859562bc21b710f2376c2f8a521d96178856d4e650e32de04c7d5bb",
+      "change": "None: generic math only; no fitted NQ rates."
+    }
+  ],
+  "unchanged": "Original CL/NQ files and live website are never mutated by this research pipeline. All-history reconstruction is separate from earlier-only research."
+}

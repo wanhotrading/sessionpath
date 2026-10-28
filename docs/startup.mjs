@@ -1,3 +1,6 @@
+const esRouteRequested=new URL(location.href).searchParams.get('instrument')==='ES';
+if(esRouteRequested){const target=new URL('./es/',location.href);target.searchParams.set('instrument','ES');if(location.hash)target.hash=location.hash;location.replace(target.href);}
+else {
 // Keep module/network failures visible instead of leaving an empty dashboard.
 const root=document.documentElement;
 root.dataset.startup='loading';
@@ -14,3 +17,5 @@ const timer=setTimeout(()=>{if(root.dataset.startup!=='ready')recovery('Loading 
 try{await import('./app-v5.js?v=research-followup-20261028');}
 catch(error){console.error('SessionPath startup:',error);root.dataset.startup='failed';recovery('SessionPath could not finish loading. Please retry.');}
 finally{clearTimeout(timer);}
+
+}

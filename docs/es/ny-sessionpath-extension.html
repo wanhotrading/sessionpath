@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NY SessionPath · Range extensions</title>
+  <link rel="stylesheet" href="double-break-0430.css">
+  <script src="background-picker.js"></script>
+  <script type="module">import{loadReadiness}from"./es-readiness.mjs";try{await loadReadiness();await import("./ny-sessionpath-extension.mjs?v=1");}catch(e){document.body.replaceChildren();const p=document.createElement("p");p.style.cssText="padding:40px;font:18px system-ui;color:#fff;background:#101624";p.textContent="ES research pending: "+e.message;document.body.append(p);}</script>
+  <style>
+    header nav{flex-wrap:wrap}.filters{gap:12px}.filters label{min-width:150px}.filters select{max-width:310px}.filters .wide{min-width:245px}.research-title{color:#b5a0ef}.sample-note{margin-top:20px;min-height:26px}.summary-row{display:flex;flex-wrap:wrap;gap:10px 24px;font-size:13px;color:var(--muted)}.summary-row strong{color:#eef4ff}.card strong{font-size:29px}.table-note{font-size:12px;color:var(--muted)}.empty-cell{white-space:normal!important;text-align:left!important}.warning:empty{display:none}.level-example{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}.level-example .card{border-color:#b9a4ff40}.level-example b{color:var(--orange)}.level-example .down{color:var(--purple)}.level-example p{font-size:14px;margin-bottom:0}.downloads{display:flex;flex-wrap:wrap;gap:16px}.error{color:#ffc2c2}.reset{margin-left:auto}.target-key{color:var(--orange)}.nav-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.nav-pills a{font-size:12px;border:1px solid #b4c3e32d;border-radius:20px;padding:7px 11px;text-decoration:none}section{scroll-margin-top:14px}.audit-dl dt{font-weight:600;margin-top:12px}.audit-dl dd{margin:4px 0 10px;color:var(--muted);overflow-wrap:anywhere}#status{font-variant-numeric:tabular-nums}@media(max-width:650px){.filters label,.filters .wide{min-width:0}.filters select{max-width:none}.reset{margin-left:0;width:100%}.level-example{grid-template-columns:1fr}.card strong{font-size:25px}.nav-pills a{padding:6px 9px;font-size:11px}}
+  </style>
+</head>
+<body>
+  <header><a id="home-link" href="./">SessionPath.</a><nav><a id="tail-link" href="tail-event-ny.html">Tail event · NY behaviour</a><a id="orange-link" href="orange-box-fill.html">Both orange boxes</a></nav></header>
+  <main>
+    <section>
+      <div class="eyebrow">08:30–16:00 · Ordinary NY Mean forecast box</div>
+      <h1 class="research-title">NY SessionPath · 1.2×, 1.3× and beyond</h1>
+      <p>How often does New York reach beyond its forecast box? Compare every eligible NY forecast with the mornings that had a tail event, then distinguish a target already reached on the breakout candle from a target reached afterwards.</p>
+      <form id="filters" class="filters">
+        <label>Market<select id="market"><option value="ES">ES · S&amp;P 500</option></select></label>
+        <label>NY forecast method<select id="method"><option value="nyOwnWide">Own Wide · Mean</option><option value="nyOwnExact">Own Exact · Mean</option><option value="nyPriorWide">Prior Wide · Mean</option><option value="nyPriorExact">Prior Exact · Mean</option></select></label>
+        <label>Earlier forecast matches<select id="minFit"><option value="50">At least 50 · primary</option><option value="1">At least 1 · sparse sensitivity</option></select></label>
+        <label class="wide">Morning condition<select id="cohort"><option value="ALL">All eligible NY forecasts</option><option value="0430_U">04:30 double break · second side U</option><option value="0430_D">04:30 double break · second side D</option><option value="ORANGE03_U">03–05 both orange boxes · second U</option><option value="ORANGE03_D">03–05 both orange boxes · second D</option><option value="ORANGE05_U">05–08:30 both orange boxes · second U</option><option value="ORANGE05_D">05–08:30 both orange boxes · second D</option></select></label>
+        <button id="reset" type="button" class="reset">Reset</button>
+      </form>
+      <p id="status" class="sample-note" role="status" aria-live="polite">Loading the range-extension research…</p>
+      <p id="small-sample" class="warning"></p>
+      <p class="table-note">For an orange-tail condition, the selected minimum must be met independently by both the earlier orange forecast and the NY forecast. The primary 50-match orange samples can be empty or contain only one date.</p>
+      <div id="coverage-line" class="summary-row"></div>
+      <nav class="nav-pills" aria-label="Research sections"><a href="#targets">Target definition</a><a href="#whole-window">Whole-window probabilities</a><a href="#first-side">First NY breakout side</a><a href="#pending">After confirmation</a><a href="#annual">By year</a><a href="#audit">Definitions & data</a></nav>
+    </section>
+
+    <section id="targets">
+      <h2>One ruler: the full NY forecast width</h2>
+      <p>Let the ordinary Mean SessionPath lower extreme be <b>L</b>, its upper extreme <b>H</b>, and width <b>W = H − L</b>. The upward target is <span class="target-key">L + multiple × W</span>; the downward target is <span class="target-key">H − multiple × W</span>.</p>
+      <div class="level-example">
+        <div class="card"><div class="eyebrow">Example · L = 89, H = 91, W = 2</div><p>Upward <b>1.2× = 91.40</b><br>Upward <b>1.3× = 91.60</b></p></div>
+        <div class="card"><div class="eyebrow">Same box · lower targets</div><p>Downward <b class="down">1.2× = 88.60</b><br>Downward <b class="down">1.3× = 88.40</b></p></div>
+      </div>
+      <p class="table-note">1.2× is 20% beyond the relevant boundary. This ruler uses the total ordinary forecast box width. It is separate from the orange AVR expansion rectangles. These are range multiples, not statistical standard deviations.</p>
+    </section>
+
+    <section id="whole-window">
+      <h2>Reached anywhere during 08:30–16:00</h2>
+      <p>All eligible forecasts in this selection form the denominator. A wick can qualify a target touch. Upward and downward targets can both be reached on one date.</p>
+      <div class="scroll"><table><thead><tr><th>Full-box multiple</th><th>Upward target</th><th>Downward target</th><th>Either target</th><th>Both targets</th></tr></thead><tbody id="unconditional"></tbody></table></div>
+      <p class="table-note">Each rate shows hits / eligible dates and a 95% Wilson interval. The outcome excludes the candle opening at 16:00. A target-touch rate is not a trade win rate.</p>
+    </section>
+
+    <section id="first-side">
+      <h2>Follow the first side broken by NY</h2>
+      <p>The first strict wick beyond the ordinary NY box determines the direction. This table measures whether that side’s extension target was reached by 16:00, including a target reached on the initial breakout candle.</p>
+      <div class="scroll"><table><thead><tr><th>Full-box multiple</th><th>All ordered first breaks</th><th>NY first breaks upward</th><th>NY first breaks downward</th></tr></thead><tbody id="first-break"></tbody></table></div>
+      <p class="table-note">Dates that never break the box are absent from this conditional denominator. If both sides first break within the same five-minute candle, their order is unknown and that date is excluded here. The morning tail-event direction and the later first NY breakout direction are different observations.</p>
+    </section>
+
+    <section id="pending">
+      <h2>What remains after the first breakout candle confirms?</h2>
+      <p>Wait for the first NY breakout candle to complete. Remove targets already reached by that confirmation, remove next-open gaps that already reach the target, then observe the remaining candles through 16:00. These smaller samples answer the forward-looking question.</p>
+      <label style="max-width:300px;margin-bottom:18px">First NY breakout direction<select id="pending-side"><option value="all">Either ordered side</option><option value="U">Upward first</option><option value="D">Downward first</option></select></label>
+      <div class="scroll"><table><thead><tr><th>Full-box multiple</th><th>Already reached at confirmation</th><th>No later candles</th><th>Pending cases</th><th>Later target hits / pending cases</th><th>Still missed at 16:00</th><th>Next open already at target</th></tr></thead><tbody id="pending-results"></tbody></table></div>
+      <p id="pending-note" class="table-note">Pending cases have at least one later candle and an unreached target at the next open. The already-reached and next-open-gap percentages use all resolved first breaks as their denominator; later hits and misses use pending cases only. Next-open gaps are excluded from the pending denominator. These price-path frequencies do not account for execution costs.</p>
+    </section>
+
+    <section id="annual">
+      <h2>Yearly sample and target rates</h2>
+      <p>Keep the same forecast method and morning condition, and compare the available years. The historical forecast is rebuilt from strictly earlier dates.</p>
+      <label style="max-width:250px;margin-bottom:18px">Multiple<select id="annual-level"><option value="1.2">1.2×</option><option value="1.3">1.3×</option><option value="1.4">1.4×</option><option value="1.5">1.5×</option></select></label>
+      <div class="scroll"><table><thead><tr><th>Year</th><th>Eligible forecasts</th><th>Upward target</th><th>Downward target</th><th>Either target</th><th>Both targets</th><th>First-side target</th></tr></thead><tbody id="annual-results"></tbody></table></div>
+      <p class="table-note">A missing sample is shown as unavailable. Small orange-tail cohorts cannot support a reliable percentage, even when a calculated rate is high. These are retrospective comparisons, with no automatic inference about news causes.</p>
+    </section>
+
+    <section id="audit">
+      <h2>Research definitions and source data</h2>
+      <p>The NY box is the ordinary Mean forecast for 08:30–16:00. Own and Prior methods classify the completed Asia/London inputs against their corresponding measuring range; Wide and Exact retain their established matching rules. Each method is reported separately.</p>
+      <p>Morning orange-tail conditions require both outer orange targets to be touched in the completed early window. 04:30 double breaks require strict breaches of both frozen 04:30 range edges before 08:30. The second side supplies the morning direction; unknown same-candle order is excluded.</p>
+      <p>This calculation uses strictly earlier forecast matches. Earlier Q7 tables used a different retrospective fitting setup, so their percentages should not be substituted for this study.</p>
+      <details><summary>Exact definitions</summary><div id="definitions"></div></details>
+      <details><summary>Coverage and exclusions</summary><div id="audit-coverage"></div></details>
+      <p class="table-note">Forecast and exclusion counts in the audit count method records. Multiple methods can share the same trading date.</p>
+      <p class="downloads"><a href="data/es/ES-ny-sessionpath-extension.csv" download>ES daily cases · CSV</a><a href="data/es/ny-sessionpath-extension-data.json" download>All results and definitions · JSON</a></p>
+    </section>
+  </main>
+</body>
+</html>

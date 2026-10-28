@@ -1,0 +1,18 @@
+.forecast-motion-surface{position:relative;isolation:isolate}.forecast-shine{position:absolute;inset:0;pointer-events:none;border-radius:inherit;z-index:5;background:linear-gradient(135deg,transparent 32%,rgba(255,245,228,.025) 40%,rgba(255,245,228,.08) 46%,rgba(255,255,255,.15) 50%,rgba(255,245,228,.08) 54%,rgba(255,245,228,.025) 60%,transparent 68%);background-size:280% 280%;background-repeat:no-repeat;opacity:0;mask-image:radial-gradient(ellipse closest-side at center,#000 35%,rgba(0,0,0,.85) 60%,transparent 100%);-webkit-mask-image:radial-gradient(ellipse closest-side at center,#000 35%,rgba(0,0,0,.85) 60%,transparent 100%)}
+[data-relative="below"],[data-relative="below"] .probability-value{color:#b9a4ff!important;-webkit-text-fill-color:#b9a4ff!important}
+[data-relative="above"],[data-relative="above"] .probability-value{color:#f4b66f!important;-webkit-text-fill-color:#f4b66f!important}
+[data-relative="equal"]{color:#e5edf8!important}
+.motion-paused .forecast-shine{display:none}
+[data-expansion-percentile="low"]{--expansion-ink:#b9a4ff}
+[data-expansion-percentile="lower-middle"]{--expansion-ink:#d7ccfa}
+[data-expansion-percentile="middle"]{--expansion-ink:#f5f7fc}
+[data-expansion-percentile="upper-middle"]{--expansion-ink:#f4d7b5}
+[data-expansion-percentile="high"]{--expansion-ink:#f4b66f}
+[data-expansion-percentile],[data-expansion-percentile] .probability-value{color:var(--expansion-ink)!important;-webkit-text-fill-color:var(--expansion-ink)!important}
+@media(prefers-reduced-motion:reduce){.forecast-shine{display:none}}
+
+.context-meter{background:linear-gradient(to right,#b9a4ff 0 25%,#4b7378 25% 75%,#f4b66f 75%)}
+
+/* No expansion is the inverse of expansion potential. */
+[data-polarity="inverse"][data-relative="above"],[data-polarity="inverse"][data-relative="above"] .probability-value{color:#b9a4ff!important;-webkit-text-fill-color:#b9a4ff!important}
+[data-polarity="inverse"][data-relative="below"],[data-polarity="inverse"][data-relative="below"] .probability-value{color:#f4b66f!important;-webkit-text-fill-color:#f4b66f!important}

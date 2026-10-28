@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "events": 2356,
+  "checks": {
+    "independent_full_event_reconstructions": 2356,
+    "bruteforce_probability_chains": 16,
+    "score_reconciliations": 8,
+    "descriptive_count_checks": 48
+  },
+  "sourceFilesUnchanged": true,
+  "protocolUnchanged": true,
+  "primaryTests": 4,
+  "secondaryTests": 4,
+  "walkForwardPredictionRows": 2806
+}

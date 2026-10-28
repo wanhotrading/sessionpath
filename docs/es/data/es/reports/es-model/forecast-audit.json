@@ -1,0 +1,80 @@
+{
+  "instrument": "ES",
+  "definitions": {
+    "reconstruction": "All study dates may enter fit, including the scored date. Historical reconstruction, not as-known forecast. CL protocol preserved.",
+    "earlierOnly": "Only cohort dates strictly earlier than the decision date; flag fewer than50 cases separately.",
+    "overnight": "50 closest numeric matches within same prior-BBOX bucket AND same previous-hour behavior. All five numeric inputs equally scaled at0.25.",
+    "ny": "Own/Prior describes measuring range for Asia/London close. Exact selects one close-quarter; Wide selects adjacent exact historical quarters if current close lies within5pp of an internal quarter boundary. All matches, not nearest50.",
+    "normalization": "Each historical U/D divided by its own frozen ten-complete-NY-session AVR, then mean/median multiplied by current AVR. This is not percent of price.",
+    "code": "SPES1:15 fields matching SP5 numeric layout, with an ES-only marker; requires forthcoming ES indicator. Never paste into CL indicator.",
+    "captures": "No daily chart screenshots have been generated in this stage."
+  },
+  "checks": {
+    "snapshots": 3690,
+    "outcomes": 2460,
+    "nyClassifications": 4740,
+    "referenceEstimates": 41,
+    "chronology": 7239
+  },
+  "byGroup": {
+    "all-history-reconstruction / three": {
+      "n": 1230,
+      "atLeast50": 900
+    },
+    "all-history-reconstruction / five": {
+      "n": 1230,
+      "atLeast50": 823
+    },
+    "all-history-reconstruction / nyOwnWide": {
+      "n": 1230,
+      "atLeast50": 1187
+    },
+    "all-history-reconstruction / nyOwnExact": {
+      "n": 1230,
+      "atLeast50": 1127
+    },
+    "all-history-reconstruction / nyPriorExact": {
+      "n": 1230,
+      "atLeast50": 726
+    },
+    "all-history-reconstruction / nyPriorWide": {
+      "n": 1230,
+      "atLeast50": 886
+    },
+    "earlier-only / five": {
+      "n": 1200,
+      "atLeast50": 223
+    },
+    "earlier-only / nyOwnWide": {
+      "n": 1221,
+      "atLeast50": 645
+    },
+    "earlier-only / nyOwnExact": {
+      "n": 1214,
+      "atLeast50": 403
+    },
+    "earlier-only / nyPriorExact": {
+      "n": 1197,
+      "atLeast50": 306
+    },
+    "earlier-only / nyPriorWide": {
+      "n": 1207,
+      "atLeast50": 453
+    },
+    "earlier-only / three": {
+      "n": 1200,
+      "atLeast50": 300
+    }
+  },
+  "sourceHashes": {
+    "days.json": "8f441fcbb150b2df8cabeff86ebbec66a08fe09951c049fc25a595a718a90c45",
+    "timeline.json": "7eba5ed1c5956ffaed5ce7ff600ce9372c6eab5e72f9bcb7fc84f036ddbb4dcf",
+    "manifest.json": "0cdfd3141a292588fff61958b0c6f9bf8f523e7f010010051bcb0488e65aa176"
+  },
+  "engineHashes": {
+    "window-engine.mjs": "51c2d41a09ba97edf403965314912ac31dec45e8d99ec80ac025a530e2212b8a",
+    "planner-v3.mjs": "bcf249e09ae7760015103e7bb09552ddaeb84bf42eeaccd677bc25b65ef646bd",
+    "ny-reference-v5.mjs": "9a1ad85e80885b79244db11f3f51dcd6ea212075841bac23d803013f603936e6",
+    "indicator-v5.mjs": "ec2c50a27b0ce729c75c9b2b9bf33541e1021c5c091cdca43c85d53b360a8f1a"
+  }
+}

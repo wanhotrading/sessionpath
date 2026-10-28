@@ -2,7 +2,8 @@ import {mountMarketEmblem} from './market-emblem.mjs';
 // Market configuration is resolved once per page load; switching reloads isolated state.
 export const instruments = Object.freeze({
  CL: Object.freeze({id:'CL',name:'Crude oil',roots:['CL','MCL'],tickSize:.01,forecastPrefix:'SP5',expansionPrefix:'SP6',snapshotPrefix:'SPI1',returnPrefix:'BPR1',indicatorLabel:'CL / MCL v7.0',indicatorFile:'session-path-cl-v7.0.pine',indicatorDownload:'SessionPath-CL-v7.0.pine'}),
- NQ: Object.freeze({id:'NQ',name:'Nasdaq-100',roots:['NQ','MNQ'],tickSize:.25,forecastPrefix:'SPNQ1',expansionPrefix:'SPNQ2',snapshotPrefix:'NSPI1',returnPrefix:'NBPR1',indicatorLabel:'NQ / MNQ v1.4',indicatorFile:'data/nq/session-path-nq-v1.4.pine',indicatorDownload:'SessionPath-NQ-v1.4.pine'})
+ NQ: Object.freeze({id:'NQ',name:'Nasdaq-100',roots:['NQ','MNQ'],tickSize:.25,forecastPrefix:'SPNQ1',expansionPrefix:'SPNQ2',snapshotPrefix:'NSPI1',returnPrefix:'NBPR1',indicatorLabel:'NQ / MNQ v1.4',indicatorFile:'data/nq/session-path-nq-v1.4.pine',indicatorDownload:'SessionPath-NQ-v1.4.pine'}),
+ ES: Object.freeze({id:'ES',name:'S&P 500',roots:['ES','MES'],tickSize:.25,pointValue:50,forecastPrefix:'SPES1',expansionPrefix:'SPES2',snapshotPrefix:'ESPI1',returnPrefix:'EBPR1',indicatorLabel:'ES / MES v1.0',indicatorFile:'es/data/es/session-path-es-v1.0.pine',indicatorDownload:'SessionPath-ES-v1.0.pine',route:'es/'})
 });
 export function resolveInstrument(value){return Object.hasOwn(instruments,value)?instruments[value]:instruments.CL;}
 const selected=typeof location==='undefined'?'CL':new URL(location.href).searchParams.get('instrument');
@@ -19,6 +20,7 @@ export function mountInstrumentSelector(){
  for(const c of Object.values(instruments)){const option=document.createElement('option');option.value=c.id;option.textContent=c.id+' · '+c.name;select.append(option);}select.value=instrument.id;label.append(select);
  document.querySelector('.top-actions').prepend(label);
  select.addEventListener('change',()=>{
+  if(select.value==='ES'){saveMarketInputs();const target=new URL('./es/',location.href);target.searchParams.set('instrument','ES');location.assign(target.href);return;}
   const transition={instrument:select.value};
   document.dispatchEvent(new CustomEvent('sessionpath:instrument-change',{detail:transition}));
   saveMarketInputs();const url=new URL(location.href);url.searchParams.set('instrument',select.value);
