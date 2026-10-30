@@ -14,7 +14,7 @@ function recovery(message){
  box.append(text,retry);document.getElementById('dataset-status').after(box);
 }
 const timer=setTimeout(()=>{if(root.dataset.startup!=='ready')recovery('Loading is taking longer than usual. Your saved inputs are safe.');},45000);
-try{await import('./app-v5.js?v=research-followup-20261028');}
+try{await import('./app-v5.js?v=ny-direction-autofill-20261030');}
 catch(error){console.error('SessionPath startup:',error);root.dataset.startup='failed';recovery('SessionPath could not finish loading. Please retry.');}
 finally{clearTimeout(timer);}
 

@@ -1,3 +1,4 @@
+import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
 import {loadAsset,yieldToBrowser} from './startup-load.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
@@ -221,7 +222,7 @@ async function startResearch(){
   await yieldToBrowser();
   state.shapeDictionary=state.tags;Object.assign(state,enrichResearch(state.days,state.tags,state.extra));migrateCheckpoints();
   await yieldToBrowser();
-  mountNYReference(state.days,state.timeline);
+  mountNYReference(state.days,state.timeline); configureNYDirectionAutoFill(state.days,state.timeline);
   restoreMarketInputs();syncDate();syncInputs();
   state.ready=true;$('analyze-btn').disabled=false;
   await yieldToBrowser();
