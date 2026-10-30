@@ -4,7 +4,7 @@ import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-f
 import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=discord-20261023';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
-import {connectDiscordNews,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-topics-20261023';
+import {connectDiscordNews,discordConnectionView,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-recovery-20261030';
 
 const STORAGE_KEY = 'sessionpath-news-filters-v1';
 const ALERT_PREFS_KEY = 'sessionpath-news-alert-prefs-v1';
@@ -184,6 +184,10 @@ export function setupNewsDesk() {
   discordToggle.type='button';discordToggle.id='news-discord-toggle';
   discordToggle.setAttribute('aria-expanded','false');
   alertControls.append(discordToggle);
+  const discordRetry=element('button','news-alert-control','Retry Discord');
+  discordRetry.type='button';discordRetry.hidden=true;discordRetry.id='news-discord-retry';
+  discordRetry.addEventListener('click',()=>{if(discord)discord.reconnect();else syncDiscord();});
+  alertControls.append(discordRetry);
   const discordForm=element('form','news-discord-connect');
   discordForm.hidden=true;discordForm.id='news-discord-connect';
   const discordLabel=element('label','','Private connection key');
@@ -282,9 +286,9 @@ export function setupNewsDesk() {
     trigger.classList.toggle('has-news-alerts', preferences.alerts);
     trigger.title = 'Oil, US indices & policy headlines' + (preferences.alerts ? ' · alerts on' : '');
     discordToggle.textContent=discordReadKey?'Disconnect Discord':'Connect Discord';
-    const discordHint=discordReadKey
-      ? (discordState==='connected'?' FinancialJuice: Discord push on this PC.':' FinancialJuice: '+(discordState==='connecting'?'connecting to your local listener.':'start the local listener to reconnect.'))
-      : ' Connect Discord to receive FinancialJuice from your local listener.';
+    const connection=discordConnectionView({state:discordState,hasKey:Boolean(discordReadKey),source:feed?.sources?.find(source=>source.id==='financialjuice')});
+    discordRetry.hidden=!connection.canRetry;
+    const discordHint=' FinancialJuice: '+connection.help;
     alertHelp.textContent = preferences.alerts
       ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Popups stay until you close them. New headlines are kept when you switch tabs; background checks may be slowed by your browser.' + discordHint + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
@@ -411,7 +415,7 @@ export function setupNewsDesk() {
     const source=feed?.sources?.find(value=>value.id==='financialjuice' && value.transport==='discord');
     if(source){
       source.status=state==='connected'?'ok':'error';source.fetchedAt=new Date().toISOString();
-      source.error=state==='connected'?null:'Start the SessionPath listener on this PC. If prompted, allow this site to connect to your local listener.';
+      source.error=state==='connected'?null:discordConnectionView({state,hasKey:Boolean(discordReadKey),source}).help;
     }
     renderAlertControls();if(dialog.open)renderSources();
   }
@@ -420,7 +424,7 @@ export function setupNewsDesk() {
     if(!wanted){stopDiscord();return;}
     if(discord)return;
     discordState='connecting';renderAlertControls();
-    try{discord=connectDiscordNews({accessKey:discordReadKey,onResult:result=>{discordState=result.source.status==='ok'?'connected':'reconnecting';receiveSource(result);renderAlertControls();},onStatus:discordStatus});}
+    try{discord=connectDiscordNews({accessKey:discordReadKey,onResult:result=>{discordState=result.source.status==='ok'?'connected':'waiting';receiveSource(result);renderAlertControls();},onStatus:discordStatus});}
     catch{discordStatus('disconnected');}
   }
   function interruptRefresh() { poller?.stop();stopDiscord(); loading = false; }
@@ -434,11 +438,13 @@ export function setupNewsDesk() {
       const checkedMs = Date.parse(source?.fetchedAt || '');
       const old = Number.isFinite(checkedMs) && Date.now() - checkedMs > STALE_MS;
       const unavailable = source?.status === 'error';
-      const stale = old || unavailable || failed;
+      const connection=id==='financialjuice'?discordConnectionView({state:discordState,hasKey:Boolean(discordReadKey),source}):null;
+      const stale = connection?connection.stale:old || unavailable || failed;
       const card = element('div', 'news-source-card' + (stale ? ' is-stale' : ''));
       card.append(element('span', 'news-source-name', name));
       let label;
-      if (push && source.status==='ok') label='Connected · Discord';
+      if (connection) label=connection.label;
+      else if (push && source.status==='ok') label='Connected · Discord';
       else if (push) label=discordState==='connecting'?'Connecting…':'Reconnecting';
       else if (paused) label = discordReadKey?'Connecting…':'Connect Discord';
       else if (unavailable || failed) label = 'Refresh unavailable';
@@ -446,9 +452,10 @@ export function setupNewsDesk() {
       else if (old) label = 'Last checked over 20 min ago';
       else label = source.status === 'ok' ? 'Connected' : 'Not available';
       card.append(element('span', 'news-source-state', label));
-      if (paused) card.title='FinancialJuice RSS is paused. Use your local Discord listener.';
+      if (connection) card.title=connection.help;
+      else if (paused) card.title='FinancialJuice RSS is paused. Use your local Discord listener.';
       else if (unavailable && source.error) card.title=source.error;
-      card.append(element('span','news-source-time',push?'Push from your PC':paused?'RSS requests stopped':`Checks every ${(config?.pollMs || 10000)/1000}s`));
+      card.append(element('span','news-source-time',connection?connection.detail:push?'Push from your PC':paused?'RSS requests stopped':`Checks every ${(config?.pollMs || 10000)/1000}s`));
       if (source?.latestAt) card.append(element('span', 'news-source-time', 'Latest match ' + newsTime(source.latestAt)));
       if (source?.fetchedAt) card.append(element('span','news-source-time','Checked '+new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(source.fetchedAt))+' ET'));
       sourceStatus.append(card);

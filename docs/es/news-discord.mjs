@@ -1,6 +1,7 @@
 import {classifyNews,cleanNewsText,normalizeNewsDate,safeNewsURL} from './news-feed.mjs?v=discord-topics-20261023';
 import {analyzeNews} from './news-analysis.mjs?v=discord-topics-20261023';
-import {connectPrivateNews} from './news-discord-client.mjs?v=discord-20261023';
+import {connectPrivateNews} from './news-discord-client.mjs?v=discord-recovery-20261030';
+export {discordConnectionView} from './news-discord-client.mjs?v=discord-recovery-20261030';
 
 export const DISCORD_SESSION_KEY='sessionpath-discord-read-key-v1';
 
