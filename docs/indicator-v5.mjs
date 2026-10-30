@@ -1,5 +1,6 @@
 import {instrument} from './instrument.mjs';
 import {nyTimestamp} from './planner-v3.mjs';
+import {nyMethodToken,parseNYMethodToken} from './ny-method-metadata.mjs';
 
 export function observedUD({open,high,low,avr,up,down,units='points'}) {
  let u=up,d=down;
@@ -47,10 +48,17 @@ export function makeForecastCode(box,q) {
   if(!envelope||!expansion.every(Number.isFinite)||q.rangeHigh<q.rangeLow||q.price<q.rangeLow-1e-8||q.price>q.rangeHigh+1e-8||box.extensionUpPoints<0||box.extensionDownPoints<0)throw Error('Expansion boxes require the cutoff high/low around the decision open and nonnegative matched expansion distances.');
   base[0]=instrument.expansionPrefix??(instrument.id==='NQ'?'SPNQ2':'SP6');base.push(...expansion.map(f));
  }
+ // NY method travels with its forecast; an unclassified/custom selection must
+ // never inherit a named research table from an unrelated indicator setting.
+ if(nyPlan)base.push(nyMethodToken(q.nyResearchMethod??'Custom'));
  const code=base.join('|');parseForecastCode(code);return code;
 }
 export function parseForecastCode(code) {
- const a=String(code).trim().split('|'),v=a.slice(1).map(Number);
+ const a=String(code).trim().split('|');
+ const nyResearchMethod=parseNYMethodToken(a.at(-1));
+ const nyMethodMetadataPresent=nyResearchMethod!==null;
+ if(nyMethodMetadataPresent)a.pop();
+ const v=a.slice(1).map(Number);
  const expansionPrefix=instrument.expansionPrefix??(instrument.id==='NQ'?'SPNQ2':'SP6');
  const expanded=a.length===19&&a[0]===expansionPrefix,envelope=expanded||(a.length===15&&a[0]===instrument.forecastPrefix);
  if(!((instrument.id==='CL'&&a.length===11&&a[0]==='SP4')||envelope)||a.slice(1).some(x=>x.trim()==='')||v.some(x=>!Number.isFinite(x)))throw new Error('Invalid '+instrument.id+' forecast code.');
@@ -60,7 +68,7 @@ export function parseForecastCode(code) {
  if(envelope&&(maxUp<up||maxDown<down||medianUp<0||medianDown<0||medianUp>maxUp||medianDown>maxDown))throw Error('Invalid envelope values.');
  const [rangeHigh,rangeLow,extensionUpPoints,extensionDownPoints]=expanded?v.slice(14,18):[null,null,null,null];
  if(expanded&&(rangeHigh<rangeLow||price<rangeLow-1e-8||price>rangeHigh+1e-8||extensionUpPoints<0||extensionDownPoints<0))throw Error('Invalid cutoff range or expansion distances.');
- return {start,end,price,up,down,n,containment,touchUp,touchDown,avr,maxUp,maxDown,medianUp,medianDown,rangeHigh,rangeLow,extensionUpPoints,extensionDownPoints};
+ return {start,end,price,up,down,n,containment,touchUp,touchDown,avr,maxUp,maxDown,medianUp,medianDown,rangeHigh,rangeLow,extensionUpPoints,extensionDownPoints,nyResearchMethod,nyMethodMetadataPresent};
 }
 export function makeChartPine(template,box,q,{anchorMode='Frozen 04:30'}={}) {
  const code=box?makeForecastCode(box,q):'';

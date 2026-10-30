@@ -11,8 +11,8 @@ import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-2026
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=tools-slide-20261022';
 import {mountReplayTools} from './replay-tools.mjs';
-import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs';
-import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs';
+import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=ny-method-link-20261030';
+import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-method-link-20261030';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

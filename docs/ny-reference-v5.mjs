@@ -4,14 +4,16 @@ import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument} from './instrument.mjs';
 import {deriveRows,bucket,mean,quantile,wilson,clockLabel} from './window-engine.mjs';
 import {shapes} from './planner-v3.mjs';
-import {makeForecastCode} from './indicator-v5.mjs';
+import {makeForecastCode} from './indicator-v5.mjs?v=ny-method-link-20261030';
 import {mountNYContext,readNYPrinted,renderForecastContext,renderNYStrength} from './forecast-context.mjs';
 import {nyPositionSelection,archivedNYPositions} from './ny-position-helper.mjs';
+import {nyResearchMethod} from './ny-method-metadata.mjs';
+import {validateCLNYHistory} from './ny-reference-history.mjs';
 
 let positionHelper=null;
 // Called by08:30 archive autofill after old NY filters have been cleared.
 export function fillNYPositionHelper(day,timeline,knownAt=510){
- if(instrument.id!=='NQ'||!positionHelper)return false;
+ if(!positionHelper)return false;
  return positionHelper.fill(day,timeline,knownAt);
 }
 
@@ -63,7 +65,7 @@ export function mountNYReference(days,timeline) {
  host.innerHTML=`<div class="section-heading"><div><div class="eyebrow">06 / NEW YORK</div><h2>New York outlook</h2></div><span class="pill">2022–2026 archive</span></div>
  <div class="ny-controls"><label>Position reference<select id="ny-basis"><option value="bbox">Prior NY BBOX · shared reference</option><option value="own">Each session’s own high–low range</option></select></label><label>From 08:30<select id="ny-end"><option value="960">Through 16:00 · full NY day</option><option value="630">Through 10:30 · includes pre-open</option></select></label><label>Research year<select id="ny-year"><option value="">All years</option>${[2022,2023,2024,2025,2026].map(y=>`<option>${y}</option>`).join('')}</select></label></div>
  <details class="session-note"><summary>Position reference</summary><p id="ny-basis-note" class="field-help"></p></details>
- ${instrument.id==='NQ'?`<details class="session-note" id="ny-position-helper"><summary>Exact / Wide position helper</summary><p class="field-help">Enter each session’s final closing position in the selected range above: 0% is its low, 100% its high. Own uses a different high–low range for Asia and London; Prior uses the same prior NY BBOX for both. Prior permits values below 0% or above 100%.</p><div class="ny-controls"><label>Quarter selection<select id="ny-position-mode"><option value="wide">Wide · include a neighbouring quarter within 5 percentage points</option><option value="exact">Exact · one closing quarter</option></select></label><label>Asia closing position · %<input id="ny-position-asia" type="number" step="any" placeholder="29.77"></label><label>London closing position · %<input id="ny-position-london" type="number" step="any" placeholder="55.96"></label></div><div class="button-row"><button type="button" class="quiet" id="ny-position-apply">Apply Exact / Wide</button><span id="ny-position-status" role="status">08:30 archive autofill can supply both completed-session positions.</span></div><p class="compact-note">Wide expands only today’s selected quarter set near 25%, 50% or 75%. It never broadens the historical labels. Both closes must be known; London finishes at 08:30.</p></details><p id="ny-method" class="compact-note" role="status"></p>`:''}
+ ${`<details class="session-note" id="ny-position-helper"><summary>Exact / Wide position helper</summary><p class="field-help">Enter each session’s final closing position in the selected range above: 0% is its low, 100% its high. Own uses a different high–low range for Asia and London; Prior uses the same prior NY BBOX for both. Prior permits values below 0% or above 100%.</p><div class="ny-controls"><label>Quarter selection<select id="ny-position-mode"><option value="wide">Wide · include a neighbouring quarter within 5 percentage points</option><option value="exact">Exact · one closing quarter</option></select></label><label>Asia closing position · %<input id="ny-position-asia" type="number" step="any" placeholder="29.77"></label><label>London closing position · %<input id="ny-position-london" type="number" step="any" placeholder="55.96"></label></div><div class="button-row"><button type="button" class="quiet" id="ny-position-apply">Apply Exact / Wide</button><span id="ny-position-status" role="status">08:30 archive autofill can supply both completed-session positions.</span></div><p class="compact-note">Wide expands only today’s selected quarter set near 25%, 50% or 75%. It never broadens the historical labels. Both closes must be known; London finishes at 08:30.</p></details><p id="ny-method" class="compact-note" role="status"></p>`}
  <div class="ny-position-grid">${[['asia','Asia · 19:30–02:00'],['london','London · 03:00–08:30']].map(([id,title])=>`<fieldset><legend>${title} NY time</legend><p>Closing position</p><div class="ny-checks">${positions.map(([value,label])=>`<label class="inline-check"><input type="checkbox" id="ny-quarter-${id}-${value}" data-ny-session="${id}" value="${value}">${label}</label>`).join('')}</div><label>Completed shape<select id="ny-${id}-shape"><option value="">Any shape</option>${shapes.map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></label></fieldset>`).join('')}</div>
  <div class="ny-controls ny-price-inputs"><label>08:30 open · optional<input id="ny-price" type="number" step="any" placeholder="Optional"></label><label>AVR · points<input id="ny-avr" type="number" min="0.01" step="any" placeholder="AVR"></label><input id="ny-date" type="hidden"><button id="ny-clear" class="quiet" type="button">Clear NY filters</button></div>
  <p class="compact-note">08:30 anchor · this panel uses its own filters.</p>
@@ -73,8 +75,9 @@ export function mountNYReference(days,timeline) {
  mountNYContext(host);
  $('ny-date').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
  const cache=new Map();
+ let canonicalPending=instrument.id==='CL',canonicalReady=instrument.id!=='CL',canonicalError='';
  let appliedPosition=null,archivedPosition=null;
- if(instrument.id==='NQ'){
+ {
   const applyPositions=()=>{
    const values=['ny-position-asia','ny-position-london'].map(id=>$(id).value.trim());
    if(values.some(x=>x===''))throw Error('Enter both session closing-position percentages.');
@@ -100,7 +103,7 @@ export function mountNYReference(days,timeline) {
  function read(){return {asia:[...host.querySelectorAll('[data-ny-session="asia"]:checked')].map(x=>x.value),london:[...host.querySelectorAll('[data-ny-session="london"]:checked')].map(x=>x.value),year:$('ny-year').value,asiaShape:$('ny-asia-shape').value,londonShape:$('ny-london-shape').value};}
  function render(){
   $('ny-date').value=$('trading-date')?.value||$('ny-date').value;
-  if(instrument.id==='NQ'&&archivedPosition&&archivedPosition.day.date!==$('ny-date').value){
+  if(archivedPosition&&archivedPosition.day.date!==$('ny-date').value){
    archivedPosition=null;appliedPosition=null;
    for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';
    for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;
@@ -114,10 +117,8 @@ export function mountNYReference(days,timeline) {
   const validAvr=Number.isFinite(avr)&&avr>0,validPrice=Number.isFinite(price),scale=validAvr?avr:1,unit=validAvr?'pt':'× AVR';
   $('ny-basis-note').textContent=basis==='bbox'?'Both closing prices are located inside the SAME prior NY high–low BBOX. Q1 is its bottom quarter; Q4 its top quarter. Below/Above means outside that BBOX. This is not an AVR quartile.':'Asia’s close is ranked inside Asia’s own 19:30–02:00 high–low range; London’s close inside London’s own 03:00–08:30 range. Q1 is the bottom quarter, Q4 the top quarter. These are different ranges, not the overnight or AVR range.';
   for(const input of host.querySelectorAll('[data-ny-session]')){input.disabled=basis==='own'&&['ABOVE','BELOW'].includes(input.value);input.closest('label').classList.toggle('subtle',input.disabled);}
-  if(instrument.id==='NQ'){
-   const methodMatches=appliedPosition&&appliedPosition.basis===basis&&appliedPosition.mode===$('ny-position-mode').value&&['asia','london'].every(session=>JSON.stringify(filters[session])===JSON.stringify(appliedPosition[session]));
-   $('ny-method').textContent=methodMatches?'NY method: '+appliedPosition.method+'. For orange-line reference percentages, select “'+appliedPosition.method+'” in the NQ indicator’s NY Q7 research reference. Additional year/shape filters are not included in that whole-study rate.':'NY method: custom quarter selection. Apply the helper for a named Own/Prior Exact/Wide reference. The indicator’s research reference must match your selected method.';
-  }
+  const researchMethod=canonicalReady?nyResearchMethod({basis,mode:$('ny-position-mode').value,appliedPosition,filters,endMinute:end}):'Custom';
+  $('ny-method').textContent=canonicalPending?'Loading the verified CL NY research reference…':canonicalError?'NY research reference unavailable. The box can export as Custom; named extension percentages are disabled.':researchMethod!=='Custom'?'NY method: '+researchMethod+' · linked automatically. Orange percentages pool earlier forecasts using this method.':'NY method: custom / unfiltered. The box still exports; named extension probabilities require Apply Exact / Wide, all years, no shape filters and the 16:00 endpoint.';
   $('ny-code').value='';$('ny-copy').disabled=true;$('ny-code-status').textContent='';
   if(!s.n){$('ny-results').innerHTML='<div class="notice">No complete historical cases match these conditions. Clear a position or shape to broaden the sample.</div>';return;}
   const conditions=[filters.asia.length?'Asia '+filters.asia.join(' / '):'',filters.london.length?'London '+filters.london.join(' / '):'',filters.asiaShape?'Asia '+shapes.find(x=>x[0]===filters.asiaShape)[1]:'',filters.londonShape?'London '+shapes.find(x=>x[0]===filters.londonShape)[1]:''].filter(Boolean).join(' + ')||'No position or shape filters';
@@ -129,8 +130,8 @@ export function mountNYReference(days,timeline) {
 
   ['up','down','coverage'].forEach((key,i)=>tint($('ny-results').querySelectorAll('.metric-value')[i],s[key],baseline[key],'Earlier NY history; U/D × AVR, containment 0–1'));
   if(!(validAvr&&Number.isFinite(readNYPrinted())&&end===960))reveal($('ny-results'),$('ny-results').querySelectorAll('.movement-grid>.metric'),250);
-  if(validAvr&&validPrice&&/^\d{4}-\d{2}-\d{2}$/.test($('ny-date').value)) {
-   try{$('ny-code').value=makeForecastCode({...s,upPoints:s.up*avr,downPoints:s.down*avr,extensionUpPoints:s.extensionUp*avr,extensionDownPoints:s.extensionDown*avr,upMaxPoints:Math.max(...s.cohort.map(r=>r.row.nextHighAvr))*avr,downMaxPoints:Math.max(...s.cohort.map(r=>-r.row.nextLowAvr))*avr,upMedianPoints:s.upMedian*avr,downMedianPoints:s.downMedian*avr,endMinute:end},{date:$('ny-date').value,minute:510,price,avr,rangeHigh:$('ny-range-high').value===''?null:Number($('ny-range-high').value),rangeLow:$('ny-range-low').value===''?null:Number($('ny-range-low').value)});$('ny-copy').disabled=false;}catch(e){$('ny-code-status').textContent=e.message;}
+  if(!canonicalPending&&validAvr&&validPrice&&/^\d{4}-\d{2}-\d{2}$/.test($('ny-date').value)) {
+   try{$('ny-code').value=makeForecastCode({...s,upPoints:s.up*avr,downPoints:s.down*avr,extensionUpPoints:s.extensionUp*avr,extensionDownPoints:s.extensionDown*avr,upMaxPoints:Math.max(...s.cohort.map(r=>r.row.nextHighAvr))*avr,downMaxPoints:Math.max(...s.cohort.map(r=>-r.row.nextLowAvr))*avr,upMedianPoints:s.upMedian*avr,downMedianPoints:s.downMedian*avr,endMinute:end},{date:$('ny-date').value,minute:510,price,avr,nyResearchMethod:researchMethod,rangeHigh:$('ny-range-high').value===''?null:Number($('ny-range-high').value),rangeLow:$('ny-range-low').value===''?null:Number($('ny-range-low').value)});$('ny-copy').disabled=false;}catch(e){$('ny-code-status').textContent=e.message;}
   }
   if($('ny-code').value)document.dispatchEvent(new CustomEvent('sessionpath:forecast-export',{detail:{code:$('ny-code').value}}));
  }
@@ -138,22 +139,32 @@ export function mountNYReference(days,timeline) {
   if(e.target.id==='ny-basis'){
    for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;
    appliedPosition=null;
-   if(instrument.id==='NQ'){
+   {
     if(archivedPosition){positionHelper.fill(archivedPosition.day,archivedPosition.source,archivedPosition.knownAt);return;}
     for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';
     $('ny-position-status').textContent='Reference changed. Enter positions measured against this range, then apply.';
    }
   }
-  if(instrument.id==='NQ'&&e.target.id==='ny-position-mode'){
+  if(e.target.id==='ny-position-mode'){
    appliedPosition=null;$('ny-position-status').textContent='Selection mode changed. Apply to update both quarter filters.';
   }
-  if(instrument.id==='NQ'&&e.target.matches('[data-ny-session]')){appliedPosition=null;$('ny-position-status').textContent='Quarter filters were changed manually. Apply the helper to restore its named method.';}
+  if(e.target.matches('[data-ny-session]')){appliedPosition=null;$('ny-position-status').textContent='Quarter filters were changed manually. Apply the helper to restore its named method.';}
   render();
  });
  for(const id of ['ny-price','ny-avr','ny-date','ny-range-high','ny-range-low','ny-printed'])$(id).addEventListener('input',render);
- $('ny-clear').addEventListener('click',()=>{for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;for(const id of ['ny-year','ny-asia-shape','ny-london-shape','ny-strength-three','ny-strength-five'])$(id).value='';if(instrument.id==='NQ'){appliedPosition=null;archivedPosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';$('ny-position-status').textContent='Position filters cleared.';}render();});
+ $('ny-clear').addEventListener('click',()=>{for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;for(const id of ['ny-year','ny-asia-shape','ny-london-shape','ny-strength-three','ny-strength-five'])$(id).value='';{appliedPosition=null;archivedPosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';$('ny-position-status').textContent='Position filters cleared.';}render();});
  $('ny-copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('ny-code').value);flashCopyStatus($('ny-code-status'),'Code copied!');}catch{$('ny-code').focus();$('ny-code').select();flashCopyStatus($('ny-code-status'),'Code selected. Press Ctrl+C.',0);}});
  for(const id of ['trading-date','replay-date','replay-toggle'])$(id)?.addEventListener('change',render);
  render();
+ if(instrument.id==='CL'){
+  // This dedicated lazy asset matches the published NY method reconstruction.
+  // Failure keeps the older box available only as an explicitly Custom code.
+  fetch(new URL('./ny-reference-cl-history.json',import.meta.url),{cache:'no-cache'})
+   .then(response=>{if(!response.ok)throw Error('NY reference unavailable.');return response.json();})
+   .then(validateCLNYHistory)
+   .then(history=>{for(const basis of ['own','bbox'])for(const end of [630,960])cache.set(basis+end,history.rows[basis+':'+end]);canonicalReady=true;})
+   .catch(error=>{canonicalError=error.message;})
+   .finally(()=>{canonicalPending=false;render();});
+ }
 
 }

@@ -3,6 +3,7 @@
 // Range and quartiles freeze at 04:30. U/D and running extremes continue through 08:30.
 // AVR = mean last 10 COMPLETE NY 09:30-16:00 high-low ranges, frozen at 19:30.
 // Forecast code comes from the local research website. No automatic website connection.
+// NY method-link hotfix 2026-10-30: automatic NY1 method metadata; explicit custom/legacy status.
 // Quarter location selects a scenario, not an estimated success probability.
 indicator("SessionPath.By LUI NQ v1.4 - overnight + NY + input table", overlay = true, max_boxes_count = 24, max_lines_count = 140, max_labels_count = 90, max_bars_back = 20)
 
@@ -12,7 +13,7 @@ string anchorMode = input.string("Frozen 04:30", "AVR anchor", options = ["Froze
 bool showAvr = input.bool(true, "Show conditional 1x AVR projection", group = "Range and AVR")
 string forecastCode = input.string("", "Forecast code from website", group = "Historical estimate", tooltip = "Box edges use mean U/D. White dotted lines show medians; orange dotted lines show means. SPNQ1/SPNQ2 maxima are retained for compatibility only. Main code: use a 03:00 estimate with a 05:00 endpoint for the first locked window. The optional 05:00 code supplies updated distances for the second window. Imported widths are fixed templates, not automatic historical recalculations.")
 string forecastCode0500 = input.string("", "05:00 forecast code (optional)", group = "Historical estimate", tooltip = "For new 05:00 U/D distances, paste a separate website code calculated at 05:00 with the 08:30 endpoint. Blank leaves the second box empty until a new 05:00 code is supplied. An invalid nonblank code disables the second box instead of silently falling back.")
-string forecastCodeNY = input.string("", "NY forecast code (08:30)", group = "Historical estimate", tooltip = "Paste the NY code here. The box locks to the chart's 08:30 open and ends at 10:30 or 16:00, as encoded. A NY code in the main field is also recognised. Widths come from the website; refresh them for every dated test.")
+string forecastCodeNY = input.string("", "NY forecast code (08:30)", group = "Historical estimate", tooltip = "Paste the NY code here. New NY1-tagged codes also select their matching research method automatically; custom codes do not attach a mismatched named-study percentage. The box locks to the chart's 08:30 open and ends at 10:30 or 16:00, as encoded. A NY code in the main field is also recognised. Widths come from the website; refresh them for every dated test.")
 bool showInputTable = input.bool(true, "Show website input table", group = "Input helper")
 string inputClock = input.string("Auto", "Input snapshot", options = ["Auto", "03:00", "05:00", "08:30"], group = "Input helper", tooltip = "Freeze the selected cutoff using only earlier completed candles plus its opening price. Auto selects the latest available cutoff on the selected chart date.")
 string inputCorner = input.string("Top left", "Input table position", options = ["Top left", "Bottom left"], group = "Input helper")
@@ -36,7 +37,7 @@ bool range175 = input.bool(false, "1.75 (175%)", inline = "r4", group = "Session
 bool range200 = input.bool(false, "2.00 (200%)", inline = "r4", group = "SessionPath range multiples")
 bool showRangeHitRates = input.bool(true, "Historical hit rates on orange labels", group = "SessionPath range multiples", tooltip = "03:00/05:00 keep their existing first-side historical references. NY uses the new direction-specific earlier-only research; choose its method, cohort, fit minimum and probability basis below. Upper and lower are measured separately. Counts and intervals appear on hover. These are historical frequencies, not live fitted probabilities or trade win rates.")
 string q7History = input.string("Earlier-date boxes", "NQ 03:00/05:00 probability reference", options = ["Earlier-date boxes", "All-history reconstruction"], group = "SessionPath range multiples", tooltip = "Only the two early windows use this selector; new NY rates always use earlier-only forecasts. Earlier-date boxes exclude the observation date and all later dates from each historical forecast. Retrospective reconstruction includes them, matching the original capture protocol. Both are descriptive reference frequencies and may include low-count forecast fits; neither is a trade win rate.")
-string nyQ7Reference = input.string("Not specified", "NY research method", options = ["Not specified", "Own Exact", "Own Wide", "Prior Exact", "Prior Wide"], group = "NY extension probabilities", tooltip = "Match the website NY forecast method exactly. Own uses each completed session's own range; Prior uses the previous NY BBOX. Exact/Wide keep their original classification rules. Codes do not encode this method. New rates use strictly earlier matched days, only NY 08:30-16:00, and only 1.20/1.30/1.40/1.50 levels. No NY probability is shown until selected.")
+string nyQ7Reference = input.string("Not specified", "NY research method", options = ["Not specified", "Own Exact", "Own Wide", "Prior Exact", "Prior Wide"], group = "NY extension probabilities", tooltip = "New website NY codes select the matching research method automatically and override this legacy setting. Custom or unfiltered codes keep their box but cannot use the named study percentages. For older untagged codes only, select the exact website method here: Own uses each completed session's own range; Prior uses the previous NY BBOX. Exact/Wide keep their original classification rules. Rates use strictly earlier matched days, only NY 08:30-16:00 and 1.20/1.30/1.40/1.50 levels.")
 string nyProbabilityBasis = input.string("Pending after confirmation", "NY probability basis", options = ["Whole-window directional", "First breakout side", "Pending after confirmation"], group = "NY extension probabilities", tooltip = "Whole-window: independent upper/lower target touch frequencies across all eligible NY forecasts, including no-break days. First breakout side: conditional on that side breaking first; includes trigger-candle target hits. Pending: target still untouched at the first breakout candle's close and next opening price, with candles remaining; only later target hits count. Pending is a historical reference at first confirmation, NOT a probability updated for every later minute. All three bases keep UP and DOWN separate.")
 string nyProbabilityFit = input.string("50+ earlier matches", "NY historical fit minimum", options = ["50+ earlier matches", "1+ earlier match (sensitivity)"], group = "NY extension probabilities", tooltip = "50+ is the primary sample. Sensitivity includes sparse historical fits. Your imported NY forecast must also meet the chosen minimum. An orange-tail reference additionally requires its earlier orange forecast to meet that minimum. Counts and 95% Wilson intervals appear on hover; small tail groups are exploratory.")
 string nyProbabilityCohort = input.string("All eligible NY forecasts", "NY preceding tail event", options = ["All eligible NY forecasts", "04:30 double break - second U", "04:30 double break - second D", "03:00-05:00 both orange boxes - second U", "03:00-05:00 both orange boxes - second D", "05:00-08:30 both orange boxes - second U", "05:00-08:30 both orange boxes - second D"], group = "NY extension probabilities", tooltip = "Manually select a pre-08:30 event that actually completed. U/D here is the SECOND side of the earlier tail event, not the later NY breakout direction. The orange event means both outer AVR-expansion targets touched; a new high and new low alone is insufficient. Unknown same-candle second-side order does not qualify. These historical slices do not automatically detect or refit today's event.")
@@ -303,8 +304,20 @@ if barstate.islast
             avrBox := box.new(left = asof, top = math.max(avrAnchor, avrTarget), right = sessionEnd, bottom = math.min(avrAnchor, avrTarget), xloc = xloc.bar_time, border_color = color.rgb(139, 0, 0), border_width = 4, border_style = line.style_dashed, bgcolor = color.new(color.orange, 85))
             avrLabel := label.new(x = sessionEnd, y = avrTarget, text = "1x AVR scenario " + f_price(avrTarget) + "\n" + anchorMode + " anchor " + f_price(avrAnchor) + (targetReached ? "\nALREADY REACHED" : "\nNot a historical mean target"), xloc = xloc.bar_time, style = label.style_label_left, color = color.new(scenarioColor, 20), textcolor = color.white, size = size.small)
 
+// NY1 metadata is a tagged final field; numeric forecast fields keep their original meanings.
+// Old untagged codes remain valid and use the explicit legacy method setting.
+f_forecastPayload(string code) =>
+    array<string> values = str.split(str.trim(code), "|")
+    if array.size(values) > 0 and str.startswith(array.get(values, array.size(values) - 1), "NY1:")
+        array.pop(values)
+    values
+f_forecastNYMetadata(string code) =>
+    array<string> values = str.split(str.trim(code), "|")
+    string lastField = array.size(values) > 0 ? array.get(values, array.size(values) - 1) : ""
+    str.startswith(lastField, "NY1:") ? lastField : ""
+
 // One small website export, not the historical dataset. Keep source values intact.
-var array<string> payload = str.split(str.trim(forecastCode), "|")
+var array<string> payload = f_forecastPayload(forecastCode)
 var int estimateStart = na
 var int estimateEnd = na
 var float estimatePrice = na
@@ -358,7 +371,7 @@ if barstate.isfirst and str.length(forecastCode) > 0
                 estimateValid := estimateValid and estimateExpansionValid
 
 // Optional second snapshot is independent; a malformed supplied code never falls back.
-var array<string> payload0500 = str.split(str.trim(forecastCode0500), "|")
+var array<string> payload0500 = f_forecastPayload(forecastCode0500)
 var int estimateStart0500 = na
 var int estimateEnd0500 = na
 var float estimatePrice0500 = na
@@ -414,7 +427,11 @@ if barstate.isfirst and str.length(forecastCode0500) > 0
 // Dedicated NY input also accepts legacy main-field NY codes without changing placement.
 bool mainIsNY = estimateValid and hour(estimateStart, TZ) == 8 and minute(estimateStart, TZ) == 30
 string nyCodeSource = str.length(str.trim(forecastCodeNY)) > 0 ? forecastCodeNY : mainIsNY ? forecastCode : ""
-var array<string> payloadNY = str.split(str.trim(nyCodeSource), "|")
+var array<string> payloadNY = f_forecastPayload(nyCodeSource)
+var string nyCodeMetadata = f_forecastNYMetadata(nyCodeSource)
+// Tagged codes always win, including CUSTOM and unknown tags; never apply a guessed manual method.
+string nyCodeReference = nyCodeMetadata == "NY1:OE" ? "Own Exact" : nyCodeMetadata == "NY1:OW" ? "Own Wide" : nyCodeMetadata == "NY1:PE" ? "Prior Exact" : nyCodeMetadata == "NY1:PW" ? "Prior Wide" : nyCodeMetadata == "NY1:CUSTOM" ? "Custom forecast" : "Invalid method code"
+string activeNYReference = str.length(nyCodeMetadata) > 0 ? nyCodeReference : nyQ7Reference
 var int estimateStartNY = na
 var int estimateEndNY = na
 var float estimatePriceNY = na
@@ -895,7 +912,7 @@ f_nyExtensionLabel(int start, int finish, float multiple, int direction, float t
     string side = direction == 1 ? "U" : "D"
     string suffix = ""
     string explanation = ""
-    int referenceIndex = nyQ7Reference == "Own Exact" ? 0 : nyQ7Reference == "Own Wide" ? 1 : nyQ7Reference == "Prior Exact" ? 2 : nyQ7Reference == "Prior Wide" ? 3 : -1
+    int referenceIndex = activeNYReference == "Own Exact" ? 0 : activeNYReference == "Own Wide" ? 1 : activeNYReference == "Prior Exact" ? 2 : activeNYReference == "Prior Wide" ? 3 : -1
     int level = math.abs(multiple - 1.20) < 0.000001 ? 0 : math.abs(multiple - 1.30) < 0.000001 ? 1 : math.abs(multiple - 1.40) < 0.000001 ? 2 : math.abs(multiple - 1.50) < 0.000001 ? 3 : -1
     int fit = nyProbabilityFit == "50+ earlier matches" ? 0 : 1
     int minimumFit = fit == 0 ? 50 : 1
@@ -906,19 +923,26 @@ f_nyExtensionLabel(int start, int finish, float multiple, int direction, float t
     bool isFirstDirection = nyProbabilitySide == direction
     if showRangeHitRates
         if referenceIndex < 0
-            suffix := " | " + side + " Hist n/a"
-            explanation := "Select the NY research reference matching the website's Own/Prior and Exact/Wide method. The code does not identify that method."
+            if activeNYReference == "Custom forecast"
+                suffix := " | " + side + " custom forecast"
+                explanation := "This NY code uses custom or unfiltered forecast conditions. Its Mean box remains valid, but no named Own/Prior Exact/Wide study matches those conditions. No matched extension percentage is available. Use a validated named method on the website and copy a new NY code to use its historical reference."
+            else if str.length(nyCodeMetadata) > 0
+                suffix := " | " + side + " method code invalid"
+                explanation := "The NY code contains an unrecognised NY1 method tag. The box is retained, but no manual method is substituted. Copy a fresh code from the matching SessionPath website."
+            else
+                suffix := " | " + side + " select NY method"
+                explanation := "This older NY code has no research-method metadata. Copy a new NY code from the website, or select the exact original Own/Prior and Exact/Wide method under NY research method. A custom forecast has no matching named study."
         else if level < 0
-            suffix := " | " + side + " Hist n/a"
+            suffix := " | " + side + " unsupported level"
             explanation := "New earlier-only NY research covers 1.20, 1.30, 1.40 and 1.50 only. This level has no matching new NY probability. No legacy NY percentage is substituted."
         else if estimateNNY < minimumFit
-            suffix := " | " + side + " fit n/a"
+            suffix := " | " + side + " too few matches"
             explanation := "This imported NY forecast has fewer earlier matches than the selected historical fit minimum. Use a matching fit threshold; sensitivity fits may be sparse."
         else if basis > 0 and not nyProbabilityComplete
-            suffix := " | " + side + " state n/a"
+            suffix := " | " + side + " history incomplete"
             explanation := "The chart lacks a continuous 08:30-to-observation candle sequence. First-breakout order and pending-target state cannot be verified from the loaded chart."
         else if basis > 0 and nyProbabilitySide == 2
-            suffix := " | " + side + " order n/a"
+            suffix := " | " + side + " unknown order"
             explanation := "Both initial Mean-box boundaries broke in the same five-minute candle. Their order is unknown; first-side and pending samples exclude these cases."
         else if basis > 0 and nyProbabilitySide != 0 and not isFirstDirection
             suffix := " | " + side + " not first"
@@ -940,7 +964,7 @@ f_nyExtensionLabel(int start, int finish, float multiple, int direction, float t
             int k = array.get(nyExtensionCounts, index)
             int n = array.get(nyExtensionCounts, index + 1)
             if n == 0
-                suffix := " | " + side + " Hist n/a"
+                suffix := " | " + side + " no matched history"
                 explanation := "No eligible historical cases for this selected NY method, minimum fit, earlier tail event, direction and probability basis. Unavailable is not a 0% forecast."
             else
                 float probability = float(k) / n
@@ -950,7 +974,8 @@ f_nyExtensionLabel(int start, int finish, float multiple, int direction, float t
                 bool beforeConfirmation = nyProbabilitySide == 0 or not nyProbabilityConfirmed
                 string condition = basis == 0 ? " Hist " : basis == 1 ? (beforeConfirmation ? " if " + side + " first " : " first Hist ") : " UNREACHED @conf "
                 suffix := " | " + (basis == 1 and beforeConfirmation ? "" : side) + condition + "R " + str.tostring(100 * probability, "0.0") + "% / M " + str.tostring(100 * (1 - probability), "0.0") + "%"
-                explanation := "NY 08:30-16:00 " + nyQ7Reference + " Mean / " + side + " / " + nyProbabilityBasis + ": " + str.tostring(k) + "/" + str.tostring(n) + ". 95% Wilson interval " + str.tostring(100 * math.max(0, center - half), "0.0") + "%-" + str.tostring(100 * math.min(1, center + half), "0.0") + "%. Earlier-only 2022-2026 reconstructed forecasts. Fit minimum: " + str.tostring(minimumFit) + ". Preceding condition: " + nyProbabilityCohort + ". Upper and lower counts remain separate. "
+                explanation := "NY 08:30-16:00 " + activeNYReference + " Mean / " + side + " / " + nyProbabilityBasis + ": " + str.tostring(k) + "/" + str.tostring(n) + ". 95% Wilson interval " + str.tostring(100 * math.max(0, center - half), "0.0") + "%-" + str.tostring(100 * math.min(1, center + half), "0.0") + "%. Reference frequency pooled across the full 2022-2026 study; each reconstructed box used earlier dates only. This percentage is not refitted to the imported trading date or its exact quarter cell. Fit minimum: " + str.tostring(minimumFit) + ". Preceding condition: " + nyProbabilityCohort + ". Upper and lower counts remain separate. "
+                explanation += str.length(nyCodeMetadata) > 0 ? "Research method imported automatically from this forecast code. " : "Legacy research method selected manually; verify it matches the forecast code. "
                 explanation += "R = historical reached percentage; M = historical missed/unreached percentage in the same denominator. "
                 explanation += basis == 0 ? "Denominator: every eligible NY forecast in this cohort, including no-break days. Numerator: a wick touched this directional target anywhere in [08:30,16:00). The two sides may overlap." : basis == 1 ? "Denominator: resolved first strict wick breakouts on this side. Target touches anywhere through 16:00, including the trigger candle. No-break and same-candle unknown-order cases excluded." : "UNREACHED is the actual chart target state at the selected observation. Denominator: resolved first breaks on this side with target untouched through the trigger candle AND the next opening price, and at least one later candle. Numerator: a later wick touched the target before 16:00. This reference is measured at first confirmation; it is NOT recalculated for elapsed time or current distance as later candles pass. Only the confirmed first-breakout direction receives this pending percentage."
                 explanation += n < 30 ? " Small sample: exploratory only." : ""
