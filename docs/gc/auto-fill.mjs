@@ -49,12 +49,34 @@ function playBell(context){
  }catch{/* Sound is optional; a successful fill must still complete. */}
 }
 
+export function autoFillCoverageNotice(coverage){
+ if(coverage===undefined)return '';
+ const invalid=()=>{throw Error('The delayed-data service returned an unrecognized coverage warning. Try auto-fill again.');};
+ if(!coverage||typeof coverage!=='object'||Array.isArray(coverage)||coverage.policy!=='one-interior-overnight-candle-v1'||coverage.complete!==false||coverage.missingCount!==1||![300,900].includes(coverage.intervalSeconds)||coverage.window!=='overnight')invalid();
+ if(!Number.isSafeInteger(coverage.missingTime)||coverage.missingTime<=0||coverage.missingTime%coverage.intervalSeconds||typeof coverage.warning!=='string'||!coverage.warning.trim())invalid();
+ const fields=coverage.approximateFields;
+ if(!Array.isArray(fields)||fields.length!==4||new Set(fields).size!==4||!['rangeHigh','rangeLow','up','down'].every(key=>fields.includes(key)))invalid();
+ let parts;
+ try{parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(coverage.missingTime*1000)).map(part=>[part.type,part.value]));}catch{invalid();}
+ const timeNY=parts.year+'-'+parts.month+'-'+parts.day+', '+parts.hour+':'+parts.minute;
+ if(coverage.missingTimeNY!==timeNY)invalid();
+ return '1 missing '+(coverage.intervalSeconds/60)+'-minute overnight candle · '+timeNY+' NY. Filled from observed prices; high/low and U/D may miss an unseen extreme.';
+}
+
+function mountCoverageNotice(row,id){
+ const note=document.createElement('p');note.id=id;note.className='auto-fill-coverage-note';note.hidden=true;note.setAttribute('role','status');note.setAttribute('aria-live','polite');row.append(note);return note;
+}
+function updateCoverageNotice(note,coverage){
+ const message=autoFillCoverageNotice(coverage);note.textContent=message;note.hidden=!message;
+}
+
 export function validateAutoFill(result,{date,cutoff,market,now=Date.now(),requestStartedAt,convention=instrument.autofillConvention}){
  if(!result||typeof result!=='object')throw Error('Delayed data is not ready. Try again later.');
  if(result.market!==market)throw Error(`The data service returned a different market. Select ${market} and try auto-fill again.`);
  if(result.date!==date)throw Error(`The data service returned a different trading date. Expected ${date} in New York.`);
  if(result.cutoff!==cutoff)throw Error(`The data service returned a different cutoff. Expected ${cutoff} New York.`);
  if(result.status!=='ready')throw Error(typeof result.error==='string'&&result.error?result.error:'Delayed candles are not complete for this cutoff yet. Try again later.');
+ autoFillCoverageNotice(result.coverage);
  if(market==='GC')validateGoldAutoFill(result,convention);
  if(result.source!=='Yahoo Finance'||result.continuous!==false||!new RegExp('^'+market+'[FGHJKMNQUVXZ]\\d{4}$').test(result.contract||''))throw Error('The front-month contract could not be verified.');
  const generatedAt=Date.parse(result.generatedAt);
@@ -72,9 +94,9 @@ export function mountAutoFill(){
  if(!panel||$('context-auto-fill'))return;
  const row=document.createElement('div');row.className='context-auto-fill-row';
  const button=document.createElement('button');button.type='button';button.id='context-auto-fill';button.className='quiet';button.textContent='auto-fill';
- button.title='Yahoo Finance delayed front-month futures · prior NY 09:30–16:00 and 19:30 to the selected cutoff. Requires complete five-minute candles.';
+ button.title='Yahoo Finance delayed front-month futures · prior NY 09:30–16:00 and 19:30 to the selected cutoff. One missing interior 5- or 15-minute overnight candle may be tolerated with a visible warning; session boundaries must be present.';
  if(instrument.id==='GC')button.title='Gold · delayed GC front-month reference · reviewed prior-session window and previous-day 19:30 to the selected New York cutoff.';
- row.append(button);panel.querySelector('fieldset').before(row);
+ row.append(button);const coverageNote=mountCoverageNotice(row,'context-auto-fill-coverage');panel.querySelector('fieldset').before(row);
  const popup=document.createElement('div');popup.id='auto-fill-popup';popup.className='auto-fill-popup';popup.hidden=true;popup.setAttribute('aria-live','polite');document.body.append(popup);
  let fade,hide,reading=false;
  const highlightTimers=new Map();
@@ -122,6 +144,7 @@ export function mountAutoFill(){
    const targets=Object.keys(updates).map(id=>$(id));if(targets.some(e=>!e))throw Error('The session inputs are not ready. Reload and try again.');
    for(const [id,number]of Object.entries(updates))$(id).value=String(Number(number.toFixed(6)));
    $('open1930').dispatchEvent(new Event('change',{bubbles:true}));
+   updateCoverageNotice(coverageNote,result.coverage);
    highlightFilled(targets);
    playBell(sound);
    button.title=`Yahoo Finance · ${result.contract} · ${date} · through ${cutoff} New York · delayed data`;
@@ -137,7 +160,7 @@ export function mountAutoFill(){
   const row=document.createElement('div');row.className='context-auto-fill-row';
   const nyButton=document.createElement('button');nyButton.id='ny-auto-fill';nyButton.type='button';nyButton.className='quiet';nyButton.textContent='auto-fill · 08:30';
   nyButton.title='Fill the 08:30 open, overnight high/low, U/D forecast utilization and archived five-minute close dominance. Utilization uses your frozen NY AVR and the research’s earlier-date Mean forecasts.';
-  row.append(nyButton);controls.before(row);
+  row.append(nyButton);const nyCoverageNote=mountCoverageNotice(row,'ny-auto-fill-coverage');controls.before(row);
   mountNYDirectionAutoFillStatus();
   let busy=false;
   nyButton.addEventListener('click',async()=>{
@@ -168,6 +191,7 @@ export function mountAutoFill(){
     else directionFillUnavailable(directionError||'Complete five-minute candles are not available.');
     $('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
     if(value('ny-printed')!=='')targets.push($('ny-printed'));
+    updateCoverageNotice(nyCoverageNote,payload.result.coverage);
     highlightFilled(targets);playBell(sound);
     nyButton.title=`${payload.result.contract} · ${date} · 08:30 NY. Completed 03–05 / 05–08:30 windows; the 08:30 candle’s H/L/C are excluded. Your position and shape filters are retained.`;
     notify(directionPlan?.complete?`Done! ${payload.result.contract} · NY inputs and both direction panels`:directionPlan?`NY prices and candle counts filled. See the U/D usage note.`:`NY prices filled. Direction windows unavailable; see their notes.`,!directionPlan);

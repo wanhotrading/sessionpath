@@ -5,3 +5,8 @@
 @keyframes auto-fill-input-glow{0%,15%{border-color:#8de3cf;background-color:rgba(104,228,192,.12);box-shadow:inset 0 1px 3px #0001,0 0 0 2px #68e4c030,0 0 14px #68e4c028}}
 .motion-paused :is(#conditions,#ny-reference) :is(input,select).auto-fill-updated{animation:none;border-color:#8de3cf;box-shadow:0 0 0 2px #68e4c024}
 @media(prefers-reduced-motion:reduce){:is(#conditions,#ny-reference) :is(input,select).auto-fill-updated{animation:none;border-color:#8de3cf;box-shadow:0 0 0 2px #68e4c024}}
+
+/* A tolerated overnight gap stays visible with the values it describes. */
+.context-auto-fill-row{flex-wrap:wrap;gap:5px}
+.auto-fill-coverage-note{flex-basis:100%;margin:0;max-width:100%;color:#ffd18a;font-size:12px;line-height:1.45;text-align:right}
+.auto-fill-coverage-note[hidden]{display:none}
