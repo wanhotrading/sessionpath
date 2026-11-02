@@ -1,0 +1,1848 @@
+{
+  "createdUTC": "2026-11-02T14:40:11.502Z",
+  "purpose": "Original source availability and byte fingerprint; no data was edited or imputed.",
+  "files": [
+    {
+      "path": "outputs/nq-database/raw/NQH2022-60a15fa60c15.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 861902,
+      "sha256": "60a15fa60c1580899aae68516d31e06ea734600fc0a79c9a10a1f5a72cfbe0c1"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2022-e955f63e7fd2.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 12857,
+      "sha256": "e955f63e7fd2f1a4a87fb659cf9f45ea6664a3db3fc38388ef8c4cfc352d530f"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2023-a8698a57818c.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 887999,
+      "sha256": "a8698a57818c0b19a1dfc73061f52f3fc254dbf453258fccf1fd9af8901e7c80"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2023-b88580e30221.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 371709,
+      "sha256": "b88580e30221219e4aba57eb1bc11d16394bb25546e30fe1dc80c7fd5bffe3b4"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2024-2f35a57e6a71.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 884216,
+      "sha256": "2f35a57e6a71db4d54bad7f93905ba6776f79de8c6b93437efecbb1104a6eca1"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2024-a2e9839285e1.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 395359,
+      "sha256": "a2e9839285e1d6743065e1e32bfc0b5fca742b26175ddceacdd07a75257e3cb7"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2025-1b000924b6cf.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 872423,
+      "sha256": "1b000924b6cfc07152cfb3faf9a71904eb6fc253833fd99179e2df939f148f60"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2025-228b607d7d1e.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 378799,
+      "sha256": "228b607d7d1ebb0366746d1463d778b5f50bceb573f8c3d537395a1e6975f06d"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2026-c26e449ead61.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 876928,
+      "sha256": "c26e449ead61f461dd303516b187a60870a39daedbb7220e1f1742ed17e17c8b"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQH2026-e79c77b5804b.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 378024,
+      "sha256": "e79c77b5804b4db34170f91308dca6c69b2a46cca911f105619a2b835a48e8f1"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2022-4072e854045a.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 863318,
+      "sha256": "4072e854045a1881efb5d11f0a831704009286e368f0d0aa1ab23535665fef06"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2022-495429a0eee5.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 445979,
+      "sha256": "495429a0eee5564d08100d38d611060751997a8b001d3fd6a2a49ddafb5f725c"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2022-6dc0274280eb.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 266063,
+      "sha256": "6dc0274280eb9de7615a3334a9dc1c9e9564eeaf3e5f564859ef2a4d4e67a8ee"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2023-1ab5a8c8e589.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 316504,
+      "sha256": "1ab5a8c8e5898122de94511b52dc3b1dbe4361e4853fc333d73eec79b30be5d4"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2023-1f43529871bd.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 871846,
+      "sha256": "1f43529871bdf1b28e778137a3bc3c42fd78d8657e4f981c38969f0cecf1f9a9"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2024-ae8fbeb69cbe.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 865262,
+      "sha256": "ae8fbeb69cbe4a15eca2b3bc8fdd29327cc6d942fa8667a7dff48adfeb32a9b6"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2024-c995156a50a2.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 372264,
+      "sha256": "c995156a50a282022adb3520312af76984fdb853f13f3fad21339b2ebdefc65f"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2025-437459c702e6.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 859820,
+      "sha256": "437459c702e6f544e3016223e0c36f59e79b74ab7550ea20a83ee96d90680ce4"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2025-81fcf7aaf3ec.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 431550,
+      "sha256": "81fcf7aaf3ec38b041adb6dc30678aa8af78f08bff5295d3691214e42da849c1"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2026-02051cacb20b.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 390137,
+      "sha256": "02051cacb20b0a770c10a6a7f6d50a9222f56693e19d34568f909ab23f56ed3e"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQM2026-1635f341c72c.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 855644,
+      "sha256": "1635f341c72c5fc591fec231e1a2c77471ab9135be6b379216f12ad0af86dfc1"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2022-a580fd1fc3e2.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 405566,
+      "sha256": "a580fd1fc3e24135364e1d2bd3d5f0bf542d3ba56f4a54db0215e3aff5b077dd"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2022-eed7c746bd2c.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 870316,
+      "sha256": "eed7c746bd2c40fb30ba84fd7ac2a6c4fff0253a7fb64eaa8ac7ac594346877f"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2023-74d6e016f5b4.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 866938,
+      "sha256": "74d6e016f5b407fc985d39464b7c4ff9ef23b5d145b9b52209a771441e14c2de"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2023-92e4faa0816c.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 332526,
+      "sha256": "92e4faa0816cd955b1af6b4ea9eada028665c29a3a613016aa382a27e58f2bea"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2024-4f363ac8e525.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 409061,
+      "sha256": "4f363ac8e52553fd103b1a4bd070df515cfa78eac3fd4a555df08a8995331eb7"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2024-b08857c636f7.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 866180,
+      "sha256": "b08857c636f74eab02b87b6e1d40c6fa369dbaaac9ce442f4b0cdfb1eb9d1ed4"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2025-1a23e3398b51.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 411387,
+      "sha256": "1a23e3398b516d04276a0cfc61a64a5ad3d37b6997b64c77baca862122203f5c"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2025-250511512fcf.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 862138,
+      "sha256": "250511512fcf9fc21867cfcd0fe8873607ab21078fd53ce6424af833782247c2"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2026-1df850ff32c4.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 436765,
+      "sha256": "1df850ff32c46dbb81a7db406b317ca15ad72dfb57d227a2b2719b98eef99bd5"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQU2026-f3dd19095daa.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 869503,
+      "sha256": "f3dd19095daa5c6e29969fb8382a373ce905010e5be729bd010716ea2e6791bf"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2022-076966dea9c2.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 348642,
+      "sha256": "076966dea9c2d5dbc077bb8f584bcf87149787daea8cba4db0e70bc302c697e7"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2022-405a1b37a404.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 871662,
+      "sha256": "405a1b37a4042e919f059fd3704de2db8eb7e4a99e2683a534fba52834daa5e1"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2023-35b739c78e38.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 436053,
+      "sha256": "35b739c78e38f631e6f345d701c134df0bfc90f993a43b514a58c971cf565046"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2023-87dc2a043e90.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 864355,
+      "sha256": "87dc2a043e90fcb8853f331b3c59cb8d909486c501c16a89ee6b4b708b865b82"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2024-50c42068dcf4.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 12874,
+      "sha256": "50c42068dcf441d3a4bc93fa6d46b8455443a503074c6149dd520a1494f3f890"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2024-d99646ba463a.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 478775,
+      "sha256": "d99646ba463a5b0d167f69e252d12f07fc8fed1cad9939641e7c83ec87978c51"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2024-f9b986e15f7c.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 873376,
+      "sha256": "f9b986e15f7cd2f3444898338e03637fb5581d00f4f000df24df1bafa0e9ddc8"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2025-4fe8e9b36683.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 331580,
+      "sha256": "4fe8e9b366833e90b1e157b971febcadf1bd7a589f04fdad0d03439fbf8f8741"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2025-7c90de3327f1.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 859096,
+      "sha256": "7c90de3327f101f049daf4c6cd5c3471839a91e6c8f0140300879353045e1a35"
+    },
+    {
+      "path": "outputs/nq-database/raw/NQZ2026-10837de97a83.csv",
+      "markets": [
+        "NQ"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 579926,
+      "sha256": "10837de97a83c992962ff109ed39069378a1fe8b63db8c1117d00e34d80e3295"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2022-282c52b28162.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 12289,
+      "sha256": "282c52b281624a62e7214e91e9e421672baab4c15dccd70a939f0535ecab64a3"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2022-4ba345e14e4f.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 832134,
+      "sha256": "4ba345e14e4fecdc31ed025e0ff86eab4bcefd8de8585582741429081df4e656"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2022-612b985b1fe6.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 827417,
+      "sha256": "612b985b1fe610b3a90e89384cf7734f839462b40e6b85e68b578229e7fde1d0"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2023-9bd55515892f.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 825271,
+      "sha256": "9bd55515892fd83ac1431514c7789274073753d6628ffee0c7a4fa32a157ef7c"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2023-cb15d346d12b.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 365596,
+      "sha256": "cb15d346d12bf6fdf02dfbe621baf1cecb5ff8db344ed23c9dab0a0f358a727c"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2024-0a5e82ee2de2.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 365365,
+      "sha256": "0a5e82ee2de21611abcbe757e7ee4d8e0f432e33ff525af6aea3802e4b9330fb"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2024-d9f7b46bb604.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 815054,
+      "sha256": "d9f7b46bb604f0e94b982d61dee08db1ee1b4e14306c828afcdcc4eedae97044"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2025-68705440c135.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 361271,
+      "sha256": "68705440c1352dda357a1f44e5a43908a08f8d8127b887afafa70bbc107a36c7"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2025-87e53437cb1e.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 818425,
+      "sha256": "87e53437cb1e515a879b773fcd01e745766df827271640b5e1e069260a3a02c0"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2026-1095e117bef8.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 361265,
+      "sha256": "1095e117bef899cce839aefa9b3c05bc8d4e5577b836f030cab17ae22020b104"
+    },
+    {
+      "path": "outputs/es-database/raw/ESH2026-b26248c2469a.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 815415,
+      "sha256": "b26248c2469a99d7c4b73dc056daa000ffd9d886597816e289bece1444c10f8e"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2022-760332eac571.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 387121,
+      "sha256": "760332eac57193dd3359559492eea214f597a461e82962217962f86edaf2157d"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2022-a9b93ae0f875.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 842626,
+      "sha256": "a9b93ae0f875e8ba4da26fd8a4cd679a3184d05dd328724c794d8dd041446f23"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2023-b527e1925ef4.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 377847,
+      "sha256": "b527e1925ef4169d50cc9489c508056ed5acf20dfae924884e4dc3131ab621e9"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2023-be59343d9fb9.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 797368,
+      "sha256": "be59343d9fb92af4154b0aaab4c3229d4a8481a0914304ccf792d7d7fb5550dd"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2024-324f3e90da91.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 788365,
+      "sha256": "324f3e90da91c05eb59f3454ed62715085ca0584fd469c4ff267f8c0a9289cbb"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2024-bf3a2f1b5bc8.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 377381,
+      "sha256": "bf3a2f1b5bc87ab78925c71affd428291c0811a6e2cf7dbfc40ca76263c15133"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2025-190ecf24fbe5.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 376879,
+      "sha256": "190ecf24fbe5e42eefd9f31056d4b4c581cf2c7482c21bc82cc0817e3684fc17"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2025-5579266d8b16.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 787804,
+      "sha256": "5579266d8b161fee1c24a62ef4296294c32509291dae835737c4439e75243f55"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2026-01c2e6763044.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 785408,
+      "sha256": "01c2e6763044fe9395f4ecb43b23347c9d980607539a67f695bde1cc590139cc"
+    },
+    {
+      "path": "outputs/es-database/raw/ESM2026-a30606437ac1.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 376170,
+      "sha256": "a30606437ac1b9a73bf5163630417607321113b652cb01351da28164762c209d"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2022-1117dd2df157.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 796321,
+      "sha256": "1117dd2df157d351cc93bee3b087ca531b0e207288405c11c39dfc0241dddc6a"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2022-c6c79c8b1848.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 377530,
+      "sha256": "c6c79c8b1848b215b45ae5fdc89db8c98170697e5061cd95916e81b9bba94b65"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2023-554fa779aa15.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 374865,
+      "sha256": "554fa779aa15ba02ca6be76fc371979ff123c45756aaa59bc6c5dfb4635905be"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2023-b0190f09d6b0.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 795190,
+      "sha256": "b0190f09d6b0b6f13988ea2fbf5fb0b3dff1390dd0c2dad6f0dd71e213596102"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2024-76faedcd9ee6.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 374228,
+      "sha256": "76faedcd9ee6b580b01ff2b44bb34290ac9a0d1158ff0d03cf0d3eebdea6a81a"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2024-a659ba67e77e.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 794612,
+      "sha256": "a659ba67e77e4cec3fe0f6f0f40a797b1130fffe6f73889287a8685d5bbcaecb"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2025-42a736d5aa19.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 795355,
+      "sha256": "42a736d5aa190b5f3428e4846ff911526a0353ef11b6f92caf83c23cc9bb5cfd"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2025-c6d641cda608.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 373169,
+      "sha256": "c6d641cda6084bd05700ea2addc8896949676fec641f0f9ee756d17572c4566c"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2026-7dabb66344ea.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 374882,
+      "sha256": "7dabb66344eacc936058e2848b4dfd14d633004161f86dece78cd916c6b61a99"
+    },
+    {
+      "path": "outputs/es-database/raw/ESU2026-d1a68e1f6944.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 796525,
+      "sha256": "d1a68e1f694451c186307bdfc52137e0c4d10eae5baaf5d2c7f992abb45ea902"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2022-7a472a2bbdf6.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 11701,
+      "sha256": "7a472a2bbdf61f263e2564937ee00aa76087bd5e793ec889bc704cc00b992e9a"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2022-c564ba1519c2.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 377254,
+      "sha256": "c564ba1519c2c1e630de7f441a5f57e1f0c9a15c24ea8b91d7f1b07c784a787b"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2022-ca33039a43e9.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 792636,
+      "sha256": "ca33039a43e9a3467afed367e7a4ca300f7a009c0b347c2b90d622e3ac0d670d"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2022-fd726ed43e21.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 152028,
+      "sha256": "fd726ed43e21b36d18074cc49e36cd99967f08a9f260b314c8b695cd0d26d5b9"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2023-442e2ed98102.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 374519,
+      "sha256": "442e2ed98102496ae9c2f404250b76542b586bd5238a0c5f8a07438f28462ac2"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2023-693888b1163f.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 795679,
+      "sha256": "693888b1163f438d4188b58f142fc72ab774a814ff0988fcb9e3e6239901c7a4"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2024-1a589dcdd639.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 800008,
+      "sha256": "1a589dcdd639da145042c5d72d0be552401b005d335f52c5490c5b6344cae567"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2024-756a1461d5f2.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 375556,
+      "sha256": "756a1461d5f28603a026e6c02fa1e2751a1e436a18d5b641a9f823a26d17cca7"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2025-4db1bf6216f4.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 793064,
+      "sha256": "4db1bf6216f4e88e5775488c79e282da1e27e8fd973c595332edb3f33161d344"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2025-fa3c154306f3.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 373440,
+      "sha256": "fa3c154306f368653b67814a3d9b09f7b2bb5bf33c9581bea92325022920c938"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2026-27bd1670bb4b.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 608058,
+      "sha256": "27bd1670bb4bac33d03fd60e56846fa85c28c4cc4dff2196e219d55052614769"
+    },
+    {
+      "path": "outputs/es-database/raw/ESZ2026-54e8567ef031.csv",
+      "markets": [
+        "ES"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 376449,
+      "sha256": "54e8567ef03136f216341514ed2d1c6599194cbc988fc801582ff96c80eb0527"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2022-41ee6b276486.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 572924,
+      "sha256": "41ee6b276486c319075c4104ed357d47d16613cef512e537df2bde757dcc8ba9"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2022-69e0fd99dd7d.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 11974,
+      "sha256": "69e0fd99dd7d83295921e642a936b18ff90998cf29a8b6510d288be8849a9ea5"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2023-32aa531439f6.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 831041,
+      "sha256": "32aa531439f6906a96518c018a77d5861d3b21906fb2cc89b6eecce9b94bec97"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2024-b6fa3e251672.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 495643,
+      "sha256": "b6fa3e2516722eea184c117943ee9622f9ec6e4c1f45658ff3f005f442e34247"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2024-d73a4bb2f26c.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 856249,
+      "sha256": "d73a4bb2f26ce0cd5d2f11c6d77311d74eea729bb9b4150b6ca51b8bdacd3568"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2025-04885c924961.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 854188,
+      "sha256": "04885c924961948a01278f4ce3b8c8e673d492150261194256de7c8c577a6917"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCG2026-0cfc02c82278.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 868153,
+      "sha256": "0cfc02c82278512f686354d5519f668878933a567ea0339d537b0776cfa2d921"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2022-13f9f442b7f6.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 350903,
+      "sha256": "13f9f442b7f6c22b76bec47df3e05af5a4b718073e5523016aad23b216bab565"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2022-518da06af8c7.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 836209,
+      "sha256": "518da06af8c74c5f1a31db7e9c0d37489de077b7fc3075f8da34b6e8c8118054"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2023-783bcc972c13.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 830798,
+      "sha256": "783bcc972c13951d335af5c90be60ed54d8d6ecee42576aff48404781c428a09"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2023-a695abe72094.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 356342,
+      "sha256": "a695abe720942a1e67c129c16a12ec0ff7ad369c1e395ee695a8fc7772a92dcf"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2024-9ed8125f9754.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 825072,
+      "sha256": "9ed8125f9754797d716868076ce14e4db3204267523c95db4b2839c4a6b679bb"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2024-e5af7c6fe3c8.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 430973,
+      "sha256": "e5af7c6fe3c82ada7af11f25bb1012f00c20dff2af29dba0f225ee47df571d48"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2025-4289a8ebab65.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 484131,
+      "sha256": "4289a8ebab6558da0ba6483a198cabe59f13d38120ecf18ade231b4c4ce1cf8a"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2025-674f45116075.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 830616,
+      "sha256": "674f45116075baaea6aac54ba06b2c5cc239cbb877970d184c7780c24c0d3f8d"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2025-79a7bea8b186.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 103497,
+      "sha256": "79a7bea8b186d23d72d2df95bc334f48b40f860a3c4751a1071dae438f3edcae"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2026-0b76fa98efc3.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 747415,
+      "sha256": "0b76fa98efc32c38dd551a5780ef9a17286e21550c39d3a54b1d91bea636e581"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCJ2026-3e6008b970bf.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 759968,
+      "sha256": "3e6008b970bfc5d66f7d5b856e33ac089d3da3332e78f61c6516f576500b9143"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCM2022-4aa26e0829a3.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 803435,
+      "sha256": "4aa26e0829a3fc7d3706ca253bae2eab35143af2a8709618928a71e9bdc6e480"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCM2023-3a7b60077efb.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 826983,
+      "sha256": "3a7b60077efbd29827b09e426620df7373b3f80a88b916c3cc3a8a68b64b68fd"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCM2024-2b5023458fdd.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 105478,
+      "sha256": "2b5023458fddc2a320a0a9d738911fc45e2f4c33cc80e0d926e8fa2a18372ae9"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCM2024-575ab92280cd.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 840108,
+      "sha256": "575ab92280cda5c8472e5592b04558b0c1a99f3bfe6db399648b6b792b55f651"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCM2025-2e98584aeb15.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 848702,
+      "sha256": "2e98584aeb1525baa0d64a9296945264e51d341ce3835686952b9bf5767310ca"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCM2026-cb665519ceb8.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 825513,
+      "sha256": "cb665519ceb8ef9480477e915232257bf2965b4d63a69541f9616f17c0c113cb"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2022-8bbd8fa20a47.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 800594,
+      "sha256": "8bbd8fa20a47eab702d47fb3d03a14c698b3aa327e0eebde561b0f97a7d71160"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2022-f51be383a5ad.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 632427,
+      "sha256": "f51be383a5ad3f9c800aed0a60baa27f7221fa1267cb99e62eca73fa992fae3b"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2023-1d90652fabf3.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 390227,
+      "sha256": "1d90652fabf326d7b15eedc210862ce8f92a1be0e833d1bbf3df7c99d2bc4323"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2023-50545da388f3.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 813311,
+      "sha256": "50545da388f3586b48d180c28986edd471e2c8774163e7129ec90dd6d0860646"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2024-511e1c70638e.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 835146,
+      "sha256": "511e1c70638e364b8e4b96b48909bea4e064cc9b548660502810ad111b7245e4"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2024-75ab08d87b65.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 612758,
+      "sha256": "75ab08d87b659a61df0423c9756066ac90f46b76711002c1ca291df1fe48699f"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2025-bcf86f1b1e18.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 832805,
+      "sha256": "bcf86f1b1e1800f6aa7e7889ed1aa60d9436c76fbb000312fdf713c93611bdf9"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2026-528a7a1a0bb2.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 797839,
+      "sha256": "528a7a1a0bb29781e8daad6e4a5a972d6e931baec9c80dda6eed05396575b435"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCQ2026-9da3f3979b01.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 836665,
+      "sha256": "9da3f3979b013350ffb75640625d5f51c016341b540deef2fda5f971527c68e2"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCV2026-0bd4d07de673.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 811903,
+      "sha256": "0bd4d07de6738ea4bbe512d70f4e9d394cdf32c5f0ef331b02d8195eff8184a7"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2022-200a6c9bd95f.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 106569,
+      "sha256": "200a6c9bd95f88e28ab6a6817a8764552b2c96faf7a078dd92f81f27775af61f"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2022-6c44621228f2.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 856919,
+      "sha256": "6c44621228f291ff626ef42f13bb753f147fa95ebdab84ee7a79f7431da5193c"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2022-adcd8a3bff7a.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 673790,
+      "sha256": "adcd8a3bff7a935ad4a8936e8dc350a84c8c0c4591d19ed0905f7ca214e9aa35"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2023-8c322e2f1c14.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 252270,
+      "sha256": "8c322e2f1c14eedca065312e96f496d74e2c837bd49ff35e8562d5222ef5075e"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2023-97fbb7e61ccc.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 836152,
+      "sha256": "97fbb7e61ccc5295566be96c39667977e8bc8abfa9acc12962fdc89428586e7d"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2023-cbd0c93a9c93.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 868381,
+      "sha256": "cbd0c93a9c932a5a623ed1413bd6fb5b051ecd37a6376d7e27129b8c3201e40c"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2024-ac4efe483ba0.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 842673,
+      "sha256": "ac4efe483ba038239d6196fc0de03bc324c31bc9d6fc204c503430a41939a5fa"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2024-b2c2e1d027fa.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 876288,
+      "sha256": "b2c2e1d027faf33d620d052b25f44748d083f8ec6f5bbe096108146c50e1a055"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2025-aacab8fe50cd.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 504257,
+      "sha256": "aacab8fe50cd5ca39defc452d8d235d13d9b5b5700011e1ba39e1b65cd1c8a28"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2025-dd41743c4733.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 11527,
+      "sha256": "dd41743c473355f777adbcd8c7d3526a46d6037aa3858af50f4a661b4079ea3f"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2025-e0b72295e156.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 736195,
+      "sha256": "e0b72295e156919fc28cedfadd51fee6d7f853845d0a44a544a37e6dd65676be"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2025-f99a9e326a63.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 801704,
+      "sha256": "f99a9e326a6324005b6c5a1312676a7a4acbfb6da24da933faa8c7ebcb8c685a"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2026-1baf27ec416e.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 728175,
+      "sha256": "1baf27ec416e7a16d4f5d9e576d2cbfa3c46e5afd48b98abac1cb0f17e033fcc"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2026-6bd9f0276684.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 745598,
+      "sha256": "6bd9f0276684b9b4dc7bb846eccf739882b00d73da873b80b8415129b352094f"
+    },
+    {
+      "path": "outputs/gc-database/raw/GCZ2026-a4f6def2d541.csv",
+      "markets": [
+        "GC"
+      ],
+      "roles": [
+        "immutable raw CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 854932,
+      "sha256": "a4f6def2d5418a7167bcbfd518f64507137bc9f61709600ecc49ab127501ff86"
+    },
+    {
+      "path": "C:\\Users\\Administrator\\Downloads\\NYMEX_CLN2025, 5 (3).csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 258998,
+      "sha256": "f8fd98a86e5771dd83d6c93d178cbfe45429b1fb872d6d047b19e70d6b1bf230"
+    },
+    {
+      "path": "C:\\Users\\Administrator\\Downloads\\NYMEX_CLQ2025, 5.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 352316,
+      "sha256": "3699cf0d875ee4326f99e003d7c16cff9b2e323a6934d7f7fe94ebcf2fcf8a1a"
+    },
+    {
+      "path": "C:\\Users\\Administrator\\Downloads\\NYMEX_CLU2025, 5.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 334705,
+      "sha256": "cd4612732fe79536d0f9fc45f9fb749ec84fcbe6c66640407de58ea61cd8213d"
+    },
+    {
+      "path": "C:\\Users\\Administrator\\Downloads\\NYMEX_CLV2025, 5.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 354095,
+      "sha256": "4d70d57f6ac830133c0c89bd99d5f21f6a84e74458c0bb633079972271e4b2eb"
+    },
+    {
+      "path": "C:\\Users\\Administrator\\Downloads\\NYMEX_CLX2025, 5 (1).csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 335081,
+      "sha256": "453e16c4457da63ffe14e63c80c86d79d409e915ad7bbe11e661144643d7ef92"
+    },
+    {
+      "path": "outputs/CLZ2025-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 345590,
+      "sha256": "3b76519cff4311d0fc201452ceb9ab118f62940736f914f03c60e39256afd143"
+    },
+    {
+      "path": "outputs/CLF2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 333821,
+      "sha256": "13450587e270c569ae9e8fca02f4b30f26e2d430877709e00ca25e6e5c652ad8"
+    },
+    {
+      "path": "outputs/CLG2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 313930,
+      "sha256": "79eab86c527536dd19d3f4157a85febe241b9e5eca6be132be41c8c9c962b042"
+    },
+    {
+      "path": "outputs/CLH2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 349931,
+      "sha256": "ba8c99176ce8a58466e504ad7a3834c39a7a3c28120cf1421ae2c23c4fd8800d"
+    },
+    {
+      "path": "outputs/CLJ2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 326502,
+      "sha256": "81a849bd21510ef656a7bdeb7af3c8390a7f458516279f690f301b88ed48b59a"
+    },
+    {
+      "path": "outputs/CLK2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 342981,
+      "sha256": "97e5a05aa1e3f98e4a759738132579510994adddea7e0f0cc560db2e451b7f0a"
+    },
+    {
+      "path": "outputs/CLM2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 335194,
+      "sha256": "3f3ece2f3fa046320fb11d9ad262451256dba99d58583cd9cb8eb8f77308755c"
+    },
+    {
+      "path": "outputs/CLN2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 368544,
+      "sha256": "8fe7903b8a798ba69ea5ed2b6dd24082f6214cc6f59529d5780a37b3d13d5a61"
+    },
+    {
+      "path": "outputs/CLQ2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 342172,
+      "sha256": "ac1ddd19dc7cc1ce185f5babdf044164d5b94468e300f07b4e71745acd8ea1e0"
+    },
+    {
+      "path": "outputs/CLU2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 353480,
+      "sha256": "37085c1148894a45284624653dd10e027860d598eefb099e54fd1d055296073a"
+    },
+    {
+      "path": "outputs/CLV2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 368917,
+      "sha256": "c2c9bb1d6f5e573480668c6c7a9b60a7350ae281f3579768576dc553983ec634"
+    },
+    {
+      "path": "outputs/CLX2026-native-candles.csv",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native continuation source CSV"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 335498,
+      "sha256": "6cebde607812661d69ccae3fa175e9157608ca69c625d57fee0f05c266f4e80a"
+    },
+    {
+      "path": "C:/Users/Administrator/Documents/Codex/2026-10-16/i-just-fixed-my-home-pc/outputs/Recovered-projects/SessionPath-by-LUI-integration/site/dist/client/data/days.json",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "archived source"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 4647586,
+      "sha256": "7ba79ef59eb59656be4ff1c0b88510c0fb1040b600ee9bf5550288e99ec9b674"
+    },
+    {
+      "path": "C:/Users/Administrator/Documents/Codex/2026-10-16/i-just-fixed-my-home-pc/outputs/Recovered-projects/SessionPath-by-LUI-integration/site/dist/client/data/timeline.json",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "archived source"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 6131082,
+      "sha256": "28e8f01fe7a7127c7c8382889ca6c82c4f86eebc66dca5feb9e792a847f86e4b"
+    },
+    {
+      "path": "outputs/continuation-results.json",
+      "markets": [
+        "CL"
+      ],
+      "roles": [
+        "native context and CSV map"
+      ],
+      "status": "AVAILABLE",
+      "bytes": 5411089,
+      "sha256": "4765d0dd91c6cabd324a819e645d7276ecebb132f8e87d6c6ed80e0c601b1f01"
+    }
+  ],
+  "summary": {
+    "files": 153,
+    "available": 153,
+    "unavailable": 0,
+    "totalAvailableBytes": 102721794
+  }
+}

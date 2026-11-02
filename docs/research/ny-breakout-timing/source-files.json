@@ -1,0 +1,66 @@
+[
+  {
+    "path": "outputs/ny-sessionpath-extension/study.json",
+    "sha256": "a427e50fb5a7c23589a6466234d21b556a45448a8fee0829f8973cc257da6a7c"
+  },
+  {
+    "path": "outputs/es-ny-sessionpath-extension/study.json",
+    "sha256": "72a37409e7d512b76fdf4cc5ebd301b7179fae96a27c4f61fa5807c1706f85cc"
+  },
+  {
+    "path": "outputs/gc-ny-sessionpath-extension/study.json",
+    "sha256": "f7dae186488b4e389fa98f5ebf13d47a73b82016556fdc8c134ee01e7b02c7f8"
+  },
+  {
+    "path": "outputs/nq-model/research-days.json",
+    "sha256": "90dc8edfa912ce84cbd2b68eece40db80dcd1030d89da363210341d77e4e375a"
+  },
+  {
+    "path": "outputs/es-model/research-days.json",
+    "sha256": "c2bb5889ed9ef5441bb29e14588617fb5f69d5f7be01c4f7779365616a70b577"
+  },
+  {
+    "path": "outputs/gc-model/research-days.json",
+    "sha256": "f361c819656454f7bc75d49a6aeab5f3dfbf95ab72e7acc759df32863185c05c"
+  },
+  {
+    "path": "outputs/orange-box-fill/CL-clean-forecasts.json",
+    "sha256": "561041bb094dd3e53cb32ab807eb1751325e961583be8024acc30dc42ae147c8"
+  },
+  {
+    "path": "outputs/orange-box-fill/NQ-clean-forecasts.json",
+    "sha256": "de071b13805fe3cadc66fdffbfec571a3b00effda2b949a73d452209f715acf9"
+  },
+  {
+    "path": "outputs/es-orange-box-fill/ES-clean-forecasts.json",
+    "sha256": "eeb6ceab6925f21a2e95360648e71d715507613c59ae7277367ea4502b3e97bd"
+  },
+  {
+    "path": "outputs/gc-orange-box-fill/GC-clean-forecasts.json",
+    "sha256": "4f2aaf014434cb30c5366f529c1eb2b33d7a6fdb05702e91685369b8e1239dc6"
+  },
+  {
+    "path": "work/seven-source-loader.mjs",
+    "sha256": "b106b37ee09e0f9ef8d12b358553265dc6bbf7512d558ba803b8a60360d25293"
+  },
+  {
+    "path": "work/ny-sessionpath-extension-core.mjs",
+    "sha256": "5ae5d8a476d17a8536c9f4663dbaf5c036cfb2ab3fc1b41f7afa5d7ea9ea90d7"
+  },
+  {
+    "path": "work/ny-breakout-timing/core.mjs",
+    "sha256": "b9bef57cf2baecb1fc1a1ab7d783ff74fd17d129301cd8ecf7b7690f81e5ce42"
+  },
+  {
+    "path": "work/ny-breakout-timing/extract.mjs",
+    "sha256": "8d58f5b418f8641396f658a2520040cbcc0d1b189e4d077ca541fca7b929914b"
+  },
+  {
+    "path": "work/ny-breakout-timing/schema.json",
+    "sha256": "9aabfea5b315063da91571d54e72c1e016b8e42e065713a138f70d4061e3d11c"
+  },
+  {
+    "path": "work/ny-breakout-timing/finalize-calendar.mjs",
+    "sha256": "7875865d54f8770a6935fc79910ba5ebb68dd6f924c55fede88a8e05615d8d14"
+  }
+]

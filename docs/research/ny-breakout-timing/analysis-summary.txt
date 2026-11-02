@@ -1,0 +1,47 @@
+SessionPath NY breakout timing / EOD research: interpretation
+2026-11-02. Sources and forecast widths were not changed.
+
+What can be claimed
+The data now record the first strict wick breach and, separately, the first completed close outside. They retain trigger open/confirmation times, closing and wick overshoot, six extension targets, future maximum extension, additional progress after the trigger, and the 16:00 closing state. The main models use the first-wick population. They do not mix the first-close population as extra independent observations.
+
+An early breakout generally has a larger remaining opportunity to extend before 16:00. The descriptive half-hour tables show this pattern, but the chronology test does not establish a reliable accuracy improvement from replacing the existing broad percentage with small time/strength cells. None of the 24 primary comparisons passed the prespecified support screen. This is not proof that timing or strength has no effect. It is insufficient evidence for these particular fixed, binned estimators on this population.
+
+Primary sample and coverage
+Own Wide Mean forecasts with at least 50 strictly earlier fitting matches:
+CL: 598 fitted windows, 440 resolved first-wick breaches, 437 pending 1.50x cases; 132 later hits (30.2%). Chronological timing evaluation: 237 cases.
+NQ: 577 fitted windows, 429 resolved breaches, 422 pending cases; 131 later hits (31.0%). Chronological timing evaluation: 222 cases.
+ES: 620 fitted windows, 459 resolved breaches, 452 pending cases; 131 later hits (29.0%). Chronological timing evaluation: 252 cases.
+GC: 597 fitted windows, 419 resolved breaches, 414 pending cases; 112 later hits (27.1%). Chronological timing evaluation: 214 cases.
+
+Do not confuse these denominators. Descriptive counts include the eligible retrospective history. Evaluation starts in 2024 only after each side/type baseline has 50 earlier outcome-eligible events. That warmup plus the original forecast-fit >=50 requirement removes many early cases; for several markets there are no qualifying evaluated cases in 2024. Do not describe the 5,583 saved prediction rows as 5,583 independent days: those rows repeat outcomes across three candidate models and two outcomes.
+
+Timing-only pending-1.50x model versus earlier side/type baseline
+CL: Brier gain +0.000183, relative reduction 0.09%, 237 evaluated cases.
+NQ: +0.003154, relative reduction 1.56%, 222 cases.
+ES: +0.004070, relative reduction 2.14%, 252 cases.
+GC: -0.000781, relative reduction -0.39%, 214 cases.
+All four timing gain confidence intervals include zero. Time+strength is positive but unsupported for NQ/ES. Timing generally worsens the EOD three-class score. Binary and three-class Brier scales differ, so their numerical magnitudes must not be compared directly.
+
+Sparse-category issue
+For timing-only pending predictions, fewer than 20 earlier observations existed in the same side/type/half-hour cell for 95.4% of CL predictions, 86.9% of NQ, 99.2% of ES and 93.0% of GC. Fixed 20-observation shrinkage was applied to every candidate estimate, not only selected thin cells. It reduces extreme estimates but does not create more independent evidence.
+
+Concrete existing half-hour examples (descriptive, Own Wide fit>=50, both breakout sides pooled only for this description)
+CL 09:00-09:29 confirmation: 25/56 pending cases reached 1.50x (44.6%); median later maximum 1.394x. At 12:00-12:29: 3/17 (17.6%); median 1.140x.
+NQ 09:00-09:29: 5/12 (41.7%); median 1.364x. At 12:00-12:29: 1/16 (6.3%); median 1.153x.
+ES 09:00-09:29: 7/17 (41.2%); median 1.449x. At 12:00-12:29: 6/21 (28.6%); median 1.185x.
+GC 09:00-09:29: 16/41 (39.0%); median 1.400x. At 12:00-12:29: 1/12 (8.3%); median 1.114x.
+These are selected existing clock cells illustrating the tables, not additional significance tests or controlled causal comparisons. In the 15:30-15:59 bin there were only 3/11/13/3 pending cases for CL/NQ/ES/GC, with no observed 1.50x hits. Those zero-hit cells do not mean the true probability is zero: 95% Wilson upper bounds are approximately 56.1%,25.9%,22.8%,56.1%, respectively.
+
+Original-fit sensitivity
+Including every positive-fit Own Wide forecast increases the fitted-window counts to 1,154 CL / 1,125 NQ / 1,176 ES / 1,142 GC. Chronological timing pending-1.50x evaluation then has 508/480/495/467 cases. Its relative Brier reductions are 1.26%/4.40%/4.93%/1.38%; timing EOD scores are still worse in all four markets. This is a different forecast-quality population, not a larger independent replication of the main >=50 result. Those alternatives remain exploratory; do not switch the primary population after seeing a more attractive gain. The other three NY methods are also sensitivity views on overlapping dates.
+
+Outcome meaning and limits
+1.50x means 50% of the full U+D box width beyond the broken boundary. A target touched before/through confirmation or at the next open is already reached, not a future success. Pending denominators differ by target. EOD means the 15:55-16:00 candle close, not the exchange settlement or the candle opening at 16:00. Its states are inside, outside on the breakout side, or outside on the opposite side. A target hit and an inside EOD close can both occur on the same day. Terminal 16:00 signals are descriptive only because the EOD outcome is already known.
+
+Uncertainty and audit
+The primary paired circular date-block bootstrap uses 10 source-date blocks, 3,000 replicates and seed 20261102; 5/20-date sensitivity is saved. It preserves zero-evaluation source dates. The centered two-sided bootstrap p-value is approximate, not an exact finite-sample test; 24 prespecified primary comparisons receive Holm adjustment. Source-event recount and standard-library rescore independently verified 39,225 arithmetic checks across all 5,583 saved prediction rows and all 24 scores. This is an internal arithmetic audit, not an external replication.
+
+All 2022-2026 data had already been explored in earlier SessionPath work. Strictly earlier date fitting avoids direct lookahead, but this is retrospective chronological evaluation, not an untouched prospective holdout. Timing differences can partly reflect mechanically different time remaining. No causal news claim, reversal certainty, trade win rate or profitability has been established.
+
+Deployment recommendation
+Keep the current default probability lookup and forecast widths unchanged. The completed research can support a descriptive time/overshoot inspector with counts, intervals and a clear exploratory label, and the indicator can show its actual confirmation time and overshoot. Replacing the default with a precise-looking conditional percentage is not supported by this test. A further prospective, frozen-rule evaluation or a separately prespecified lower-dimensional timing model would be a new study; do not tune it on these results and label it confirmed.

@@ -12,7 +12,7 @@ if(q.get('instrument')==='NQ')$('market').value='NQ';
 for(const id of ['method','minFit','cohort'])if(q.has(id)&&[...$(id).options].some(o=>o.value===q.get(id)))$(id).value=q.get(id);
 let data;
 function links(market){
-  for(const[id,path]of[['home-link','./'],['tail-link','tail-event-ny.html'],['orange-link','orange-box-fill.html']])$(id).href=`${path}?instrument=${market}`;
+  for(const[id,path]of[['home-link','./'],['tail-link','tail-event-ny.html'],['orange-link','orange-box-fill.html'],['timing-link','research/ny-breakout-timing/']])$(id).href=`${path}?instrument=${market}`;
   const next=new URLSearchParams({instrument:market,method:$('method').value,minFit:$('minFit').value,cohort:$('cohort').value});
   history.replaceState(null,'',`${location.pathname}?${next}${location.hash}`);
 }

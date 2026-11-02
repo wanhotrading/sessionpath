@@ -1,0 +1,390 @@
+{
+  "status": "PASS",
+  "independent": true,
+  "extractorImported": false,
+  "checks": 4658720,
+  "eventRows": 36396,
+  "targetRows": 218376,
+  "marketEvents": {
+    "CL": 9144,
+    "NQ": 8902,
+    "ES": 9322,
+    "GC": 9028
+  },
+  "edgeCounts": {
+    "CL": 9144,
+    "WICK_FIRST": 18198,
+    "U": 13447,
+    "WICK_ONLY": 7164,
+    "early": 4154,
+    "pendingMiss": 98829,
+    "CLOSE_FIRST": 18198,
+    "NONE": 10386,
+    "NO_BREAK": 10386,
+    "D": 12548,
+    "CLOSE_OUTSIDE": 18831,
+    "triggerReached": 3791,
+    "pendingHit": 52335,
+    "late15": 1283,
+    "firstCloseEarlierHit": 137,
+    "terminal16": 152,
+    "NQ": 8902,
+    "ES": 9322,
+    "GC": 9028,
+    "AMBIGUOUS": 30
+  },
+  "samples": [
+    {
+      "reason": "CL",
+      "eventId": "CL|2022-01-06|nyOwnWide|WICK_FIRST",
+      "market": "CL",
+      "date": "2022-01-06",
+      "contract": "CLG2022",
+      "eventKind": "WICK_FIRST",
+      "side": "U",
+      "type": "WICK_ONLY",
+      "signalOpenTime": "09:00",
+      "signalCloseTime": "09:05",
+      "eodClose": 79.48,
+      "eodState": "INSIDE",
+      "laterBars": 83
+    },
+    {
+      "reason": "CLOSE_FIRST",
+      "eventId": "CL|2022-01-06|nyOwnWide|CLOSE_FIRST",
+      "market": "CL",
+      "date": "2022-01-06",
+      "contract": "CLG2022",
+      "eventKind": "CLOSE_FIRST",
+      "side": "NONE",
+      "type": "NO_BREAK",
+      "signalOpenTime": null,
+      "signalCloseTime": null,
+      "eodClose": 79.48,
+      "eodState": null,
+      "laterBars": 0
+    },
+    {
+      "reason": "D",
+      "eventId": "CL|2022-01-10|nyOwnWide|WICK_FIRST",
+      "market": "CL",
+      "date": "2022-01-10",
+      "contract": "CLG2022",
+      "eventKind": "WICK_FIRST",
+      "side": "D",
+      "type": "CLOSE_OUTSIDE",
+      "signalOpenTime": "10:00",
+      "signalCloseTime": "10:05",
+      "eodClose": 78.42,
+      "eodState": "INSIDE",
+      "laterBars": 71
+    },
+    {
+      "reason": "triggerReached",
+      "eventId": "CL|2022-01-11|nyOwnWide|WICK_FIRST",
+      "market": "CL",
+      "date": "2022-01-11",
+      "contract": "CLG2022",
+      "eventKind": "WICK_FIRST",
+      "side": "U",
+      "type": "CLOSE_OUTSIDE",
+      "signalOpenTime": "09:00",
+      "signalCloseTime": "09:05",
+      "eodClose": 81.44,
+      "eodState": "SAME_SIDE",
+      "laterBars": 83,
+      "auditedTarget": {
+        "multiple": 1.2,
+        "target": 79.8417268,
+        "triggerReached": true,
+        "touchedBeforeSignal": false,
+        "touchedBeforeFirstClose": null,
+        "touchedThroughSignal": true,
+        "nextOpenGap": false,
+        "noRemaining": false,
+        "pending": false,
+        "laterHit": true,
+        "pendingHit": null,
+        "laterHitOpenMinute": 545,
+        "laterHitCloseMinute": 550,
+        "firstTargetHitOpenMinute": 540
+      }
+    },
+    {
+      "reason": "late15",
+      "eventId": "CL|2022-03-16|nyOwnWide|WICK_FIRST",
+      "market": "CL",
+      "date": "2022-03-16",
+      "contract": "CLJ2022",
+      "eventKind": "WICK_FIRST",
+      "side": "D",
+      "type": "WICK_ONLY",
+      "signalOpenTime": "14:55",
+      "signalCloseTime": "15:00",
+      "eodClose": 94.9,
+      "eodState": "INSIDE",
+      "laterBars": 12
+    },
+    {
+      "reason": "firstCloseEarlierHit",
+      "eventId": "CL|2022-10-04|nyPriorWide|CLOSE_FIRST",
+      "market": "CL",
+      "date": "2022-10-04",
+      "contract": "CLX2022",
+      "eventKind": "CLOSE_FIRST",
+      "side": "U",
+      "type": "CLOSE_OUTSIDE",
+      "signalOpenTime": "10:55",
+      "signalCloseTime": "11:00",
+      "eodClose": 86.32,
+      "eodState": "INSIDE",
+      "laterBars": 60,
+      "auditedTarget": {
+        "multiple": 1.2,
+        "target": 86.93254339999999,
+        "triggerReached": false,
+        "touchedBeforeSignal": true,
+        "touchedBeforeFirstClose": true,
+        "touchedThroughSignal": true,
+        "nextOpenGap": false,
+        "noRemaining": false,
+        "pending": false,
+        "laterHit": true,
+        "pendingHit": null,
+        "laterHitOpenMinute": 725,
+        "laterHitCloseMinute": 730,
+        "firstTargetHitOpenMinute": 645
+      }
+    },
+    {
+      "reason": "terminal16",
+      "eventId": "CL|2023-12-13|nyPriorWide|CLOSE_FIRST",
+      "market": "CL",
+      "date": "2023-12-13",
+      "contract": "CLF2024",
+      "eventKind": "CLOSE_FIRST",
+      "side": "U",
+      "type": "CLOSE_OUTSIDE",
+      "signalOpenTime": "15:55",
+      "signalCloseTime": "16:00",
+      "eodClose": 69.85,
+      "eodState": "SAME_SIDE",
+      "laterBars": 0
+    },
+    {
+      "reason": "NQ",
+      "eventId": "NQ|2022-01-06|nyOwnWide|WICK_FIRST",
+      "market": "NQ",
+      "date": "2022-01-06",
+      "contract": "NQH2022",
+      "eventKind": "WICK_FIRST",
+      "side": "U",
+      "type": "CLOSE_OUTSIDE",
+      "signalOpenTime": "09:30",
+      "signalCloseTime": "09:35",
+      "eodClose": 15758,
+      "eodState": "SAME_SIDE",
+      "laterBars": 77
+    },
+    {
+      "reason": "ES",
+      "eventId": "ES|2022-01-05|nyOwnWide|WICK_FIRST",
+      "market": "ES",
+      "date": "2022-01-05",
+      "contract": "ESH2022",
+      "eventKind": "WICK_FIRST",
+      "side": "U",
+      "type": "WICK_ONLY",
+      "signalOpenTime": "08:55",
+      "signalCloseTime": "09:00",
+      "eodClose": 4692.25,
+      "eodState": "OPPOSITE_SIDE",
+      "laterBars": 84
+    },
+    {
+      "reason": "GC",
+      "eventId": "GC|2022-01-06|nyOwnWide|WICK_FIRST",
+      "market": "GC",
+      "date": "2022-01-06",
+      "contract": "GCG2022",
+      "eventKind": "WICK_FIRST",
+      "side": "U",
+      "type": "CLOSE_OUTSIDE",
+      "signalOpenTime": "08:30",
+      "signalCloseTime": "08:35",
+      "eodClose": 1787.7,
+      "eodState": "INSIDE",
+      "laterBars": 89
+    },
+    {
+      "reason": "AMBIGUOUS",
+      "eventId": "GC|2023-06-13|nyOwnExact|WICK_FIRST",
+      "market": "GC",
+      "date": "2023-06-13",
+      "contract": "GCQ2023",
+      "eventKind": "WICK_FIRST",
+      "side": "AMBIGUOUS",
+      "type": "AMBIGUOUS",
+      "signalOpenTime": "08:30",
+      "signalCloseTime": "08:35",
+      "eodClose": 1956.5,
+      "eodState": null,
+      "laterBars": 89
+    }
+  ],
+  "nativeCSVParity": [
+    {
+      "market": "CL",
+      "date": "2026-01-02",
+      "contract": "CLG2026",
+      "eodClose": 57.29,
+      "matches": [
+        {
+          "path": "outputs/CLG2026-native-candles.csv",
+          "epoch": 1767387300,
+          "NY": "15:55",
+          "open": 57.27,
+          "high": 57.3,
+          "low": 57.26,
+          "close": 57.29,
+          "sha256": "79eab86c527536dd19d3f4157a85febe241b9e5eca6be132be41c8c9c962b042"
+        }
+      ]
+    },
+    {
+      "market": "CL",
+      "date": "2026-10-15",
+      "contract": "CLX2026",
+      "eodClose": 97.71,
+      "matches": [
+        {
+          "path": "outputs/CLX2026-native-candles.csv",
+          "epoch": 1792094100,
+          "NY": "15:55",
+          "open": 97.7,
+          "high": 97.72,
+          "low": 97.65,
+          "close": 97.71,
+          "sha256": "6cebde607812661d69ccae3fa175e9157608ca69c625d57fee0f05c266f4e80a"
+        }
+      ]
+    },
+    {
+      "market": "NQ",
+      "date": "2026-01-02",
+      "contract": "NQH2026",
+      "eodClose": 25385.5,
+      "matches": [
+        {
+          "path": "outputs/nq-database/raw/NQH2026-c26e449ead61.csv",
+          "epoch": 1767387300,
+          "NY": "15:55",
+          "open": 25378,
+          "high": 25397.25,
+          "low": 25362,
+          "close": 25385.5,
+          "sha256": "c26e449ead61f461dd303516b187a60870a39daedbb7220e1f1742ed17e17c8b"
+        }
+      ]
+    },
+    {
+      "market": "NQ",
+      "date": "2026-10-15",
+      "contract": "NQZ2026",
+      "eodClose": 30140.5,
+      "matches": [
+        {
+          "path": "outputs/nq-database/raw/NQZ2026-10837de97a83.csv",
+          "epoch": 1792094100,
+          "NY": "15:55",
+          "open": 30158,
+          "high": 30168,
+          "low": 30133,
+          "close": 30140.5,
+          "sha256": "10837de97a83c992962ff109ed39069378a1fe8b63db8c1117d00e34d80e3295"
+        }
+      ]
+    },
+    {
+      "market": "ES",
+      "date": "2026-01-02",
+      "contract": "ESH2026",
+      "eodClose": 6900.25,
+      "matches": [
+        {
+          "path": "outputs/es-database/raw/ESH2026-b26248c2469a.csv",
+          "epoch": 1767387300,
+          "NY": "15:55",
+          "open": 6893,
+          "high": 6902.5,
+          "low": 6890.75,
+          "close": 6900.25,
+          "sha256": "b26248c2469a99d7c4b73dc056daa000ffd9d886597816e289bece1444c10f8e"
+        }
+      ]
+    },
+    {
+      "market": "ES",
+      "date": "2026-10-20",
+      "contract": "ESZ2026",
+      "eodClose": 7759,
+      "matches": [
+        {
+          "path": "outputs/es-database/raw/ESZ2026-27bd1670bb4b.csv",
+          "epoch": 1792526100,
+          "NY": "15:55",
+          "open": 7754.5,
+          "high": 7760,
+          "low": 7751.25,
+          "close": 7759,
+          "sha256": "27bd1670bb4bac33d03fd60e56846fa85c28c4cc4dff2196e219d55052614769"
+        }
+      ]
+    },
+    {
+      "market": "GC",
+      "date": "2026-01-02",
+      "contract": "GCG2026",
+      "eodClose": 4341.3,
+      "matches": [
+        {
+          "path": "outputs/gc-database/raw/GCG2026-0cfc02c82278.csv",
+          "epoch": 1767387300,
+          "NY": "15:55",
+          "open": 4337.7,
+          "high": 4341.4,
+          "low": 4337.7,
+          "close": 4341.3,
+          "sha256": "0cfc02c82278512f686354d5519f668878933a567ea0339d537b0776cfa2d921"
+        }
+      ]
+    },
+    {
+      "market": "GC",
+      "date": "2026-10-20",
+      "contract": "GCZ2026",
+      "eodClose": 4138.7,
+      "matches": [
+        {
+          "path": "outputs/gc-database/raw/GCZ2026-a4f6def2d541.csv",
+          "epoch": 1792526100,
+          "NY": "15:55",
+          "open": 4140.2,
+          "high": 4140.5,
+          "low": 4138.3,
+          "close": 4138.7,
+          "sha256": "a4f6def2d5418a7167bcbfd518f64507137bc9f61709600ecc49ab127501ff86"
+        }
+      ]
+    }
+  ],
+  "files": {
+    "events.jsonl": {
+      "sha256": "b66dcd1a952a4b72e87155e3b3e7e2bc1f63eeb284695a32950312a6c3156169"
+    },
+    "targets.jsonl": {
+      "sha256": "a2ca9bb5f665b639a167cc2b4469ea32f6bdd9d884eef95ec4243ad863014193"
+    }
+  },
+  "finishedUTC": "2026-11-02T14:34:25.537Z"
+}

@@ -1,0 +1,68 @@
+{
+  "scope":"All times use New York local minutes on the row's trading date. Price distances are normalized by the serialized ordinary Mean SessionPath U+D forecast width, not by AVR or orange rectangles. All four methods and the two event definitions overlap dates.",
+  "identification":{
+    "eventId":"Stable market|date|method|eventKind identifier.",
+    "eventKind":"WICK_FIRST is the first strict high/low breach of either boundary; CLOSE_FIRST is the first completed close strictly outside either boundary. They are two alternative observations, never independent cases.",
+    "side":"U/D for resolved first event; NONE for no qualifying event; AMBIGUOUS for a first wick candle crossing both boundaries with unknowable intrabar order.",
+    "type":"WICK_ONLY means the first wick candle closed inside/on the box; CLOSE_OUTSIDE means it closed strictly outside on the event side. NO_BREAK and AMBIGUOUS retain excluded observations.",
+    "firstWickSide/firstWickOpenMinute":"First strict wick event identification, shared on both alternative rows.",
+    "firstCloseSide/firstCloseOpenMinute":"First completed outside-close identification, shared on both alternative rows. The first close side can differ from the first wick side."
+  },
+  "forecast":{
+    "method":"nyOwnWide, nyOwnExact, nyPriorWide or nyPriorExact. Primary timing model research uses nyOwnWide with n>=50.",
+    "n":"Count of distinct strictly earlier matched dates used to fit the box. It is not the sample count of the new breakout group.",
+    "avr":"That day's frozen historical AVR in price points, retained as provenance; extension targets use full forecast width.",
+    "open":"08:30 decision open serialized to six decimals.",
+    "meanUp/meanDown":"Previously reconstructed earlier-only Mean side distances serialized to six decimals.",
+    "upper/lower/width":"upper=open+meanUp; lower=open-meanDown; width=upper-lower. No tick rounding is added."
+  },
+  "signalTiming":{
+    "signalOpenMinute/signalOpenTime":"Opening timestamp of the signal five-minute candle.",
+    "signalCloseMinute/signalCloseTime":"Signal fully observable five minutes later. Primary timing bins use this completion time.",
+    "timeBlock/timeBlockLabel":"Floor the completed time into half-hour blocks. A 09:25 opening candle confirms at09:30 and belongs to09:30–09:59. A15:55 candle confirms16:00 and is terminal, not15:30–15:59.",
+    "minutesRemaining":"960 minus signalCloseMinute. Zero at terminal16:00.",
+    "signalIndex":"Zero-based index within90candles opening08:30 through15:55; -1 means no event.",
+    "signalOpen/signalHigh/signalLow/signalClose":"Raw OHLC of signal candle, null for no event.",
+    "nextOpen":"Actual opening price of the next in-window five-minute candle, null if none.",
+    "firstCloseAfterWickMinutes":"Elapsed candle time between first wick and first outside close; null if either absent."
+  },
+  "strength":{
+    "wickOvershoot":"U:(signalHigh-upper)/width; D:(lower-signalLow)/width.",
+    "closeOvershoot":"U:(signalClose-upper)/width; D:(lower-signalClose)/width. Signed and can be negative for wick-only.",
+    "wickOvershootBin/closeOvershootBin":"Floor max(0,overshoot) to a0.10full-width step, with only tiny arithmetic-residue snapping.14% maps10%;27% maps20%. Wick-only and outside-close types remain separate."
+  },
+  "futureExtension":{
+    "laterBars":"Number of actual candles strictly after signal candle; zero terminal observations must be excluded from future-extension distributions.",
+    "maxLaterSameSideOvershoot":"Maximum same-side distance beyond original boundary among later candles, divided by width and floored at zero. This is not additional distance beyond the trigger candle.",
+    "maxLaterSameSideMultiple":"Maximum later same-side opposite-edge coordinate:1+signed boundary overshoot. Can be below1 if every later candle stays inside the boundary. Null with no later candle.",
+    "additionalBeyondSignalExtreme":"Nonnegative additional later extreme beyond signal candle's own high(U)/low(D), divided by width. Includes zero improvement. Terminal laterBars0 rows retain0 but are ineligible for continuation distributions.",
+    "maxSessionSameSideOvershoot":"Maximum boundary overshoot in the full NY window, including all pre-signal candles. Descriptive only; do not treat as a post-signal outcome."
+  },
+  "eod":{
+    "eodClose/eodCloseKnownMinute":"Close of15:55–16:00 candle, known at960. No16:00opening candle is used.",
+    "eodBoxState":"INSIDE, ABOVE or BELOW the original box. Equality belongs inside, with the standard1e-9arithmetic epsilon.",
+    "eodState":"INSIDE, SAME_SIDE or OPPOSITE_SIDE relative to resolved event direction. Null if no resolved event.",
+    "finalSignedFromOpen":"U:(eodClose-open)/width; D:(open-eodClose)/width. Positive is continuation relative to decision open.",
+    "finalOutsideDistance":"Signed final overshoot from same-side boundary. Negative means finish back across that boundary.",
+    "finalSideMultiple":"1+finalOutsideDistance, using the opposite-edge ruler."
+  },
+  "targets":{
+    "multiple/target":"For multiplem, Utarget=lower+m×width and Dtarget=upper−m×width.1.50means50%of full width beyond boundary, not150%beyond. Values1.2,1.3,1.4,1.5,1.75,2.0.",
+    "triggerReached":"Signal candle's wick touched/passed target, including equality.",
+    "touchedBeforeSignal":"Any earlier in-window candle touched the same directional target.",
+    "touchedBeforeFirstClose":"Same pre-signal field for CLOSE_FIRST only; null for WICK_FIRST. Prevents old wick hits being treated as future opportunities at first outside close.",
+    "touchedThroughSignal":"Earlier target touch OR triggerReached.",
+    "nextOpenGap":"Target not previously touched, but next actual opening price is at/beyond target. Separately excluded from pending.",
+    "noRemaining":"Resolved event has no later in-window candle.",
+    "pending":"Resolved event, untouched through signal and next opening price, with at least one later candle.",
+    "laterHit":"Any later candle touches target, regardless of pending eligibility. Do not substitute it for pendingHit.",
+    "pendingHit":"Later target touch among eligible pending observations; null when not pending.",
+    "laterHitOpenMinute/laterHitCloseMinute":"Earliest later target-hit candle's opening/completion timestamp; null if no later touch.",
+    "firstTargetHitOpenMinute":"First target-touch candle in full NY window, including before signal."
+  },
+  "provenance":{
+    "cohortSHA256/maxEarlierDate":"Hash of saved matched-date list and latest member. Every list count equalsn and every date strictly predates forecast date.",
+    "sourceOHLC_SHA256":"SHA256 of JSON-serialized{date,contract,bars}from authoritative source loader/research-days artifact.",
+    "studySource/sourceLabel":"Original study path and source-day description. source-files.json hashes canonical input model/forecast/study/code files; independent audit includes original CSV endpoint parity."
+  }
+}

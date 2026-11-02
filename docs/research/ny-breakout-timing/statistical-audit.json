@@ -1,0 +1,1214 @@
+{
+  "status": "PASS",
+  "independent_analysis_import": false,
+  "checks": 103938,
+  "predictions": 5583,
+  "primary_comparisons": 24,
+  "terminal_signal_predictions": 0,
+  "all_predictions_exactly_reconstructed_from_prior_event_outcomes": true,
+  "chronology": [
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 237,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 237,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 237,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 239,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 239,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 239,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 222,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 222,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 222,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 224,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 224,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 224,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 252,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 252,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 252,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 255,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 255,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 255,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 214,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 214,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 214,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 218,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 218,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 218,
+      "minimum_calendar_days_from_latest_training_outcome": 1
+    }
+  ],
+  "brier_and_sparse_cell_recalculation": [
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 237,
+      "base_brier": 0.20651258605570993,
+      "candidate_brier": 0.2063299797941399,
+      "gain": 0.00018260626157006412,
+      "relative_brier_reduction": 0.0008842379297928276,
+      "mean_local_train_n": 8.789029535864978,
+      "sparse_local_fraction": 0.9535864978902954
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 237,
+      "base_brier": 0.20651258605570993,
+      "candidate_brier": 0.20484280795372609,
+      "gain": 0.0016697781019838363,
+      "relative_brier_reduction": 0.008085599690923382,
+      "mean_local_train_n": 70.42194092827005,
+      "sparse_local_fraction": 0.09282700421940929
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 237,
+      "base_brier": 0.20651258605570993,
+      "candidate_brier": 0.20701240064670384,
+      "gain": -0.0004998145909939014,
+      "relative_brier_reduction": -0.002420262128038379,
+      "mean_local_train_n": 7.7594936708860756,
+      "sparse_local_fraction": 0.9535864978902954
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 239,
+      "base_brier": 0.537578917055033,
+      "candidate_brier": 0.5451643610984521,
+      "gain": -0.007585444043419054,
+      "relative_brier_reduction": -0.014110382313677151,
+      "mean_local_train_n": 8.803347280334728,
+      "sparse_local_fraction": 0.9539748953974896
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 239,
+      "base_brier": 0.537578917055033,
+      "candidate_brier": 0.5363169076827805,
+      "gain": 0.0012620093722524848,
+      "relative_brier_reduction": 0.002347579736136286,
+      "mean_local_train_n": 70.3723849372385,
+      "sparse_local_fraction": 0.09205020920502092
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 239,
+      "base_brier": 0.537578917055033,
+      "candidate_brier": 0.5473990525847701,
+      "gain": -0.00982013552973709,
+      "relative_brier_reduction": -0.018267337535359078,
+      "mean_local_train_n": 7.7656903765690375,
+      "sparse_local_fraction": 0.9539748953974896
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 222,
+      "base_brier": 0.20248638427769977,
+      "candidate_brier": 0.1993323188178434,
+      "gain": 0.0031540654598563533,
+      "relative_brier_reduction": 0.015576679247384422,
+      "mean_local_train_n": 10.058558558558559,
+      "sparse_local_fraction": 0.8693693693693694
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 222,
+      "base_brier": 0.20248638427769977,
+      "candidate_brier": 0.20236449721713845,
+      "gain": 0.0001218870605613158,
+      "relative_brier_reduction": 0.0006019518843012867,
+      "mean_local_train_n": 68.97747747747748,
+      "sparse_local_fraction": 0.06756756756756757
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 222,
+      "base_brier": 0.20248638427769977,
+      "candidate_brier": 0.1983473762075059,
+      "gain": 0.00413900807019389,
+      "relative_brier_reduction": 0.020440920435012812,
+      "mean_local_train_n": 8.765765765765765,
+      "sparse_local_fraction": 0.9279279279279279
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 224,
+      "base_brier": 0.5192496493036803,
+      "candidate_brier": 0.5195149547162886,
+      "gain": -0.0002653054126082541,
+      "relative_brier_reduction": -0.0005109399938238411,
+      "mean_local_train_n": 10.125,
+      "sparse_local_fraction": 0.8660714285714286
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 224,
+      "base_brier": 0.5192496493036803,
+      "candidate_brier": 0.517887722454151,
+      "gain": 0.0013619268495293107,
+      "relative_brier_reduction": 0.0026228748567392775,
+      "mean_local_train_n": 68.39732142857143,
+      "sparse_local_fraction": 0.07589285714285714
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 224,
+      "base_brier": 0.5192496493036803,
+      "candidate_brier": 0.5210635467710877,
+      "gain": -0.0018138974674073373,
+      "relative_brier_reduction": -0.0034933051372105775,
+      "mean_local_train_n": 8.714285714285714,
+      "sparse_local_fraction": 0.9285714285714286
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 252,
+      "base_brier": 0.19052418758433354,
+      "candidate_brier": 0.18645400042657764,
+      "gain": 0.00407018715775588,
+      "relative_brier_reduction": 0.021363099401509083,
+      "mean_local_train_n": 7.753968253968254,
+      "sparse_local_fraction": 0.9920634920634921
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 252,
+      "base_brier": 0.19052418758433354,
+      "candidate_brier": 0.18868786255241832,
+      "gain": 0.0018363250319152155,
+      "relative_brier_reduction": 0.009638277717900701,
+      "mean_local_train_n": 71.81349206349206,
+      "sparse_local_fraction": 0.051587301587301584
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 252,
+      "base_brier": 0.19052418758433354,
+      "candidate_brier": 0.18632784993006163,
+      "gain": 0.004196337654271886,
+      "relative_brier_reduction": 0.022025222663208686,
+      "mean_local_train_n": 6.865079365079365,
+      "sparse_local_fraction": 0.9920634920634921
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 255,
+      "base_brier": 0.5310937699530646,
+      "candidate_brier": 0.5366173310065945,
+      "gain": -0.005523561053529928,
+      "relative_brier_reduction": -0.010400349930706347,
+      "mean_local_train_n": 7.7254901960784315,
+      "sparse_local_fraction": 0.9921568627450981
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 255,
+      "base_brier": 0.5310937699530646,
+      "candidate_brier": 0.5324671031469278,
+      "gain": -0.0013733331938632959,
+      "relative_brier_reduction": -0.0025858582260994407,
+      "mean_local_train_n": 71.38823529411765,
+      "sparse_local_fraction": 0.050980392156862744
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 255,
+      "base_brier": 0.5310937699530646,
+      "candidate_brier": 0.5357796010810564,
+      "gain": -0.004685831127991816,
+      "relative_brier_reduction": -0.0088229826691545,
+      "mean_local_train_n": 6.811764705882353,
+      "sparse_local_fraction": 0.9921568627450981
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_block",
+      "n": 214,
+      "base_brier": 0.1994857601947189,
+      "candidate_brier": 0.20026680358997995,
+      "gain": -0.0007810433952610464,
+      "relative_brier_reduction": -0.0039152839505870824,
+      "mean_local_train_n": 9.177570093457945,
+      "sparse_local_fraction": 0.9299065420560748
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "n": 214,
+      "base_brier": 0.1994857601947189,
+      "candidate_brier": 0.1928432902297398,
+      "gain": 0.006642469964979086,
+      "relative_brier_reduction": 0.0332979655214254,
+      "mean_local_train_n": 66.3785046728972,
+      "sparse_local_fraction": 0.09813084112149532
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "n": 214,
+      "base_brier": 0.1994857601947189,
+      "candidate_brier": 0.1991784220286106,
+      "gain": 0.00030733816610826125,
+      "relative_brier_reduction": 0.001540652153859339,
+      "mean_local_train_n": 7.803738317757009,
+      "sparse_local_fraction": 0.9392523364485982
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_block",
+      "n": 218,
+      "base_brier": 0.5375300961022111,
+      "candidate_brier": 0.5511557956868484,
+      "gain": -0.013625699584637276,
+      "relative_brier_reduction": -0.02534871941764979,
+      "mean_local_train_n": 9.29816513761468,
+      "sparse_local_fraction": 0.9311926605504587
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "n": 218,
+      "base_brier": 0.5375300961022111,
+      "candidate_brier": 0.5383884941388953,
+      "gain": -0.0008583980366842361,
+      "relative_brier_reduction": -0.0015969301866234705,
+      "mean_local_train_n": 65.56422018348624,
+      "sparse_local_fraction": 0.10550458715596331
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "n": 218,
+      "base_brier": 0.5375300961022111,
+      "candidate_brier": 0.5495956204716824,
+      "gain": -0.012065524369471298,
+      "relative_brier_reduction": -0.02244623037288882,
+      "mean_local_train_n": 7.715596330275229,
+      "sparse_local_fraction": 0.9403669724770642
+    }
+  ],
+  "Holm_family_size": 24,
+  "exact_bootstrap_reproductions": [
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.006735790874638752,
+      "hi": 0.00702391304207005,
+      "p": 0.9583472175941353
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.0032807531122542332,
+      "hi": 0.006526250714193895,
+      "p": 0.5201599466844385
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.0062120035051961555,
+      "hi": 0.005305617073785767,
+      "p": 0.8747084305231589
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.019736244517416512,
+      "hi": 0.004510449343913017,
+      "p": 0.20993002332555816
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.006713173099832939,
+      "hi": 0.009085422282203773,
+      "p": 0.7447517494168611
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.020878256835875755,
+      "hi": 0.0019481945033691405,
+      "p": 0.09130289903365545
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.006774421527264478,
+      "hi": 0.012670216537908627,
+      "p": 0.5281572809063645
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.004269772923933495,
+      "hi": 0.004070822753925706,
+      "p": 0.9526824391869377
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.004690864263597726,
+      "hi": 0.01257833369101861,
+      "p": 0.3502165944685105
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.013104427194658305,
+      "hi": 0.013415479317029622,
+      "p": 0.9660113295568143
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.0019579492615802267,
+      "hi": 0.004496874981304909,
+      "p": 0.40753082305898036
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.014799275823311699,
+      "hi": 0.011471367761317637,
+      "p": 0.7824058647117628
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.0018272857690838174,
+      "hi": 0.010581959601732891,
+      "p": 0.20593135621459513
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.0016708336130992452,
+      "hi": 0.005149097713645683,
+      "p": 0.28890369876707767
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.0014109473404320956,
+      "hi": 0.010195853977818952,
+      "p": 0.1656114628457181
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.016472232167592797,
+      "hi": 0.005427945604472471,
+      "p": 0.31922692435854716
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.005824471973865642,
+      "hi": 0.0031084027086797942,
+      "p": 0.5578140619793402
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.015318680072064545,
+      "hi": 0.00581626629718234,
+      "p": 0.3822059313562146
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.006766074778680828,
+      "hi": 0.005303712839051864,
+      "p": 0.8103965344885038
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 5,
+      "lo": 0.0004426853709591123,
+      "hi": 0.012821958151143134,
+      "p": 0.039320226591136286
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.004059708538891716,
+      "hi": 0.004648067962654616,
+      "p": 0.8883705431522826
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 5,
+      "lo": -0.025195168044632378,
+      "hi": -0.0016767407011777616,
+      "p": 0.019993335554815063
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 5,
+      "lo": -0.01068947075466501,
+      "hi": 0.008876232905986199,
+      "p": 0.8673775408197267
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 5,
+      "lo": -0.02144935063781961,
+      "hi": -0.0029587888641682456,
+      "p": 0.010663112295901367
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.007169000678334402,
+      "hi": 0.007275190348550724,
+      "p": 0.9646784405198268
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.002790400142086748,
+      "hi": 0.006235536815166269,
+      "p": 0.44718427190936355
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.006711134827975419,
+      "hi": 0.005367899369172264,
+      "p": 0.8773742085971343
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.018781647564770774,
+      "hi": 0.003878238186602824,
+      "p": 0.18593802065978007
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.006374545530386747,
+      "hi": 0.009177224683103571,
+      "p": 0.7534155281572809
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.020264561376522446,
+      "hi": 0.001592474208811171,
+      "p": 0.080973008997001
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.006364874784710541,
+      "hi": 0.012873575961327042,
+      "p": 0.5214928357214262
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.004159078922144816,
+      "hi": 0.004062261254210359,
+      "p": 0.9463512162612463
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.004404772969164831,
+      "hi": 0.012758889114161972,
+      "p": 0.34021992669110296
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.014021350114440329,
+      "hi": 0.013188034822174842,
+      "p": 0.9706764411862713
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.0020105169045751994,
+      "hi": 0.004597747560089475,
+      "p": 0.4345218260579807
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.015391657268809119,
+      "hi": 0.011302440248743092,
+      "p": 0.7874041986004665
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.002257290464495943,
+      "hi": 0.011074257453782496,
+      "p": 0.2332555814728424
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.0018999113300295694,
+      "hi": 0.005186764715434574,
+      "p": 0.3068977007664112
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.00184540962360137,
+      "hi": 0.010761490893365306,
+      "p": 0.19293568810396536
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.016362321350844644,
+      "hi": 0.005332760331295484,
+      "p": 0.311562812395868
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.005922635626683768,
+      "hi": 0.0033206477082214237,
+      "p": 0.5624791736087971
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.01464694458553972,
+      "hi": 0.005538591279038791,
+      "p": 0.3762079306897701
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.006775967751911806,
+      "hi": 0.005320217273150013,
+      "p": 0.797400866377874
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 10,
+      "lo": 0.0005139446378662231,
+      "hi": 0.012952527201940095,
+      "p": 0.03532155948017328
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.004432482315244912,
+      "hi": 0.004904425336868774,
+      "p": 0.9013662112629124
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 10,
+      "lo": -0.02403677824825045,
+      "hi": -0.003836238843628786,
+      "p": 0.009663445518160613
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 10,
+      "lo": -0.010474966934906928,
+      "hi": 0.009242241396248059,
+      "p": 0.8747084305231589
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 10,
+      "lo": -0.02109119590482282,
+      "hi": -0.0038312376413264793,
+      "p": 0.005998000666444518
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.007232649020117917,
+      "hi": 0.007031310310961103,
+      "p": 0.9633455514828391
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.002286518081990559,
+      "hi": 0.005592558875866116,
+      "p": 0.41152949016994333
+    },
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.006325315878273174,
+      "hi": 0.005214181997775697,
+      "p": 0.8697100966344552
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.017232699550280988,
+      "hi": 0.0028109513620559606,
+      "p": 0.13962012662445852
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.006444987357191424,
+      "hi": 0.009282094873399779,
+      "p": 0.749083638787071
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.018455150116834674,
+      "hi": 0.00011653220840288943,
+      "p": 0.039986671109630126
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.006316204130170844,
+      "hi": 0.01289049449892628,
+      "p": 0.5114961679440186
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.004050747777817205,
+      "hi": 0.0038805326568802016,
+      "p": 0.9500166611129623
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.004454330934482568,
+      "hi": 0.012771819894919951,
+      "p": 0.34388537154281906
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.015344047294098231,
+      "hi": 0.01481648407266966,
+      "p": 0.9706764411862713
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.002061327641068537,
+      "hi": 0.004505764387288261,
+      "p": 0.4241919360213262
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.01650869627293918,
+      "hi": 0.013047839344991955,
+      "p": 0.813728757080973
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.002531253795094456,
+      "hi": 0.011968567528949406,
+      "p": 0.2425858047317561
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.0018223710492974272,
+      "hi": 0.005169985477796739,
+      "p": 0.2935688103965345
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.002144502702579467,
+      "hi": 0.011692985609681138,
+      "p": 0.22125958013995334
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.015723465211219347,
+      "hi": 0.004683966109834399,
+      "p": 0.28523825391536156
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.005858116389860821,
+      "hi": 0.0033781897604401928,
+      "p": 0.5448183938687104
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.014769520142078777,
+      "hi": 0.00564366267877525,
+      "p": 0.35421526157947353
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.006403500228076267,
+      "hi": 0.004948713754247817,
+      "p": 0.7790736421192935
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -1.2625650537441978e-05,
+      "hi": 0.01319242512245412,
+      "p": 0.049983338887037654
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.004413623026293364,
+      "hi": 0.0047603107608276156,
+      "p": 0.9016994335221593
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_block",
+      "block": 20,
+      "lo": -0.024013454775805135,
+      "hi": -0.0038362182956008027,
+      "p": 0.007664111962679107
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "close_strength",
+      "block": 20,
+      "lo": -0.011412514911325215,
+      "hi": 0.009479025832889294,
+      "p": 0.8680439853382206
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_strength",
+      "block": 20,
+      "lo": -0.020681925815510035,
+      "hi": -0.003961387425411813,
+      "p": 0.005331556147950683
+    }
+  ],
+  "alternate_seed_spotchecks": [
+    {
+      "market": "CL",
+      "outcome": "pending150",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.007154483082861378,
+      "hi": 0.007353324448026195
+    },
+    {
+      "market": "CL",
+      "outcome": "eod3",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.019098471365882514,
+      "hi": 0.003771215677060106
+    },
+    {
+      "market": "NQ",
+      "outcome": "pending150",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.006254116668081511,
+      "hi": 0.012299097259470149
+    },
+    {
+      "market": "NQ",
+      "outcome": "eod3",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.01381372260097057,
+      "hi": 0.013580429117060134
+    },
+    {
+      "market": "ES",
+      "outcome": "pending150",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.0023872306770023103,
+      "hi": 0.0105030779138275
+    },
+    {
+      "market": "ES",
+      "outcome": "eod3",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.01648726151299729,
+      "hi": 0.0052725127494081345
+    },
+    {
+      "market": "GC",
+      "outcome": "pending150",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.006343359919032102,
+      "hi": 0.00518274271484041
+    },
+    {
+      "market": "GC",
+      "outcome": "eod3",
+      "model": "time_block",
+      "seed": 927461,
+      "reps": 3000,
+      "block": 10,
+      "lo": -0.02373462999484358,
+      "hi": -0.0032933897801569407
+    }
+  ],
+  "supported": [],
+  "limitations": [
+    "This audits implementation and numerical consistency, not whether retrospective results will generalize prospectively.",
+    "Reported bootstrap significance remains an approximation under calendar-date block resampling.",
+    "EOD multiclass Brier is the sum over threeclasses; its scale must not be compared directly with binary target Brier."
+  ],
+  "source_hashes": {
+    "events.jsonl": "b66dcd1a952a4b72e87155e3b3e7e2bc1f63eeb284695a32950312a6c3156169",
+    "walk-forward-predictions.csv": "b7a5e7ac6ba99272259b9bee01d8ffc7817e7bdcc1a5f31ca6ac1126bd18f4fe",
+    "analysis.json": "cacfe49491a6a67ccf8d5bd9048eb37248e08237c7e61ffec5ce29e8cf999173",
+    "calendar.json": "2fe787ba6dfacb955cb6eedf41e043de60e4d1ee89d83cee41d87fe3878824b9"
+  }
+}
