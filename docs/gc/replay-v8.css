@@ -1,0 +1,11 @@
+/* Optional tools only; the existing six-panel workspace keeps its design. */
+.replay-picker{flex-wrap:wrap}
+#replay-tools{font-size:12px;white-space:nowrap;margin-left:auto;padding:4px 0}
+#replay-tools-dialog{width:min(760px,94vw)}
+#replay-tools-dialog>.fields{margin:18px 0 12px}
+#replay-tools-dialog .button-row{margin:16px 0}
+#replay-tools-dialog .inline-check{display:flex;flex-direction:row;align-items:center;gap:8px}
+#replay-tools-dialog input[type=checkbox]{width:16px;height:16px}
+#replay-tools-dialog textarea{min-height:86px;height:auto}
+#load-status.error{color:#ffb5bc}
+#replay-close{font-size:24px;padding:4px 12px}

@@ -1,0 +1,26 @@
+{
+  "instrument": "GC",
+  "status": "GC_CLIENT_TOOLS_AND_BRANDING_ADAPTED",
+  "createdAt": "2026-11-01T09:53:13.262Z",
+  "cotRows": 252,
+  "cotMerged": true,
+  "protectedFiles": {
+    "instrument.mjs": "40c40f5e3778b34b4306eee39a60c1a5e13384f995c1ceece34ad8f0b3973495",
+    "auto-fill.mjs": "70dee5e3ab4895112d6ef1b2a9cae2c73075ca692cea8c71a4586b40d4baf88c",
+    "ny-direction-autofill.mjs": "d8ca20a3ecd10841871ca98f2d6d2970fc6ede197fd1d67c9c4aee7403ae168e",
+    "ny-direction-autofill-core.mjs": "d415acf47b5087b32eeb800a89edac42470a4c0ba64f947d94cf4e20f634d654",
+    "gc-autofill-contract.mjs": "93f3ae54607b4de9f517eebb171259b395b13ac14273d4e4698d8019d98c3567",
+    "gc-convention.mjs": "2cf4646845dd2e77b701ea9a7bcf2a0b9cc3f5501d6700b7b019b98b9e0dbf60"
+  },
+  "goldNewsFrontendCategories": [
+    "gold",
+    "rates",
+    "geopolitics",
+    "trump"
+  ],
+  "goldNewsUpstreamCoverage": "READ_ONLY_REVIEW_PASSED_NO_TOPIC_FILTER_IN_LISTENER_OR_RELAY",
+  "newsReview": "Discord listener filters sender/channel only; Gold-only text reaches client. RSS and WallstreetCN classify client-side. FinancialJuice RSS stays paused; Discord remains its route.",
+  "screenshots": 0,
+  "fabricatedImages": false,
+  "publicDeployed": false
+}

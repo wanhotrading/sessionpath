@@ -1,5 +1,5 @@
-const esRouteRequested=new URL(location.href).searchParams.get('instrument')==='ES';
-if(esRouteRequested){const target=new URL('./es/',location.href);target.searchParams.set('instrument','ES');if(location.hash)target.hash=location.hash;location.replace(target.href);}
+const requestedMarket=new URL(location.href).searchParams.get('instrument'),marketRoute={ES:'./es/',GC:'./gc/'}[requestedMarket];
+if(marketRoute){const target=new URL(marketRoute,location.href);target.search=location.search;target.hash=location.hash;location.replace(target.href);}
 else {
 // Keep module/network failures visible instead of leaving an empty dashboard.
 const root=document.documentElement;

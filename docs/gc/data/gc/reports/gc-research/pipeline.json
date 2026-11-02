@@ -1,0 +1,354 @@
+{
+  "instrument": "GC",
+  "status": "PREPARED_NATIVE_AUDIT_PENDING",
+  "createdUTC": "2026-11-01T09:48:27.866Z",
+  "configuration": "work/gc-research-config.json",
+  "guard": "work/gc-research-guard.mjs",
+  "protocolGate": {
+    "path": "work/gc-protocol-gate.mjs",
+    "sha256": "fb91e3fb24a1675f5a0eed969052a09d448ecaf318e662647f4a8a4182909bed",
+    "maximumReferenceEndMinute": 1170,
+    "maximumBBOXEndMinute": 960,
+    "regeneratedByPreparation": false
+  },
+  "nativeDatabase": "outputs/gc-database",
+  "model": "outputs/gc-model",
+  "research": "outputs/gc-research",
+  "tickSize": 0.1,
+  "sourceTickScale": 10,
+  "priceScale": 100,
+  "target": {
+    "from": "2022-01-03",
+    "through": "2026-10-20"
+  },
+  "forecastWindows": [
+    [
+      180,
+      300
+    ],
+    [
+      300,
+      510
+    ],
+    [
+      510,
+      960
+    ]
+  ],
+  "commands": [
+    "node work/gc-build-forecasts.mjs",
+    "node work/gc-validate-forecasts.mjs",
+    "node work/gc-prepare-seven-studies.mjs",
+    "node work/gc-seven-studies.mjs",
+    "node work/gc-extend-q6.mjs",
+    "node work/gc-build-bbox-return.mjs",
+    "node work/gc-prepare-seven-studies.mjs --earlier-only",
+    "node work/gc-earlier-seven-studies.mjs",
+    "node work/gc-earlier-extend-q6.mjs",
+    "node work/gc-earlier-build-bbox-return.mjs",
+    "node work/gc-build-bbox-direction-study.mjs",
+    "node work/gc-rebuild-utilization-direction.mjs",
+    "node work/gc-build-orange-box-fill-study.mjs",
+    "node work/gc-build-double-break-study.mjs",
+    "node work/gc-build-tail-event-ny.mjs",
+    "node work/gc-build-tail-ny-expanded.mjs",
+    "node work/gc-build-ny-sessionpath-extension.mjs",
+    "node work/gc-ny-extension-independent-audit.mjs",
+    "node work/gc-build-first-breach-study.mjs",
+    "python work/gc-analyze-first-breach-study.py",
+    "python work/gc-audit-first-breach-study.py",
+    "node work/gc-build-endpoint-continuation.mjs",
+    "python work/gc-analyze-endpoint-continuation.py",
+    "python work/gc-audit-endpoint-continuation.py",
+    "node work/gc-build-research-probabilities.mjs",
+    "node work/gc-finalize-research.mjs",
+    "node work/gc-build-research-report.mjs"
+  ],
+  "dependencies": [
+    "outputs/gc-model/days.json",
+    "outputs/gc-model/timeline.json",
+    "outputs/gc-model/research-days.json",
+    "outputs/gc-model/manifest.json",
+    "outputs/gc-database/session-features.json",
+    "outputs/gc-database/integrity-audit.json"
+  ],
+  "provenance": [
+    {
+      "source": "work/es-engine/window-engine.mjs",
+      "destination": "work/gc-engine/window-engine.mjs",
+      "sourceSHA256": "51c2d41a09ba97edf403965314912ac31dec45e8d99ec80ac025a530e2212b8a",
+      "preparedSHA256": "bbf3adc4ed04a36b46e6096d2ffe8e3902a13be8f8c96e052b168ad90fd76365",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-engine/planner-v3.mjs",
+      "destination": "work/gc-engine/planner-v3.mjs",
+      "sourceSHA256": "bcf249e09ae7760015103e7bb09552ddaeb84bf42eeaccd677bc25b65ef646bd",
+      "preparedSHA256": "d7bea9d95dd291d10461a0eb7634b7740d16dea7b2c623e0e278d04a72ffc8bf",
+      "change": "Generic matching math retained; obsolete CL standalone Pine exporter disabled."
+    },
+    {
+      "source": "work/es-engine/ny-reference-v5.mjs",
+      "destination": "work/gc-engine/ny-reference-v5.mjs",
+      "sourceSHA256": "9a1ad85e80885b79244db11f3f51dcd6ea212075841bac23d803013f603936e6",
+      "preparedSHA256": "9a1ad85e80885b79244db11f3f51dcd6ea212075841bac23d803013f603936e6",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-engine/indicator-v5.mjs",
+      "destination": "work/gc-engine/indicator-v5.mjs",
+      "sourceSHA256": "ec2c50a27b0ce729c75c9b2b9bf33541e1021c5c091cdca43c85d53b360a8f1a",
+      "preparedSHA256": "ec2c50a27b0ce729c75c9b2b9bf33541e1021c5c091cdca43c85d53b360a8f1a",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-engine/forecast-context.mjs",
+      "destination": "work/gc-engine/forecast-context.mjs",
+      "sourceSHA256": "81ff878f169d9b659c379533fbd5c54052f665b01248c7eeb087187dc6c46f5b",
+      "preparedSHA256": "81ff878f169d9b659c379533fbd5c54052f665b01248c7eeb087187dc6c46f5b",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-engine/research-core.mjs",
+      "destination": "work/gc-engine/research-core.mjs",
+      "sourceSHA256": "6413326ef859562bc21b710f2376c2f8a521d96178856d4e650e32de04c7d5bb",
+      "preparedSHA256": "6413326ef859562bc21b710f2376c2f8a521d96178856d4e650e32de04c7d5bb",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-engine/utilization-core.mjs",
+      "destination": "work/gc-engine/utilization-core.mjs",
+      "sourceSHA256": "1ae7bc08be943512c701b284920b21862272c2b540a74610cc2f3e2e74a6c400",
+      "preparedSHA256": "1ae7bc08be943512c701b284920b21862272c2b540a74610cc2f3e2e74a6c400",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-engine/ny-position-helper.mjs",
+      "destination": "work/gc-engine/ny-position-helper.mjs",
+      "sourceSHA256": "a9047dd8a27ea584cde244f3ab7c9ff63348f7bcb4c80b17416211addf5fb100",
+      "preparedSHA256": "a9047dd8a27ea584cde244f3ab7c9ff63348f7bcb4c80b17416211addf5fb100",
+      "change": "Generic math copied; no market data or fitted counts."
+    },
+    {
+      "source": "work/es-build-forecasts.mjs",
+      "destination": "work/gc-build-forecasts.mjs",
+      "sourceSHA256": "17c66246ac6090709db41586e6973d5741fad88db66cccbbbc88962a4f1006e6",
+      "preparedSHA256": "e50fc0eae9e0a7d323309fb02b13142c0e037fc72cb28da7132dd4aa8271c264",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-prepare-seven-studies.mjs",
+      "destination": "work/gc-prepare-seven-studies.mjs",
+      "sourceSHA256": "896de9ca131ab2558ff1d156091d57d3715cf6f7e395a33d3471c5804325021a",
+      "preparedSHA256": "40dcc46132f5b163f4c7f703513b6b63c200c0c6be0ea91cd3b1b7557b65c76e",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-seven-studies.mjs",
+      "destination": "work/gc-seven-studies.mjs",
+      "sourceSHA256": "2dd1131457cde9a4bcf52e591b827a35cc14361dfdde5b830dc4d9fe7d9cba96",
+      "preparedSHA256": "ad7e18acb8a082f8cb51a84b5967b427ba7154597e34cac2d134d4070134a654",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-earlier-seven-studies.mjs",
+      "destination": "work/gc-earlier-seven-studies.mjs",
+      "sourceSHA256": "e7f1ad26c1b74e6b58ae0f6cf46d79e82488b4e7573a3b5234bf768fa7b12cdd",
+      "preparedSHA256": "81e48ce3fb0c2089680d35e5a28c36c13efd124238c428549600a92da1c9adcc",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-source-loader.mjs",
+      "destination": "work/gc-source-loader.mjs",
+      "sourceSHA256": "0f156286b16d1d217b6a2ef8eb6af6f2dbd8fc0de219034f015c3992a1c87fd8",
+      "preparedSHA256": "b3f83f97fec1f9c004c0dae50c0de0a19856a08213d278255b9cae9dd25da23d",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-earlier-source-loader.mjs",
+      "destination": "work/gc-earlier-source-loader.mjs",
+      "sourceSHA256": "3ac09b49b4e738441435cc2cb793e9f92c70eb781c439cc4a0b37da9b96f76e2",
+      "preparedSHA256": "131cb610ee93bb8f3dee6f4e25cf64250ca85ca557602a9e1bb53af723cf6319",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-extend-q6.mjs",
+      "destination": "work/gc-extend-q6.mjs",
+      "sourceSHA256": "bbe7363299bf8c91cf42b8b9c404432109461c06fa2a4eca0be8e4a39222e840",
+      "preparedSHA256": "052b1827bd03f472601cb67ba68c5fc89cc765d0b182c3a43afeeb58e96c6cac",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-earlier-extend-q6.mjs",
+      "destination": "work/gc-earlier-extend-q6.mjs",
+      "sourceSHA256": "1ff58b7db7186c6a61a1257835e576cd62abb3eebf31e858ca89267027584af1",
+      "preparedSHA256": "948b2cb0883bac0c1781fbca65ea7116afe0c61d36a0216d14b5c588fb711260",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-bbox-return.mjs",
+      "destination": "work/gc-build-bbox-return.mjs",
+      "sourceSHA256": "34d1801fcee7c234d9f3d2c77df31a9f0b69c44c077a32211042c10428c76d36",
+      "preparedSHA256": "179b08a8e0acf12bacf4ba58d0a576f25dab2af201094706f3aa9fca93773048",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-earlier-build-bbox-return.mjs",
+      "destination": "work/gc-earlier-build-bbox-return.mjs",
+      "sourceSHA256": "b7eea709c6cbba465a88a9adf0cb42106873859222915c1c29fad7b7384203c5",
+      "preparedSHA256": "500282c58ea8b2593a8aeae4f0fedc4550ca9e2e00eb11e2a0c6d73c4104470d",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-bbox-direction-study.mjs",
+      "destination": "work/gc-build-bbox-direction-study.mjs",
+      "sourceSHA256": "20d66687417dd6d76141c9e7c1320d41e1c3af7a77b25dd7148615874f7dc234",
+      "preparedSHA256": "d5ea38ac7517cb4c1d8b5c4b8308fdaee4a4ff98e3e44fd7c9bece35be3d6d89",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-rebuild-utilization-direction.mjs",
+      "destination": "work/gc-rebuild-utilization-direction.mjs",
+      "sourceSHA256": "89fe53ed44e9c7eb30a000f6ea2a8a32b9093bf476c766c6e64b0b9f9324de6f",
+      "preparedSHA256": "1e92783e71a20811f361797e1d3a74b96742733d8015d631651b17e994b14db3",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-orange-box-fill-study.mjs",
+      "destination": "work/gc-build-orange-box-fill-study.mjs",
+      "sourceSHA256": "4d27a0c74463b2e4000435ec0343278b639d58c73ad07b2ba65f0eb4a7e321fc",
+      "preparedSHA256": "834fb0e3ae749bcc1003563c1c47b9b4ba866cee5a6c7275e827c2762b2823ec",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-double-break-study.mjs",
+      "destination": "work/gc-build-double-break-study.mjs",
+      "sourceSHA256": "e600a841a076b9d3de3d07f5f6a74436ddd184f4df241894529c87a64d791498",
+      "preparedSHA256": "8b676515f9b3050ccd1e69dfb8948c2744278871cfffeab0d4890ae563f7ae6f",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-tail-event-ny.mjs",
+      "destination": "work/gc-build-tail-event-ny.mjs",
+      "sourceSHA256": "77d5cf7c8c0a0118a9a13fb4c92dc36cf3365afc28aa06168205a8c8b246da0e",
+      "preparedSHA256": "2f0d51e5918adde1321295b0755fa431202c928940a7492568071447ad3781e1",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-tail-ny-expanded.mjs",
+      "destination": "work/gc-build-tail-ny-expanded.mjs",
+      "sourceSHA256": "94c12e9bef731b8058a5cee246029b5fb62ab31eaff9278dd0c8a0b621757a2b",
+      "preparedSHA256": "ace51ee50f00e1f360f88b59691d72164b1d38cb53a8dc145b4d0e6dffb46704",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-ny-sessionpath-extension.mjs",
+      "destination": "work/gc-build-ny-sessionpath-extension.mjs",
+      "sourceSHA256": "90544480744fdd60d279cef1c825fda80f130d01b9510baef84100504375fe6a",
+      "preparedSHA256": "a79d9d942900f53d2b3cac1d5dba66f528e60e8fcaad788afb40b1f06b377f3e",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-ny-extension-independent-audit.mjs",
+      "destination": "work/gc-ny-extension-independent-audit.mjs",
+      "sourceSHA256": "25c5030e9cddbfaf9f358219484049ea11dbb5388acb819acc39363810ba0ed3",
+      "preparedSHA256": "39d750af1e10cc7b6e269c4959b0a929e6c76aab40f3be6436676322a3f7dcc2",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-first-breach-study.mjs",
+      "destination": "work/gc-build-first-breach-study.mjs",
+      "sourceSHA256": "de62a5feaaf19a85d08ebc322dbf233d5e8864a39659be4440364a8718b0fe59",
+      "preparedSHA256": "699fbfed9d207cd6e145582c66b8ce583939c9d6e945b7bff23edc5b9695baf4",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-endpoint-continuation.mjs",
+      "destination": "work/gc-build-endpoint-continuation.mjs",
+      "sourceSHA256": "49278b13120b422f8edcfd3eb64c286bce6b2b306e9ca181af654d1505575634",
+      "preparedSHA256": "e2b28e4d1af31c8f1c4693bfab9482743c65c776c160c143a736b7bed3ea014c",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-research-probabilities.mjs",
+      "destination": "work/gc-build-research-probabilities.mjs",
+      "sourceSHA256": "e8c16657b2432edb8b3e0dde43044fda99deec8e777098a5c83bbd65674ec8dd",
+      "preparedSHA256": "ba86757b14b05db6e1b627683ef914ed4a15aecc0e54607de82dc0c6ed4a1779",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-finalize-research.mjs",
+      "destination": "work/gc-finalize-research.mjs",
+      "sourceSHA256": "1cbfc96f416073c965965b9957d566f5040eacbbc054fa4112d5c03d16cf8e62",
+      "preparedSHA256": "e2ed0660dc1f3007252aec2afa536a48386b14e16cdf149d5bf998eb4df388f4",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-validate-forecasts.mjs",
+      "destination": "work/gc-validate-forecasts.mjs",
+      "sourceSHA256": "31fad842cac9a65f4adac380daf44cc624908ee463a1516188dab303eb2b52bc",
+      "preparedSHA256": "aba7d672a202f98a2e0b9f86e9f2cf7c4b6a73773025a5ac34ecbaac68e009f5",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-build-research-report.mjs",
+      "destination": "work/gc-build-research-report.mjs",
+      "sourceSHA256": "519516ed0ca5550590ea7cfca254bc2bdb83b0efbfefe332654c15520a11e183",
+      "preparedSHA256": "cadac425d8c3cf1d7d6b8f77e4a5f1b7ea681aeeafd22a7535c4fd052bf8ea0d",
+      "change": "GC-only paths, market identity and protocol/data guard. Definitions otherwise retained."
+    },
+    {
+      "source": "work/es-analyze-first-breach-study.py",
+      "destination": "work/gc-analyze-first-breach-study.py",
+      "sourceSHA256": "2a591c795a11336134e7bddea83d490502e2c76f68b692d1b2a2f02733c8ceca",
+      "preparedSHA256": "32a760e707eb12672058d2d7f3231b20ecc4fb6a333a920f192b854b627bb9aa",
+      "change": "GC-only source/output paths and Python protocol/data guard."
+    },
+    {
+      "source": "work/es-audit-first-breach-study.py",
+      "destination": "work/gc-audit-first-breach-study.py",
+      "sourceSHA256": "c3a70839f7d5d338c5e07050197c39349ea65083281b7cf356b31ba83b811012",
+      "preparedSHA256": "7b0ad93f133fdefd3933fbd8a0a2d046c69d50e3ceb489192447f839ff275a38",
+      "change": "GC-only source/output paths and Python protocol/data guard."
+    },
+    {
+      "source": "work/es-analyze-endpoint-continuation.py",
+      "destination": "work/gc-analyze-endpoint-continuation.py",
+      "sourceSHA256": "7a7a136fce9e23475a712ff20d1470bb23734f2711ad78d8657adf33efd3e3c1",
+      "preparedSHA256": "791b2c3e1cbc4a14257df0c72e9358ced0043f058fd0cd26ecae50e705301ef2",
+      "change": "GC-only source/output paths and Python protocol/data guard."
+    },
+    {
+      "source": "work/es-audit-endpoint-continuation.py",
+      "destination": "work/gc-audit-endpoint-continuation.py",
+      "sourceSHA256": "f2ea6dd9186c4fb2250239d09d75432efb7ef97c64546b52e1b57f0ede6ce1ac",
+      "preparedSHA256": "35c45876f530bbb5ecc18de41da2c636556709fbb4891d5edcab63c3555ca847",
+      "change": "GC-only source/output paths and Python protocol/data guard."
+    },
+    {
+      "source": "work/es-first-breach-protocol.txt",
+      "destination": "work/gc-first-breach-protocol.txt",
+      "sourceSHA256": "edf6775a7a78e6111a9331e2f8a06df9a9134a03658639dcc2c410a72d7a0e72",
+      "preparedSHA256": "da8b80924ff097d2259dc723e4128f0dd456f4a541dd41d52855894f26ec6bfa",
+      "change": "GC-only protocol; no computed result."
+    },
+    {
+      "source": "work/es-endpoint-continuation-protocol.txt",
+      "destination": "work/gc-endpoint-continuation-protocol.txt",
+      "sourceSHA256": "8b8f0c62d0041e7a2722a4d8b52f501a52a0b8f02b5cb1cc96d42406b19c77fa",
+      "preparedSHA256": "a82c4e520d0d0b6217a39900be0609a626df827778ce2a91531b070f3bac0a67",
+      "change": "GC-only protocol; no computed result."
+    }
+  ],
+  "numericalExecution": false,
+  "fittedProbabilitiesCopied": false,
+  "websiteChanged": false,
+  "originalMarketsChanged": false,
+  "limitations": [
+    "Frozen GC reference/contract configuration is recorded; final native collection and compatible model export still gate numerical execution.",
+    "09:30/10:00/10:30 remain fixed exploratory follow-up checkpoints, not GC opening claims.",
+    "Native GC collection, forecasts, probabilities, indicator compilation, website integration and screenshots have not been completed by preparation."
+  ],
+  "configurationStatus": "FROZEN",
+  "configurationSHA256": "f4efbab3ed4672715ecb8a48eec278bd3d4add087275d7060dcfb3e49f72d987"
+}

@@ -1,0 +1,214 @@
+{
+  "instrument": "GC",
+  "status": "POPULATED_AUDITED_GC_STAGING",
+  "createdUTC": "2026-11-01T10:03:56.401Z",
+  "days": 1252,
+  "files": [
+    {
+      "file": "bbox-return-v2.json",
+      "sha256": "6df7f70ccddfc3031783b58cb50db3c1c6ff02ce5057e7b5446e06eb681e0313",
+      "sourceSHA256": "6df7f70ccddfc3031783b58cb50db3c1c6ff02ce5057e7b5446e06eb681e0313",
+      "bytes": 611598,
+      "sourceBytes": 611598
+    },
+    {
+      "file": "days.json",
+      "sha256": "a4b51f4095d5e25450b0d63454447331e579a0d7a8c24b6646302561b250f753",
+      "sourceSHA256": "a4b51f4095d5e25450b0d63454447331e579a0d7a8c24b6646302561b250f753",
+      "bytes": 1181674,
+      "sourceBytes": 1181674
+    },
+    {
+      "file": "direction-utilization.json",
+      "sha256": "2d7489ef564d26fcace3407c840b728aa233786ce042264612eb8265338fbea0",
+      "sourceSHA256": "2d7489ef564d26fcace3407c840b728aa233786ce042264612eb8265338fbea0",
+      "bytes": 1938731,
+      "sourceBytes": 1938731
+    },
+    {
+      "file": "double-break-0430-data.json",
+      "sha256": "df0945f9c9e8f74131e13c64c3daf537ff8785eca25fc44af88d97a63b81639a",
+      "sourceSHA256": "df0945f9c9e8f74131e13c64c3daf537ff8785eca25fc44af88d97a63b81639a",
+      "bytes": 146433,
+      "sourceBytes": 146433
+    },
+    {
+      "file": "metric-definitions.json",
+      "sha256": "f0ba059dd5c8b987a967637cb796b016adb9bd666ac622ce6abe629ef7ac436c",
+      "sourceSHA256": "f0ba059dd5c8b987a967637cb796b016adb9bd666ac622ce6abe629ef7ac436c",
+      "bytes": 6455,
+      "sourceBytes": 6455
+    },
+    {
+      "file": "ny-sessionpath-extension-data.json",
+      "sha256": "60797e4f7c9f141463283f9baf950d2ec6059888cc33f828a87fd0a399ad2cb9",
+      "sourceSHA256": "60797e4f7c9f141463283f9baf950d2ec6059888cc33f828a87fd0a399ad2cb9",
+      "bytes": 2001987,
+      "sourceBytes": 2001987
+    },
+    {
+      "file": "orange-box-fill-data.json",
+      "sha256": "6eed5ceed32daf7d525d8a4cc5f249ba12069ea9d6621e4d728718141fa1f11e",
+      "sourceSHA256": "6eed5ceed32daf7d525d8a4cc5f249ba12069ea9d6621e4d728718141fa1f11e",
+      "bytes": 1713540,
+      "sourceBytes": 1713540
+    },
+    {
+      "file": "planner-extra.json",
+      "sha256": "b7ce512a6d7b2d894d3b7fba5b61c84cc506af769550850b39137da8f0ef84ee",
+      "sourceSHA256": "b7ce512a6d7b2d894d3b7fba5b61c84cc506af769550850b39137da8f0ef84ee",
+      "bytes": 123956,
+      "sourceBytes": 123956
+    },
+    {
+      "file": "research-observations.json",
+      "sha256": "eb96573bd185300c0914a12bfa46cbca14a89612a21d7b1d45324fc9b7e8b055",
+      "sourceSHA256": "e84f0ebfef7f5e85a521b0d7b2580387c495d34b04fb7f4d4f2c7724595953e8",
+      "bytes": 849653,
+      "sourceBytes": 12703645,
+      "derivation": "Only live-used AVR and archived candle occupancy arrays; no empirical values recalculated."
+    },
+    {
+      "file": "research-probabilities-v1.json",
+      "sha256": "523c69ecdbb2dcdf7d0ded1f37bf6a1a736d5587e98171861da770818a0dae04",
+      "sourceSHA256": "523c69ecdbb2dcdf7d0ded1f37bf6a1a736d5587e98171861da770818a0dae04",
+      "bytes": 163333,
+      "sourceBytes": 163333
+    },
+    {
+      "file": "research-reconstruction-observations.json",
+      "sha256": "244d2173190dc9c7ecd62c33dda988f24bb40d19233a241740531bdc7b6f0479",
+      "sourceSHA256": "244d2173190dc9c7ecd62c33dda988f24bb40d19233a241740531bdc7b6f0479",
+      "bytes": 12954879,
+      "sourceBytes": 12954879
+    },
+    {
+      "file": "research-reconstruction-results.json",
+      "sha256": "2b4fc716a6003bc2ae86d0bd66bfaa633d16088b19f63d11a726cbeafb7bc03d",
+      "sourceSHA256": "2b4fc716a6003bc2ae86d0bd66bfaa633d16088b19f63d11a726cbeafb7bc03d",
+      "bytes": 672585,
+      "sourceBytes": 672585
+    },
+    {
+      "file": "research-results.json",
+      "sha256": "aa658c33acb56bc8779d02b6e40ddd8960763d52b4d4f359ae5c7b8fb504510c",
+      "sourceSHA256": "aa658c33acb56bc8779d02b6e40ddd8960763d52b4d4f359ae5c7b8fb504510c",
+      "bytes": 671978,
+      "sourceBytes": 671978
+    },
+    {
+      "file": "tags.json",
+      "sha256": "fbd22267a8fda847f935e8b6c6b794e4753adcdb2626003315004edda0f689a0",
+      "sourceSHA256": "fbd22267a8fda847f935e8b6c6b794e4753adcdb2626003315004edda0f689a0",
+      "bytes": 8348,
+      "sourceBytes": 8348
+    },
+    {
+      "file": "tail-event-ny-data.json",
+      "sha256": "db85a65776b739f2c488948883e5e05d634368b8eafb1756f3fe8e39f630be77",
+      "sourceSHA256": "db85a65776b739f2c488948883e5e05d634368b8eafb1756f3fe8e39f630be77",
+      "bytes": 85236,
+      "sourceBytes": 85236
+    },
+    {
+      "file": "tail-event-ny-expanded.json",
+      "sha256": "e618faf277ca7678ddff8f6fd33f709514cfdfaf04703914f3fb6480c622a6d2",
+      "sourceSHA256": "e618faf277ca7678ddff8f6fd33f709514cfdfaf04703914f3fb6480c622a6d2",
+      "bytes": 1872312,
+      "sourceBytes": 1872312
+    },
+    {
+      "file": "timeline.json",
+      "sha256": "4db1bc72a744f46e75aef5f46d967c56676f3c86dc01fa6740f80ed1799784db",
+      "sourceSHA256": "4db1bc72a744f46e75aef5f46d967c56676f3c86dc01fa6740f80ed1799784db",
+      "bytes": 8646501,
+      "sourceBytes": 8646501
+    },
+    {
+      "file": "validation-summary.json",
+      "sha256": "b5d3a6824ae6747e65b54668db992b4f17fd8fd4e711835edc429cc29e92af8c",
+      "sourceSHA256": "b5d3a6824ae6747e65b54668db992b4f17fd8fd4e711835edc429cc29e92af8c",
+      "bytes": 1683,
+      "sourceBytes": 1683
+    },
+    {
+      "file": "bbox-direction-study.csv",
+      "sha256": "53959141fd8bfcda2b9ff4d824a6953aff8195de1b4366cfde750b4c8bcd2766",
+      "bytes": 11873
+    },
+    {
+      "file": "bbox-direction-study.html",
+      "sha256": "ffa8af62051360745cd7da2723647dfe96b07b594e2ed3906bf57e07fee06870",
+      "bytes": 16891
+    },
+    {
+      "file": "GC-double-break-daily.csv",
+      "sha256": "ac12d01c7ca67aed3afb18d7e9627409b07e33441a5f3c50b536e977cb20eba2",
+      "bytes": 21909
+    },
+    {
+      "file": "GC-ny-sessionpath-extension.csv",
+      "sha256": "158becabd8a4bfcbff5c8a0a7604bf835cbfa0b3420d61aca181efc7f4227ce2",
+      "bytes": 4523406
+    },
+    {
+      "file": "GC-orange-box-daily.csv",
+      "sha256": "5bf0db402fa90800d24d9427d9a84fdeb2e6c8b8a3f0c7e62ccd7026a88cba13",
+      "bytes": 1609201
+    },
+    {
+      "file": "tail-event-ny-daily.csv",
+      "sha256": "370cc015737a005f06584727e87f257694c71fc89d6609bead9620f98eeed44d",
+      "bytes": 86024
+    },
+    {
+      "file": "tail-event-ny-expanded-daily.csv",
+      "sha256": "25e32c055c7a978a7af24cd0fc049ca311ac9e2d42bc205dedb4964a16e9d343",
+      "bytes": 189313
+    },
+    {
+      "file": "tail-event-ny-expanded-matching.csv",
+      "sha256": "d5189ce961a454a9cf7f6ef2275c60369348ffdb159703dd025c1ab1095834d0",
+      "bytes": 20663
+    },
+    {
+      "file": "tail-event-ny-expanded-paired.csv",
+      "sha256": "5e3106783aa284da4d8d4b119e6aa1915a3e0d8b9c1d7792a74f7e50fddb71be",
+      "bytes": 21612
+    },
+    {
+      "file": "manifest.json",
+      "sha256": "c11e4d9e3b9907da20c5186ef5ed4ef75e282a1b1500f4062420b9671d01a731",
+      "bytes": 4096
+    },
+    {
+      "file": "validation-summary.json",
+      "sha256": "b5d3a6824ae6747e65b54668db992b4f17fd8fd4e711835edc429cc29e92af8c",
+      "bytes": 1683
+    },
+    {
+      "file": "GC-qualification-audit.csv",
+      "sha256": "61535c6a11b5e6498d8a8cbc993b6c0c92ef89fbed568c3d9ddab4804c258eaf",
+      "bytes": 116784
+    }
+  ],
+  "supportedTime": [],
+  "indicatorSHA256": "2a0c11dea1ce2d57f379fca1d473b85d229662adaded9226ec1d430e9b041d92",
+  "indicatorCompiled": true,
+  "publicReady": true,
+  "researchConfigSHA256": "f4efbab3ed4672715ecb8a48eec278bd3d4add087275d7060dcfb3e49f72d987",
+  "protectedFiles": {
+    "instrument.mjs": "40c40f5e3778b34b4306eee39a60c1a5e13384f995c1ceece34ad8f0b3973495",
+    "auto-fill.mjs": "70dee5e3ab4895112d6ef1b2a9cae2c73075ca692cea8c71a4586b40d4baf88c",
+    "ny-direction-autofill.mjs": "d8ca20a3ecd10841871ca98f2d6d2970fc6ede197fd1d67c9c4aee7403ae168e",
+    "ny-direction-autofill-core.mjs": "d415acf47b5087b32eeb800a89edac42470a4c0ba64f947d94cf4e20f634d654",
+    "gc-autofill-contract.mjs": "93f3ae54607b4de9f517eebb171259b395b13ac14273d4e4698d8019d98c3567",
+    "gc-convention.mjs": "2cf4646845dd2e77b701ea9a7bcf2a0b9cc3f5501d6700b7b019b98b9e0dbf60"
+  },
+  "reportArtifacts": 25,
+  "cotSnapshotDate": "2026-10-27",
+  "screenshotImages": 0,
+  "otherMarketFittedDataCopied": false,
+  "canonicalModified": false,
+  "deployed": false
+}

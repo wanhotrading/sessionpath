@@ -1,0 +1,94 @@
+{
+  "instrument": "GC",
+  "source": "outputs/gc-database/gc.sqlite3",
+  "conventionId": "gc:f4efbab3ed4672715ecb8a48eec278bd3d4add087275d7060dcfb3e49f72d987",
+  "researchConfigSHA256": "f4efbab3ed4672715ecb8a48eec278bd3d4add087275d7060dcfb3e49f72d987",
+  "contractPlanSHA256": "a6da1291484f3d6fed6e7ec80701f6010a1f33bd35d7c4caeee5dba209d08743",
+  "dateStart": "2022-01-03",
+  "dateEnd": "2026-10-20",
+  "collectionComplete": true,
+  "collectionStatus": "COMPLETE_WITH_DOCUMENTED_EXCEPTIONS",
+  "readyDates": 1151,
+  "pendingDates": 0,
+  "documentedExceptionDates": 101,
+  "notFullyReadyDates": 101,
+  "diagnosticOnly": false,
+  "n": 1252,
+  "priceScale": 100,
+  "tickSize": 0.1,
+  "sourceTickScale": 10,
+  "avrSession": {
+    "startMinute": 570,
+    "endMinute": 960,
+    "meaning": "Common SessionPath reference; not an assertion of Gold exchange RTH"
+  },
+  "bboxSession": {
+    "startMinute": 570,
+    "endMinute": 960,
+    "meaning": "Common SessionPath reference; not an assertion of Gold exchange RTH"
+  },
+  "referenceHistoryAgeSummary": {
+    "dates_with_ten_complete_references": 1205,
+    "median_oldest_reference_age_calendar_days": 14,
+    "maximum_oldest_reference_age_calendar_days": 61,
+    "dates_oldest_reference_more_than_30_calendar_days": 11,
+    "dates_oldest_reference_more_than_60_calendar_days": 1,
+    "dates_oldest_reference_more_than_90_calendar_days": 0,
+    "longest_examples": [
+      {
+        "date": "2026-05-27",
+        "contract": "GCQ2026",
+        "oldest_reference_date": "2026-03-27",
+        "newest_reference_date": "2026-05-26",
+        "oldest_age_calendar_days": 61,
+        "newest_age_calendar_days": 1
+      },
+      {
+        "date": "2026-07-30",
+        "contract": "GCZ2026",
+        "oldest_reference_date": "2026-06-10",
+        "newest_reference_date": "2026-07-29",
+        "oldest_age_calendar_days": 50,
+        "newest_age_calendar_days": 1
+      },
+      {
+        "date": "2023-11-30",
+        "contract": "GCG2024",
+        "oldest_reference_date": "2023-10-13",
+        "newest_reference_date": "2023-11-29",
+        "oldest_age_calendar_days": 48,
+        "newest_age_calendar_days": 1
+      },
+      {
+        "date": "2026-07-31",
+        "contract": "GCZ2026",
+        "oldest_reference_date": "2026-06-17",
+        "newest_reference_date": "2026-07-30",
+        "oldest_age_calendar_days": 44,
+        "newest_age_calendar_days": 1
+      },
+      {
+        "date": "2024-05-28",
+        "contract": "GCQ2024",
+        "oldest_reference_date": "2024-04-15",
+        "newest_reference_date": "2024-05-24",
+        "oldest_age_calendar_days": 43,
+        "newest_age_calendar_days": 4
+      }
+    ],
+    "meaning": "Ten previous complete same-contract reference sessions; missing sessions are skipped, so this is not always ten consecutive trading dates."
+  },
+  "ntaDefinition": "Complete 30 five-minute trading slots: previous complete BBOX date 16:00\u201316:55 NY and preceding calendar evening 18:00\u201319:25 NY; Friday-to-Sunday for Monday. Intervening exchange closure is excluded.",
+  "ntaExpectedBars": 30,
+  "nyReferencePhase": "phaseComplete.NY and NY shape use the frozen BBOX reference session, not the 08:30\u201316:00 forecast window.",
+  "timing": "Open known at cutoff; prior HLC only; outcome [start,end), final included candle closes at end.",
+  "phaseRule": "Narrow first when R<18% prior BBOX width, then first-extreme order and close-position thresholds25/70 and30/75%; same-bar order unresolved.",
+  "chartReview": "Pending. No images fabricated.",
+  "files": {
+    "days.json": "642e89bed73e4771f907977268fadb4bc9d638db4e0c09cf6d456985f06550c6",
+    "timeline.json": "4db1bc72a744f46e75aef5f46d967c56676f3c86dc01fa6740f80ed1799784db",
+    "tags.json": "fbd22267a8fda847f935e8b6c6b794e4753adcdb2626003315004edda0f689a0",
+    "planner-extra.json": "f5ae66b903382f7906bfe4624aa9d714656b88a3eac6f2378bbef79335453d82",
+    "research-days.json": "f361c819656454f7bc75d49a6aeab5f3dfbf95ab72e7acc759df32863185c05c"
+  }
+}

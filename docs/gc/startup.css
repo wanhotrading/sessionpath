@@ -1,0 +1,4 @@
+/* Keep decorative work out of startup and background tabs. User motion settings remain intact. */
+html[data-startup="loading"] *,html[data-startup="loading"] *::before,html[data-startup="loading"] *::after,
+html[data-page-hidden="true"] *,html[data-page-hidden="true"] *::before,html[data-page-hidden="true"] *::after{animation-play-state:paused!important}
+#startup-recovery{margin:12px 0;max-width:440px}

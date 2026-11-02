@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-startup="loading" data-loading-cover="loading"><head><script>if(new URL(location.href).searchParams.get("instrument")==="ES"){const target=new URL("./es/",location.href);target.searchParams.set("instrument","ES");if(location.hash)target.hash=location.hash;location.replace(target.href);}</script><style id="loading-cover-styles">/* Critical first-paint styles are inlined before any external stylesheet. */
+<html lang="en" data-startup="loading" data-loading-cover="loading"><head><script>{const market=new URL(location.href).searchParams.get("instrument"),route={ES:"./es/",GC:"./gc/"}[market];if(route){const target=new URL(route,location.href);target.search=location.search;target.hash=location.hash;location.replace(target.href);}}</script><style id="loading-cover-styles">/* Critical first-paint styles are inlined before any external stylesheet. */
 html[data-loading-cover]{background:#000!important;overflow:hidden!important}
 html[data-loading-cover] body{overflow:hidden!important}
 html[data-loading-cover="loading"] body>:not(#sessionpath-loading):not(script):not(style):not(noscript),
@@ -46,6 +46,7 @@ html[data-loading-cover="fading"] #sessionpath-loading .loading-brand::after{opa
 /* Original acrylic artwork on both faces, with an extruded reflective silhouette.
    The source images are shared with the market panels; no replacement logo. */
 #sessionpath-loading #loading-coin{--coin-size:clamp(48px,7vw,84px);--coin-art:url("assets/emblems/cl-acrylic-v1.webp");--coin-depth:calc(var(--coin-size)*.065);width:var(--coin-size);height:var(--coin-size);position:relative;perspective:700px;transform-style:preserve-3d}
+#loading-coin[data-market="GC"]{--coin-art:url("gc/gc-emblem.svg")!important}
 #loading-coin[data-market="NQ"]{--coin-art:url("assets/emblems/nq-acrylic-v1.webp")!important}
 #loading-coin-rotor{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateY(0deg)}
 #loading-coin .coin-face,#loading-coin .coin-rim{position:absolute;inset:0;pointer-events:none}
@@ -70,7 +71,7 @@ html[data-loading-cover="fading"] #sessionpath-loading .loading-site-logo{opacit
  const note=document.getElementById('loading-note'),retry=document.getElementById('loading-retry');
  const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),coin=document.getElementById('loading-coin'),rotor=document.getElementById('loading-coin-rotor');
  const transferKey='sessionpath-loading-transition';
- const markets={CL:{name:'Crude oil',image:'assets/emblems/cl-acrylic-v1.webp'},NQ:{name:'Nasdaq 100',image:'assets/emblems/nq-acrylic-v1.webp'}};
+ const markets={CL:{name:'Crude oil',image:'assets/emblems/cl-acrylic-v1.webp'},NQ:{name:'Nasdaq 100',image:'assets/emblems/nq-acrylic-v1.webp'},GC:{name:'Gold',image:'gc/gc-emblem.svg'}};
  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
  let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,spin,audio;
  const artwork=new Map();

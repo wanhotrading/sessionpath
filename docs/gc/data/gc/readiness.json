@@ -1,0 +1,99 @@
+{
+  "instrument": "GC",
+  "status": "VALIDATED",
+  "nativeDataAudit": "PASS",
+  "forecastAudit": "PASS",
+  "researchAudit": "PASS",
+  "referenceProtocolFrozen": true,
+  "gcIndependentFitsValidated": true,
+  "indicatorCompiled": true,
+  "indicatorStatus": "TRADINGVIEW_COMPILE_VERIFIED",
+  "files": [
+    "bbox-return-v2.json",
+    "cot-positioning.json",
+    "days.json",
+    "direction-utilization.json",
+    "double-break-0430-data.json",
+    "gallery-index.json",
+    "gallery-status.json",
+    "manifest.json",
+    "metric-definitions.json",
+    "ny-sessionpath-extension-data.json",
+    "orange-box-fill-data.json",
+    "planner-extra.json",
+    "readiness.json",
+    "research-observations.json",
+    "research-probabilities-v1.json",
+    "research-reconstruction-observations.json",
+    "research-reconstruction-results.json",
+    "research-results.json",
+    "tags.json",
+    "tail-event-ny-data.json",
+    "tail-event-ny-expanded.json",
+    "timeline.json",
+    "validation-summary.json"
+  ],
+  "through": "2026-10-20",
+  "dates": 1252,
+  "sourceResearchAuditSHA256": "302838354aaab117fe19ded0df0812a9f749ca8b6e4f2efa94d7cc848da50e86",
+  "researchConfigSHA256": "f4efbab3ed4672715ecb8a48eec278bd3d4add087275d7060dcfb3e49f72d987",
+  "conventionId": "gc:f4efbab3ed4672715ecb8a48eec278bd3d4add087275d7060dcfb3e49f72d987",
+  "referenceSessionIsImplementationDefault": true,
+  "referenceSessionIsGoldRTH": false,
+  "screenshots": 0,
+  "liveAutoFillVerified": false,
+  "publicReady": true,
+  "compileReceipt": {
+    "instrument": "GC",
+    "compiledOnTradingView": true,
+    "indicatorSHA256": "2a0c11dea1ce2d57f379fca1d473b85d229662adaded9226ec1d430e9b041d92",
+    "scriptName": "SessionPath GC v1.0",
+    "revision": 1,
+    "verifiedAt": "2026-11-01T10:03:51.203Z",
+    "chartSymbol": "COMEX:GCZ2026",
+    "chartURL": "https://www.tradingview.com/chart/tq8ee093/",
+    "layout": "SessionPath Gold Data Collection",
+    "savedAsSeparateScript": true,
+    "existingCLNQESScriptsOverwritten": false,
+    "publishedListing": false,
+    "verificationDate": "2026-10-20",
+    "verificationIsHistoricalReplay": true,
+    "checks": {
+      "nativeTradingViewCompile": true,
+      "allThreeImportedMeanBoxes": true,
+      "datedOrangeExpansionBoxes": true,
+      "ny1OwnWideImported": true,
+      "nyOwnWideHistoricalFitCount": 131,
+      "ny120Price": 4165.2,
+      "ny130Price": 4169.6,
+      "ny120PendingReachedPercent": 53.7,
+      "ny120PendingMissedPercent": 46.3,
+      "ny130PendingReachedPercent": 42.2,
+      "ny130PendingMissedPercent": 57.8,
+      "nyReachedStateAfterTargetTouch": true,
+      "bboxCodeCopiedByUIButton": true,
+      "bboxReturnLineVisible": true,
+      "bboxReturnHistoricalPercent": 38.2,
+      "bboxReturnCounts": [
+        79,
+        207
+      ],
+      "purpleSessionTextLabelsAbsent": true
+    },
+    "proof": [
+      {
+        "file": "outputs/gc-verification/GC-three-boxes-NY-reached.png",
+        "sha256": "61516d8ae51d02728d8fa29c2625a0d9cfc33b9dac5e2999698c0089d4e40b63"
+      },
+      {
+        "file": "outputs/gc-verification/GC-NY-pending-reached-missed.png",
+        "sha256": "2d129220c82f007df18abbdcfb79d7ced3c244c96d962dadc7ab8ad7dd2ff006"
+      }
+    ],
+    "limitations": [
+      "No public TradingView listing has been created. The script is saved on the user account and will be downloadable on the Gold site.",
+      "This is a functional chart verification, not the daily screenshot archive.",
+      "Live Yahoo Gold Auto-fill provider success remains unverified."
+    ]
+  }
+}
