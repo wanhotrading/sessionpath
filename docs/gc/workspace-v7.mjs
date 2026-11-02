@@ -51,6 +51,8 @@ export function apiFailureMessage(data){
 export function mountReader(state,apply){
  let source=null,cropped=null,result=null,request=0,controller=null;
  $('use-local-reader').onclick=()=>{$('paid-api-reader').open=false;$('local-json-reader').scrollIntoView({block:'start',inline:'nearest'});$('local-json-file').focus();};
+ // GC screenshot API is not connected; reviewed imports remain available.
+ if(instrument.id==='GC'){const panel=$('paid-api-reader');panel.querySelector('summary').textContent='Screenshot API · not connected';panel.querySelector('p').textContent='Automatic image extraction is not connected for Gold. Use GCPI1 chart snapshots or import reviewed JSON below.';for(const id of ['image-drop','ai-preview','crop-controls','read-chart','clear-image'])$(id).hidden=true;$('read-chart').disabled=true;return;}
  const status=(text,error=false)=>{$('ai-status').textContent=text;$('ai-status').classList.toggle('error',error);};
  const invalidate=()=>{request++;controller?.abort();result=null;$('ai-results').replaceChildren();$('ai-usage').textContent='';$('read-chart').disabled=!cropped||!$('cutoff-confirmed').checked;};
  const crop=()=>{invalidate();$('cutoff-confirmed').checked=false;if(!source)return;const right=Number($('crop-right').value)/100,w=Math.max(1,Math.floor(source.naturalWidth*right)),h=source.naturalHeight,scale=Math.min(1,1600/w,1400/h);const canvas=document.createElement('canvas');canvas.width=Math.round(w*scale);canvas.height=Math.round(h*scale);canvas.getContext('2d').drawImage(source,0,0,w,h,0,0,canvas.width,canvas.height);cropped=canvas.toDataURL('image/jpeg',.88);$('ai-preview').src=cropped;$('read-chart').disabled=true;status('Check the crop and decision time before reading.');};

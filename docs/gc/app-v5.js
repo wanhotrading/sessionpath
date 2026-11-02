@@ -7,10 +7,10 @@ import {instrument,dataPath,storageKey as marketStorageKey,mountInstrumentSelect
 import {setupDeviceView} from './device-view.mjs';
 import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=three-states-20261023';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
-import {mountLocalImporter} from './local-import-ui.mjs';
+import {mountLocalImporter} from './local-import-ui.mjs?v=gc-release-20261102';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
-import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=tools-slide-20261022';
+import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=gc-release-20261102';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=ny-method-link-20261030';
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-method-link-20261030';

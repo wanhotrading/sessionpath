@@ -1,5 +1,6 @@
 import {tagDefinitionsByInstrument} from './local-tag-definitions-by-instrument.mjs';
 import {instrument} from './instrument.mjs';
+import {positionQuarters} from './ny-position-helper.mjs';
 
 const definitionsFor=market=>tagDefinitionsByInstrument[market]||[];
 const tagDefinitions=definitionsFor(instrument.id);
@@ -170,10 +171,7 @@ export function nyInputsFromReview(review,{basis='own',wide=true}={}){
     const top=basis==='own'?high:values['prior-high'],bottom=basis==='own'?low:values['prior-low'];
     if(top<=bottom)throw Error('Invalid prior BBOX range');
     const p=(close-bottom)/(top-bottom);
-    if(p<0)return ['BELOW'];if(p>1)return ['ABOVE'];
-    const q=p<.25?'Q1':p<.5?'Q2':p<.75?'Q3':'Q4';
-    if(wide)for(const [i,b] of [.25,.5,.75].entries())if(Math.abs(p-b)<=.05+1e-10)return [`Q${i+1}`,`Q${i+2}`];
-    return [q];
+    return positionQuarters(p)[wide?'wide':'exact'];
   };
   return {price:values.price,avr:values.avr,asia:position('asia'),london:position('london'),basis,wide,sessionDefinition:NY_SESSION_DEFINITION};
 }

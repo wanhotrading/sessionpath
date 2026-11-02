@@ -1,4 +1,4 @@
-import {validateBundle,selectable,makeReview,DICTIONARY_VERSION,cutoffMinute,nyInputsFromReview,NY_SESSION_DEFINITION} from './local-import-core.mjs';
+import {validateBundle,selectable,makeReview,DICTIONARY_VERSION,cutoffMinute,nyInputsFromReview,NY_SESSION_DEFINITION} from './local-import-core.mjs?v=gc-release-20261102';
 import {REVIEW_KEY,readReviewSnapshot,saveReview} from './local-review-store.mjs';
 import {instrument} from './instrument.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';

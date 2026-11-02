@@ -1,4 +1,4 @@
-import {appendReview,validateContext} from './local-import-core.mjs';
+import {appendReview,validateContext} from './local-import-core.mjs?v=gc-release-20261102';
 import {storageKey} from './instrument.mjs';
 
 export const REVIEW_KEY=storageKey('sessionpath-local-reviews-v1');
