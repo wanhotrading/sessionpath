@@ -32,7 +32,7 @@ export function mountInstrumentSelector(){
  document.querySelector('.ambient-footer span').textContent=instrument.id+' / RESEARCH WORKSPACE';
  document.querySelector('.page-heading h1').textContent=instrument.id;
  document.querySelector('meta[name="description"]').content='SessionPath '+instrument.id+' futures: AVR-normalized forecasts and historical compression, expansion and BBOX returns.';
- for(const a of document.querySelectorAll('a[href="session-path-v5.pine"]')){a.href=instrument.indicatorFile;a.download=instrument.indicatorDownload;a.textContent='Indicator '+instrument.indicatorLabel;}
+ for(const a of document.querySelectorAll('a[data-indicator-installer],a[href="session-path-v5.pine"]')){a.href=instrument.indicatorFile;a.download=instrument.indicatorDownload;a.textContent='Indicator '+instrument.indicatorLabel;}
  if(instrument.id==='NQ'){
   for(const text of document.querySelectorAll('#indicator-section .compact-note'))text.textContent=text.textContent.replaceAll('v6.6',instrument.indicatorLabel);
   for(const input of document.querySelectorAll('input[type="number"][step="0.01"]'))input.step='.25';
