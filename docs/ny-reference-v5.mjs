@@ -1,10 +1,11 @@
+import {mountNYTimingPanel} from './ny-timing-panel.mjs?v=20261102';
 import {tint,reveal} from './forecast-motion.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
-import {instrument} from './instrument.mjs';
+import {instrument} from './instrument.mjs?v=ny-timing-20261102';
 import {deriveRows,bucket,mean,quantile,wilson,clockLabel} from './window-engine.mjs';
 import {shapes} from './planner-v3.mjs';
-import {makeForecastCode} from './indicator-v5.mjs?v=ny-method-link-20261030';
+import {makeForecastCode} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {mountNYContext,readNYPrinted,renderForecastContext,renderNYStrength} from './forecast-context.mjs';
 import {nyPositionSelection,archivedNYPositions} from './ny-position-helper.mjs';
 import {computeNYPositionAutofill} from './ny-position-autofill-core.mjs';
@@ -80,6 +81,7 @@ export function mountNYReference(days,timeline) {
  <div class="forecast-transfer"><label>TradingView · NY code<textarea id="ny-code" readonly rows="2" placeholder="Enter 08:30 price and AVR to export for today."></textarea></label><div class="button-row"><button id="ny-copy" class="quiet" disabled>Copy NY forecast code</button><span id="ny-code-status" role="status"></span></div><p class="compact-note">Indicator ${instrument.indicatorLabel} → NY forecast code (08:30). Starts 08:30; ends at your chosen time.</p></div>
  `;
  mountNYContext(host);
+ const timingPanel=mountNYTimingPanel(host,{onExportChange:render});
  $('ny-date').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
  const cache=new Map();
  let canonicalPending=instrument.id==='CL',canonicalReady=instrument.id!=='CL',canonicalError='';
@@ -139,7 +141,7 @@ export function mountNYReference(days,timeline) {
   const researchMethod=canonicalReady?nyResearchMethod({basis,mode:$('ny-position-mode').value,appliedPosition,filters,endMinute:end}):'Custom';
   $('ny-method').textContent=canonicalPending?'Loading the verified CL NY research reference…':canonicalError?'NY research reference unavailable. The box can export as Custom; named extension percentages are disabled.':researchMethod!=='Custom'?'NY method: '+researchMethod+' · linked automatically. Orange percentages pool earlier forecasts using this method.':'NY method: custom / unfiltered. The box still exports; named extension probabilities require Apply Exact / Wide, all years, no shape filters and the 16:00 endpoint.';
   $('ny-code').value='';$('ny-copy').disabled=true;$('ny-code-status').textContent='';
-  if(!s.n){$('ny-results').innerHTML='<div class="notice">No complete historical cases match these conditions. Clear a position or shape to broaden the sample.</div>';return;}
+  if(!s.n){$('ny-results').innerHTML='<div class="notice">No complete historical cases match these conditions. Clear a position or shape to broaden the sample.</div>';timingPanel.update({code:'',method:researchMethod,date:$('ny-date').value});return;}
   const conditions=[filters.asia.length?'Asia '+filters.asia.join(' / '):'',filters.london.length?'London '+filters.london.join(' / '):'',filters.asiaShape?'Asia '+shapes.find(x=>x[0]===filters.asiaShape)[1]:'',filters.londonShape?'London '+shapes.find(x=>x[0]===filters.londonShape)[1]:''].filter(Boolean).join(' + ')||'No position or shape filters';
   const stat=(label,k)=>`<div class="probability-row"><div><span>${label}</span><b>${pc(k/s.n)}</b></div><div class="probability-track"><span style="width:${100*k/s.n}%"></span></div><small>${k} / ${s.n} · 95% interval ${wilson(k,s.n).map(pc).join('–')}</small></div>`;
   $('ny-results').innerHTML=`<p class="ny-cohort"><strong>${s.n.toLocaleString()} matched days</strong> / ${baseline.n.toLocaleString()} eligible in selected years · ${esc(conditions)}</p>${s.n<50?'<div class="notice">Fewer than 50 cases: this slice is thin. Compare the yearly counts and uncertainty intervals before treating its ranking as stable.</div>':''}${rawAvr!==''&&!validAvr?'<div class="notice">Enter a positive AVR to convert the movement into points.</div>':''}
@@ -152,6 +154,8 @@ export function mountNYReference(days,timeline) {
   if(!canonicalPending&&validAvr&&validPrice&&/^\d{4}-\d{2}-\d{2}$/.test($('ny-date').value)) {
    try{$('ny-code').value=makeForecastCode({...s,upPoints:s.up*avr,downPoints:s.down*avr,extensionUpPoints:s.extensionUp*avr,extensionDownPoints:s.extensionDown*avr,upMaxPoints:Math.max(...s.cohort.map(r=>r.row.nextHighAvr))*avr,downMaxPoints:Math.max(...s.cohort.map(r=>-r.row.nextLowAvr))*avr,upMedianPoints:s.upMedian*avr,downMedianPoints:s.downMedian*avr,endMinute:end},{date:$('ny-date').value,minute:510,price,avr,nyResearchMethod:researchMethod,rangeHigh:$('ny-range-high').value===''?null:Number($('ny-range-high').value),rangeLow:$('ny-range-low').value===''?null:Number($('ny-range-low').value)});$('ny-copy').disabled=false;}catch(e){$('ny-code-status').textContent=e.message;}
   }
+  timingPanel.update({code:$('ny-code').value,method:researchMethod,date:$('ny-date').value});
+  if($('ny-code').value){$('ny-code').value=timingPanel.decorateCode($('ny-code').value);if(timingPanel.exportBlocked)$('ny-copy').disabled=true;if(timingPanel.exportStatus)$('ny-code-status').textContent=timingPanel.exportStatus;}
   if($('ny-code').value)document.dispatchEvent(new CustomEvent('sessionpath:forecast-export',{detail:{code:$('ny-code').value}}));
  }
  host.addEventListener('change',e=>{

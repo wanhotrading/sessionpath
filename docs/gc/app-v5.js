@@ -12,8 +12,8 @@ import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-2026
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=gc-release-20261102';
 import {mountReplayTools} from './replay-tools.mjs';
-import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=ny-position-auto-20261102';
-import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-method-link-20261030';
+import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=ny-timing-20261102';
+import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -249,7 +249,7 @@ async function startResearch(){
  void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();},$('evidence'));
  void optionalAsset(instrument.indicatorFile,value=>{state.pineTemplate=value;renderBox();},$('indicator-section'));
  // Follow-up research is optional and lazy: it never gates the existing forecast.
- void import('./research-followup.mjs?v=20261028').then(m=>m.mountResearchFollowup(state)).catch(error=>console.warn('Research follow-up unavailable:',error));
+ void import('./research-followup.mjs?v=ny-timing-20261102').then(m=>m.mountResearchFollowup(state)).catch(error=>console.warn('Research follow-up unavailable:',error));
  const applyReaderChoices=choices=>{for(const c of choices){if(c.kind==='tag')state.selected.add(c.value);if(c.kind==='behavior')$('behavior').value=c.value;if(c.kind==='value'){const [id,value]=c.value.split('=');if($(id))$(id).value=value;}}state.library=false;analyze();};
  for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation(),()=>mountReader(state,applyReaderChoices),()=>mountLocalImporter(state,applyReaderChoices)]){
   await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}

@@ -1,6 +1,6 @@
 import {gcAutofillConvention} from './gc-convention.mjs';
 // GC-only development staging. Unknown markets fail closed.
-export const instruments=Object.freeze({GC:Object.freeze({id:'GC',name:'Gold',roots:['GC','MGC'],tickSize:.1,pointValue:100,tickValue:10,microPointValue:10,microTickValue:1,forecastPrefix:'SPGC1',expansionPrefix:'SPGC2',snapshotPrefix:'GCPI1',returnPrefix:'GBPR1',indicatorLabel:'GC / MGC v1.0',indicatorFile:'data/gc/session-path-gc-v1.0.pine',indicatorDownload:'SessionPath-GC-v1.0.pine',dataDirectory:'data/gc/',autofillConvention:gcAutofillConvention})});
+export const instruments=Object.freeze({GC:Object.freeze({id:'GC',name:'Gold',roots:['GC','MGC'],tickSize:.1,pointValue:100,tickValue:10,microPointValue:10,microTickValue:1,forecastPrefix:'SPGC1',expansionPrefix:'SPGC2',snapshotPrefix:'GCPI1',returnPrefix:'GBPR1',indicatorLabel:'GC / MGC v1.1',indicatorFile:'data/gc/session-path-gc-v1.1.pine',indicatorDownload:'SessionPath-GC-v1.1.pine',dataDirectory:'data/gc/',autofillConvention:gcAutofillConvention})});
 export function resolveInstrument(value){if(value==null||value==='')value='GC';if(!Object.hasOwn(instruments,value))throw Error('Use the market selector to open this instrument’s own SessionPath workflow.');return instruments[value];}
 export const instrument=resolveInstrument(typeof location==='undefined'?'GC':new URL(location.href).searchParams.get('instrument'));
 export const dataPath=file=>instrument.dataDirectory+file;

@@ -1,4 +1,5 @@
-import {instrument} from './instrument.mjs';
+import {parseNYTimingToken} from './ny-timing-code.mjs';
+import {instrument} from './instrument.mjs?v=ny-timing-20261102';
 import {nyTimestamp} from './planner-v3.mjs';
 import {nyMethodToken,parseNYMethodToken} from './ny-method-metadata.mjs';
 
@@ -55,9 +56,26 @@ export function makeForecastCode(box,q) {
 }
 export function parseForecastCode(code) {
  const a=String(code).trim().split('|');
- const nyResearchMethod=parseNYMethodToken(a.at(-1));
- const nyMethodMetadataPresent=nyResearchMethod!==null;
- if(nyMethodMetadataPresent)a.pop();
+ let nyResearchMethod=null,nyMethodMetadataPresent=false,nyMethodMetadataInvalid=false;
+ let nyTimingReference=null,nyTimingMetadataPresent=false,nyTimingMetadataInvalid=false;
+ const rawExpansionPrefix=instrument.expansionPrefix??(instrument.id==='NQ'?'SPNQ2':'SP6');
+ const numericLength=a[0]===rawExpansionPrefix?19:a[0]===instrument.forecastPrefix?15:instrument.id==='CL'&&a[0]==='SP4'?11:0;
+ const metadata=numericLength&&a.length>numericLength?a.splice(numericLength):[];
+ if(metadata.some(token=>token.trim()===''||Number.isFinite(Number(token))))throw Error('Invalid numeric forecast suffix.');
+ for(const token of metadata){
+  if(token.startsWith('NY1:')){
+   if(nyMethodMetadataPresent)nyMethodMetadataInvalid=true;
+   nyMethodMetadataPresent=true;
+   try{const method=parseNYMethodToken(token);if(!method)nyMethodMetadataInvalid=true;else nyResearchMethod=method;}catch{nyMethodMetadataInvalid=true;}
+  }else if(token.startsWith('NYT1:')){
+   if(nyTimingMetadataPresent)nyTimingMetadataInvalid=true;
+   nyTimingMetadataPresent=true;
+   try{nyTimingReference=parseNYTimingToken(token);}catch{nyTimingMetadataInvalid=true;}
+  }else{nyMethodMetadataInvalid=true;nyTimingMetadataInvalid=true;}
+ }
+ if(nyMethodMetadataInvalid)nyResearchMethod='Custom';
+ if(nyTimingReference?.version===2&&(nyTimingReference.market!==instrument.id||nyTimingReference.method!==({'Own Exact':'nyOwnExact','Own Wide':'nyOwnWide','Prior Exact':'nyPriorExact','Prior Wide':'nyPriorWide'}[nyResearchMethod])))nyTimingMetadataInvalid=true;
+ if(nyTimingMetadataInvalid||nyMethodMetadataInvalid||!['Own Exact','Own Wide','Prior Exact','Prior Wide'].includes(nyResearchMethod))nyTimingReference=null;
  const v=a.slice(1).map(Number);
  const expansionPrefix=instrument.expansionPrefix??(instrument.id==='NQ'?'SPNQ2':'SP6');
  const expanded=a.length===19&&a[0]===expansionPrefix,envelope=expanded||(a.length===15&&a[0]===instrument.forecastPrefix);
@@ -68,13 +86,14 @@ export function parseForecastCode(code) {
  if(envelope&&(maxUp<up||maxDown<down||medianUp<0||medianDown<0||medianUp>maxUp||medianDown>maxDown))throw Error('Invalid envelope values.');
  const [rangeHigh,rangeLow,extensionUpPoints,extensionDownPoints]=expanded?v.slice(14,18):[null,null,null,null];
  if(expanded&&(rangeHigh<rangeLow||price<rangeLow-1e-8||price>rangeHigh+1e-8||extensionUpPoints<0||extensionDownPoints<0))throw Error('Invalid cutoff range or expansion distances.');
- return {start,end,price,up,down,n,containment,touchUp,touchDown,avr,maxUp,maxDown,medianUp,medianDown,rangeHigh,rangeLow,extensionUpPoints,extensionDownPoints,nyResearchMethod,nyMethodMetadataPresent};
+ return {start,end,price,up,down,n,containment,touchUp,touchDown,avr,maxUp,maxDown,medianUp,medianDown,rangeHigh,rangeLow,extensionUpPoints,extensionDownPoints,nyResearchMethod,nyMethodMetadataPresent,nyMethodMetadataInvalid,nyTimingReference,nyTimingMetadataPresent,nyTimingMetadataInvalid};
 }
 export function makeChartPine(template,box,q,{anchorMode='Frozen 04:30'}={}) {
  const code=box?makeForecastCode(box,q):'';
  const field=q?.minute===510?'NY forecast code (08:30)':q?.minute===300?'05:00 forecast code (optional)':'Forecast code from website';
- const needle='input.string("", "'+field+'"';
- if(!template.includes(needle))throw Error('Indicator template unavailable.');
- let result=template.replace(needle,'input.string('+JSON.stringify(code)+', "'+field+'"').replace('input.string("Frozen 04:30", "AVR anchor"','input.string('+JSON.stringify(anchorMode)+', "AVR anchor"');
+ const kind=['input.string','input.text_area'].find(kind=>template.includes(kind+'("", "'+field+'"'));
+ if(!kind)throw Error('Indicator template unavailable.');
+ const needle=kind+'("", "'+field+'"';
+ let result=template.replace(needle,kind+'('+JSON.stringify(code)+', "'+field+'"').replace('input.string("Frozen 04:30", "AVR anchor"','input.string('+JSON.stringify(anchorMode)+', "AVR anchor"');
  return result;
 }

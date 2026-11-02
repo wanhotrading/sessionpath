@@ -1,5 +1,5 @@
 import {instrument,storageKey} from './instrument.mjs';
-import {parseForecastCode} from './indicator-v5.mjs';
+import {parseForecastCode} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {selectEndpointProbability,selectFirstBreachProbability,WINDOW_BOUNDS} from './research-probability-core.mjs';
 import {classifyEndpoint,observeFirstBreach,makeResearchCode,parseResearchSnapshot,nyParts} from './research-followup-code.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
