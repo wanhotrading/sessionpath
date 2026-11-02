@@ -7,10 +7,17 @@ import {shapes} from './planner-v3.mjs';
 import {makeForecastCode} from './indicator-v5.mjs?v=ny-method-link-20261030';
 import {mountNYContext,readNYPrinted,renderForecastContext,renderNYStrength} from './forecast-context.mjs';
 import {nyPositionSelection,archivedNYPositions} from './ny-position-helper.mjs';
+import {computeNYPositionAutofill} from './ny-position-autofill-core.mjs';
 import {nyResearchMethod} from './ny-method-metadata.mjs';
 import {validateCLNYHistory} from './ny-reference-history.mjs';
 
 let positionHelper=null;
+export function fillLiveNYPositionHelper(result){
+ if(!positionHelper)throw Error('The NY position helper is still loading. Try Auto-fill again.');
+ return positionHelper.fillLive(result);
+}
+export function positionFillUnavailable(message){const note=document.getElementById('ny-position-status');if(note)note.textContent='Not filled: '+message+' Existing position entries were kept.';}
+
 // Called by08:30 archive autofill after old NY filters have been cleared.
 export function fillNYPositionHelper(day,timeline,knownAt=510){
  if(!positionHelper)return false;
@@ -65,7 +72,7 @@ export function mountNYReference(days,timeline) {
  host.innerHTML=`<div class="section-heading"><div><div class="eyebrow">06 / NEW YORK</div><h2>New York outlook</h2></div><span class="pill">2022–2026 archive</span></div>
  <div class="ny-controls"><label>Position reference<select id="ny-basis"><option value="bbox">Prior NY BBOX · shared reference</option><option value="own">Each session’s own high–low range</option></select></label><label>From 08:30<select id="ny-end"><option value="960">Through 16:00 · full NY day</option><option value="630">Through 10:30 · includes pre-open</option></select></label><label>Research year<select id="ny-year"><option value="">All years</option>${[2022,2023,2024,2025,2026].map(y=>`<option>${y}</option>`).join('')}</select></label></div>
  <details class="session-note"><summary>Position reference</summary><p id="ny-basis-note" class="field-help"></p></details>
- ${`<details class="session-note" id="ny-position-helper"><summary>Exact / Wide position helper</summary><p class="field-help">Enter each session’s final closing position in the selected range above: 0% is its low, 100% its high. Own uses a different high–low range for Asia and London; Prior uses the same prior NY BBOX for both. Prior permits values below 0% or above 100%.</p><div class="ny-controls"><label>Quarter selection<select id="ny-position-mode"><option value="wide">Wide · include a neighbouring quarter within 5 percentage points</option><option value="exact">Exact · one closing quarter</option></select></label><label>Asia closing position · %<input id="ny-position-asia" type="number" step="any" placeholder="29.77"></label><label>London closing position · %<input id="ny-position-london" type="number" step="any" placeholder="55.96"></label></div><div class="button-row"><button type="button" class="quiet" id="ny-position-apply">Apply Exact / Wide</button><span id="ny-position-status" role="status">08:30 archive autofill can supply both completed-session positions.</span></div><p class="compact-note">Wide expands only today’s selected quarter set near 25%, 50% or 75%. It never broadens the historical labels. Both closes must be known; London finishes at 08:30.</p></details><p id="ny-method" class="compact-note" role="status"></p>`}
+ ${`<details class="session-note" id="ny-position-helper"><summary>Exact / Wide position helper</summary><p class="field-help">Enter each session’s final closing position in the selected range above: 0% is its low, 100% its high. Own uses a different high–low range for Asia and London; Prior uses the same prior NY BBOX for both. Prior permits values below 0% or above 100%.</p><div class="ny-controls"><label>Quarter selection<select id="ny-position-mode"><option value="wide">Wide · include a neighbouring quarter within 5 percentage points</option><option value="exact">Exact · one closing quarter</option></select></label><label>Asia closing position · %<input id="ny-position-asia" type="number" step="any" placeholder="29.77"></label><label>London closing position · %<input id="ny-position-london" type="number" step="any" placeholder="55.96"></label></div><div class="button-row"><button type="button" class="quiet" id="ny-position-apply">Apply Exact / Wide</button><span id="ny-position-status" role="status">Auto-fill · 08:30 below fills both positions and applies your selected Exact / Wide method.</span></div><p class="compact-note">Wide expands only today’s selected quarter set near 25%, 50% or 75%. It never broadens the historical labels. Both closes must be known; London finishes at 08:30.</p></details><p id="ny-method" class="compact-note" role="status"></p>`}
  <div class="ny-position-grid">${[['asia','Asia · 19:30–02:00'],['london','London · 03:00–08:30']].map(([id,title])=>`<fieldset><legend>${title} NY time</legend><p>Closing position</p><div class="ny-checks">${positions.map(([value,label])=>`<label class="inline-check"><input type="checkbox" id="ny-quarter-${id}-${value}" data-ny-session="${id}" value="${value}">${label}</label>`).join('')}</div><label>Completed shape<select id="ny-${id}-shape"><option value="">Any shape</option>${shapes.map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></label></fieldset>`).join('')}</div>
  <div class="ny-controls ny-price-inputs"><label>08:30 open · optional<input id="ny-price" type="number" step="any" placeholder="Optional"></label><label>AVR · points<input id="ny-avr" type="number" min="0.01" step="any" placeholder="AVR"></label><input id="ny-date" type="hidden"><button id="ny-clear" class="quiet" type="button">Clear NY filters</button></div>
  <p class="compact-note">08:30 anchor · this panel uses its own filters.</p>
@@ -76,7 +83,7 @@ export function mountNYReference(days,timeline) {
  $('ny-date').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
  const cache=new Map();
  let canonicalPending=instrument.id==='CL',canonicalReady=instrument.id!=='CL',canonicalError='';
- let appliedPosition=null,archivedPosition=null;
+ let appliedPosition=null,archivedPosition=null,livePosition=null;
  {
   const applyPositions=()=>{
    const values=['ny-position-asia','ny-position-london'].map(id=>$(id).value.trim());
@@ -90,19 +97,31 @@ export function mountNYReference(days,timeline) {
   const fill=(day,source,knownAt)=>{
    try{
     const p=archivedNYPositions(day,source,$('ny-basis').value,knownAt);
-    archivedPosition={day,source,knownAt};
+    archivedPosition={day,source,knownAt};livePosition=null;
     // Keep sufficient precision for exact-boundary quarter choices.
     $('ny-position-asia').value=String(100*p.asia);$('ny-position-london').value=String(100*p.london);
     applyPositions();render();return true;
-   }catch(e){appliedPosition=null;archivedPosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;$('ny-position-status').textContent=e.message;render();return false;}
+   }catch(e){appliedPosition=null;archivedPosition=null;livePosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;$('ny-position-status').textContent=e.message;render();return false;}
   };
-  positionHelper={fill};
+  const fillLive=result=>{
+   const plan=computeNYPositionAutofill(result,{market:instrument.id,date:$('ny-date').value,basis:$('ny-basis').value,mode:$('ny-position-mode').value,convention:instrument.autofillConvention});
+   archivedPosition=null;livePosition=result;
+   for(const [id,value]of Object.entries(plan.updates))$(id).value=String(value);
+   applyPositions();$('ny-position-status').textContent+= ' '+result.contract+' · '+result.date+' · completed sessions.';
+   render();return Object.keys(plan.updates).map($);
+  };
+  positionHelper={fill,fillLive};
   $('ny-position-apply').addEventListener('click',()=>{try{applyPositions();render();}catch(e){appliedPosition=null;$('ny-position-status').textContent=e.message;render();}});
-  for(const id of ['ny-position-asia','ny-position-london'])$(id).addEventListener('input',()=>{archivedPosition=null;appliedPosition=null;$('ny-position-status').textContent='Values changed. Apply Exact / Wide to update the quarter filters.';render();});
+  for(const id of ['ny-position-asia','ny-position-london'])$(id).addEventListener('input',()=>{archivedPosition=null;livePosition=null;appliedPosition=null;$('ny-position-status').textContent='Values changed. Apply Exact / Wide to update the quarter filters.';render();});
  }
  function read(){return {asia:[...host.querySelectorAll('[data-ny-session="asia"]:checked')].map(x=>x.value),london:[...host.querySelectorAll('[data-ny-session="london"]:checked')].map(x=>x.value),year:$('ny-year').value,asiaShape:$('ny-asia-shape').value,londonShape:$('ny-london-shape').value};}
  function render(){
   $('ny-date').value=$('trading-date')?.value||$('ny-date').value;
+  if(livePosition&&livePosition.date!==$('ny-date').value){
+   livePosition=null;appliedPosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';
+   for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;
+   $('ny-position-status').textContent='Trading date changed. Auto-fill the completed sessions again.';
+  }
   if(archivedPosition&&archivedPosition.day.date!==$('ny-date').value){
    archivedPosition=null;appliedPosition=null;
    for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';
@@ -140,19 +159,21 @@ export function mountNYReference(days,timeline) {
    for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;
    appliedPosition=null;
    {
+    if(livePosition){try{positionHelper.fillLive(livePosition);}catch(error){positionFillUnavailable(error.message);}return;}
     if(archivedPosition){positionHelper.fill(archivedPosition.day,archivedPosition.source,archivedPosition.knownAt);return;}
     for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';
     $('ny-position-status').textContent='Reference changed. Enter positions measured against this range, then apply.';
    }
   }
   if(e.target.id==='ny-position-mode'){
+   if(livePosition){try{positionHelper.fillLive(livePosition);}catch(error){positionFillUnavailable(error.message);}return;}
    appliedPosition=null;$('ny-position-status').textContent='Selection mode changed. Apply to update both quarter filters.';
   }
   if(e.target.matches('[data-ny-session]')){appliedPosition=null;$('ny-position-status').textContent='Quarter filters were changed manually. Apply the helper to restore its named method.';}
   render();
  });
  for(const id of ['ny-price','ny-avr','ny-date','ny-range-high','ny-range-low','ny-printed'])$(id).addEventListener('input',render);
- $('ny-clear').addEventListener('click',()=>{for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;for(const id of ['ny-year','ny-asia-shape','ny-london-shape','ny-strength-three','ny-strength-five'])$(id).value='';{appliedPosition=null;archivedPosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';$('ny-position-status').textContent='Position filters cleared.';}render();});
+ $('ny-clear').addEventListener('click',()=>{for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;for(const id of ['ny-year','ny-asia-shape','ny-london-shape','ny-strength-three','ny-strength-five'])$(id).value='';{appliedPosition=null;archivedPosition=null;livePosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';$('ny-position-status').textContent='Position filters cleared.';}render();});
  $('ny-copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('ny-code').value);flashCopyStatus($('ny-code-status'),'Code copied!');}catch{$('ny-code').focus();$('ny-code').select();flashCopyStatus($('ny-code-status'),'Code selected. Press Ctrl+C.',0);}});
  for(const id of ['trading-date','replay-date','replay-toggle'])$(id)?.addEventListener('change',render);
  render();

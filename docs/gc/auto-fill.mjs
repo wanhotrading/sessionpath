@@ -1,4 +1,6 @@
 import {instrument} from './instrument.mjs';
+import {computeNYPositionAutofill} from './ny-position-autofill-core.mjs';
+import {fillLiveNYPositionHelper,positionFillUnavailable} from './ny-reference-v5.mjs?v=ny-position-auto-20261102';
 import {requireGoldConvention,validateGoldAutoFill} from './gc-autofill-contract.mjs';
 import {directionFieldIDs,mountNYDirectionAutoFillStatus,directionFillPlan,applyDirectionFill,directionFillUnavailable} from './ny-direction-autofill.mjs';
 
@@ -168,7 +170,9 @@ export function mountAutoFill(){
    if(instrument.id==='GC')try{requireGoldConvention(instrument.autofillConvention);}catch(error){notify(error.message,true);return;}
    const date=value('ny-date'),cutoff='08:30',market=instrument.id;
    if(date!==today()){notify('08:30 auto-fill reads today’s New York session. Select today’s date first.',true);return;}
-   const ids=['ny-date','ny-avr','ny-price','ny-range-high','ny-range-low','ny-printed',...directionFieldIDs],before=ids.map(value);
+   const ids=['ny-date','ny-avr','ny-price','ny-range-high','ny-range-low','ny-printed','ny-basis','ny-position-mode','ny-position-asia','ny-position-london','ny-year','ny-end','ny-asia-shape','ny-london-shape',...directionFieldIDs],before=ids.map(value);
+   const beforePositionFilters=[...document.querySelectorAll('#ny-reference [data-ny-session]')].map(e=>e.checked).join('|');
+   const beforeReplay=$('replay-toggle')?.checked,beforeTradingDate=value('trading-date'),beforeReplayDate=value('replay-date');
    const started=Date.now();let endpoint;
    try{endpoint=buildAutoFillURL(document.querySelector('meta[name="sessionpath-context-endpoint"]')?.content,{market,date,cutoff,nonce:String(started)+String(++requestSequence).padStart(4,'0')});}
    catch(e){notify(e.message,true);return;}
@@ -180,21 +184,26 @@ export function mountAutoFill(){
     if(payload?.schema!=='sessionpath.autofill.v2')throw Error('The live-data service is unavailable. Try again later.');
     if(!response.ok&&payload.result?.status==='ready')throw Error('Could not read the delayed-data source.');
     const data=validateAutoFill(payload.result,{date,cutoff,market,requestStartedAt:started});
+    let positionPlan,positionError;
+    try{positionPlan=computeNYPositionAutofill(payload.result,{market,date,basis:value('ny-basis'),mode:value('ny-position-mode'),convention:instrument.autofillConvention});}
+    catch(error){positionError=payload.result.nyPositions?.error||error.message;}
     let directionPlan,directionError;
     try{directionPlan=await directionFillPlan(payload.result,{date,avr:value('ny-avr')===''?null:Number(value('ny-avr'))});}
     catch(error){directionError=payload.result.nyDirection?.error||error.message;}
-    if(today()!==date||ids.some((id,i)=>value(id)!==before[i]))throw Error('NY inputs changed while reading. Click auto-fill again.');
+    if(today()!==date||$('replay-toggle')?.checked!==beforeReplay||value('trading-date')!==beforeTradingDate||value('replay-date')!==beforeReplayDate||ids.some((id,i)=>value(id)!==before[i])||beforePositionFilters!==[...document.querySelectorAll('#ny-reference [data-ny-session]')].map(e=>e.checked).join('|'))throw Error('NY inputs changed while reading. Click auto-fill again.');
     const updates={'ny-price':data.decisionOpen,'ny-range-high':data.rangeHigh,'ny-range-low':data.rangeLow};
     const targets=Object.keys(updates).map($);if(targets.some(x=>!x))throw Error('NY inputs are not ready. Reload and try again.');
     for(const [id,number]of Object.entries(updates))$(id).value=String(Number(number.toFixed(6)));
     if(directionPlan)targets.push(...applyDirectionFill(directionPlan,{date,contract:payload.result.contract,avr:Number(value('ny-avr'))}));
     else directionFillUnavailable(directionError||'Complete five-minute candles are not available.');
+    if(positionPlan)targets.push(...fillLiveNYPositionHelper(payload.result));
+    else positionFillUnavailable(positionError||'Complete Asia/London prices are unavailable.');
     $('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
     if(value('ny-printed')!=='')targets.push($('ny-printed'));
     updateCoverageNotice(nyCoverageNote,payload.result.coverage);
     highlightFilled(targets);playBell(sound);
-    nyButton.title=`${payload.result.contract} · ${date} · 08:30 NY. Completed 03–05 / 05–08:30 windows; the 08:30 candle’s H/L/C are excluded. Your position and shape filters are retained.`;
-    notify(directionPlan?.complete?`Done! ${payload.result.contract} · NY inputs and both direction panels`:directionPlan?`NY prices and candle counts filled. See the U/D usage note.`:`NY prices filled. Direction windows unavailable; see their notes.`,!directionPlan);
+    nyButton.title=`${payload.result.contract} · ${date} · 08:30 NY. Completed 03–05 / 05–08:30 windows; the 08:30 candle’s H/L/C are excluded. Asia/London positions and Exact/Wide selection are applied automatically. Year and shape filters are retained.`;
+    notify(positionPlan?`Done! ${payload.result.contract} · ${positionPlan.method} positions applied`:directionPlan?.complete?`Done! ${payload.result.contract} · NY inputs and both direction panels`:directionPlan?`NY prices and candle counts filled. See the U/D usage note.`:`NY prices filled. Direction windows unavailable; see their notes.`,!positionPlan&&!directionPlan);
    }catch(e){notify(e.name==='AbortError'?'The delayed-data source timed out. Try again.':e.message||'08:30 auto-fill failed. Try again.',true);}
    finally{clearTimeout(timeout);busy=false;nyButton.disabled=false;nyButton.textContent='auto-fill · 08:30';}
   });
