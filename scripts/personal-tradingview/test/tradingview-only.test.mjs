@@ -34,12 +34,12 @@ function fullRead(market='CL'){
 }
 const settle=()=>new Promise(resolve=>realSetTimeout(resolve,0));
 
-async function harness(t,{market='CL',units='points',basis='bbox',loading=false,response,follow=true,autoPositions=false,sourceOnly=true,lateNY=false}={}){
+async function harness(t,{market='CL',units='points',basis='bbox',loading=false,response,follow=true,autoPositions=false,sourceOnly=true,lateNY=false,audioAvailable=true}={}){
  const dom=new JSDOM(pages[market],{url:'https://wanhotrading.github.io/sessionpath/'+({ES:'es/',GC:'gc/'}[market]??''),pretendToBeVisual:true});
  const original=new Map();
  for(const name of ['window','document','sessionStorage','Event','fetch','setTimeout','clearTimeout'])original.set(name,Object.getOwnPropertyDescriptor(globalThis,name));
  const originalNow=Date.now;
- const state={...fullRead(market),calls:[],submits:0,positionApplies:0,nyRefreshes:0,timers:new Map(),nextTimer:1};
+ const state={...fullRead(market),calls:[],submits:0,positionApplies:0,nyRefreshes:0,timers:new Map(),nextTimer:1,audioStarts:0,audioContexts:0};
  const doc=dom.window.document,$=id=>doc.getElementById(id);
  const existingMode=doc.querySelector('meta[name="sessionpath-source-mode"]');existingMode?.remove();
  if(sourceOnly){const mode=doc.createElement('meta');mode.name='sessionpath-source-mode';mode.content='tradingview-only';doc.head.append(mode);}
@@ -58,6 +58,13 @@ async function harness(t,{market='CL',units='points',basis='bbox',loading=false,
  function bindNY(){if($('ny-basis'))$('ny-basis').value=basis;$('ny-position-apply')?.addEventListener('click',()=>{state.positionApplies++;$('ny-position-status').textContent='Selected method applied';});$('ny-range-low')?.addEventListener('change',()=>state.nyRefreshes++);}
  bindNY();
  dom.window.HTMLElement.prototype.scrollIntoView=function(){};
+ // Observe actual tone scheduling without audio hardware or browser autoplay.
+ if(audioAvailable)dom.window.AudioContext=class {
+  constructor(){state.audioContexts++;this.state='running';this.currentTime=0;this.destination={};}
+  resume(){this.state='running';return Promise.resolve();}
+  createGain(){return {gain:{value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  createOscillator(){return {frequency:{value:0},connect(){},disconnect(){},start(){state.audioStarts++;},stop(){}};}
+ };
  mountPersonalTradingView({instrument:{id:market},endpoint:'https://sessionpath-personal.jjj-jason2345.workers.dev',pineURL:'https://wanhotrading.github.io/sessionpath/sessionpath-personal-exporter.pine'});
  const box=$('personal-tradingview'),connect=box.querySelector('.tv-connect'),disconnect=box.querySelector('.tv-disconnect'),key=box.querySelector('input[type=password]');
  box.querySelector('.tv-follow').checked=follow;
@@ -70,7 +77,14 @@ async function harness(t,{market='CL',units='points',basis='bbox',loading=false,
  async function mountNY(){nyPanel.innerHTML=nyHTML;bindNY();await settle();}
  const primary=()=>[...formButtons()].find(el=>/auto.?fill/i.test(el.textContent)&&/TradingView/i.test(el.textContent));
  function formButtons(){return $('scenario-form').querySelectorAll('button');}
- return {dom,doc,$,box,key,connect,disconnect,state,start,poll,change,mountNY,primary,badge:()=>box.querySelector('.tv-connection-badge').textContent,status:()=>box.querySelector('.tv-connection-status').textContent};
+ function expireFeedback(){for(const[id,timer]of [...state.timers])if(timer.ms>=1500&&timer.ms<=2100){state.timers.delete(id);timer.fn();}}
+ return {dom,doc,$,box,key,connect,disconnect,state,start,poll,change,mountNY,primary,expireFeedback,badge:()=>box.querySelector('.tv-connection-badge').textContent,status:()=>box.querySelector('.tv-connection-status').textContent};
+}
+
+function assertNoSuccessFeedback(h){
+ assert.equal(h.state.audioStarts,0,'No success tones are scheduled');
+ assert.equal(h.doc.querySelectorAll('.auto-fill-updated').length,0,'No fields receive success highlighting');
+ assert.ok(!h.$('personal-auto-fill-popup')||h.$('personal-auto-fill-popup').hidden,'No Done popup is visible');
 }
 
 test('TradingView-only source has one primary Auto-fill below decision time and above private setup',async t=>{
@@ -81,14 +95,19 @@ test('TradingView-only source has one primary Auto-fill below decision time and 
 
 test('Auto-fill without a key opens and focuses private setup, with zero data requests',async t=>{
  const h=await harness(t);h.primary().click();await settle();assert.equal(h.box.open,true);assert.equal(h.doc.activeElement,h.key);assert.equal(h.state.calls.length,0);assert.equal(h.state.submits,0);assert.equal(h.$('price').value,'777');assert.equal(h.$('personal-auto-fill-status').textContent,h.status());
+ assertNoSuccessFeedback(h);
 });
 
 for(const market of ['CL','NQ','ES','GC'])test(`${market}: explicit Auto-fill uses only private auth and honors selected03:00 instead of clock's05:00`,async t=>{
  const h=await harness(t,{market});h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.state.calls.length,1);const call=h.state.calls[0];assert.equal(new URL(call.url).origin,'https://sessionpath-personal.jjj-jason2345.workers.dev');assert.equal(new URL(call.url).pathname,'/api/snapshots');assert.equal(call.options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(new URL(call.url).searchParams.get('market'),market);assert.equal(h.box.querySelector('.tv-follow').checked,false);assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');assert.equal(h.$('range-low').value,'98');assert.equal(h.state.submits,1);assert.ok(!call.url.includes('yahoo'));assert.ok(!call.url.includes('sessionpath-data'));
+ for(const id of [...mainIDs,...nyIDs])assert.ok(h.$(id).classList.contains('auto-fill-updated'),id+' is visibly filled');
+ for(const id of ['year','ny-year','ny-asia-shape','util-three-up','ny-strength-three'])assert.ok(!h.$(id).classList.contains('auto-fill-updated'),id+' stays manual');
+ assert.ok(!h.key.classList.contains('auto-fill-updated'));assert.equal(h.state.audioStarts,3,'One bell for combined main and NY fills');assert.equal(h.$('personal-auto-fill-popup').hidden,false);assert.match(h.$('personal-auto-fill-popup').textContent,/Done!/);
 });
 
 test('two rapid Auto-fill clicks do not overlap fetches or apply a response after the user changes context',async t=>{
  let complete;const h=await harness(t,{response:()=>new Promise(resolve=>{complete=resolve;})});h.key.value=READ_KEY;const button=h.primary();button.click();button.click();await settle();assert.equal(h.state.calls.length,1);h.change('asof','05:00');complete(Response.json(h.state.body));await settle();assert.equal(h.state.submits,0);assert.equal(h.$('price').value,'777');
+ assertNoSuccessFeedback(h);
 });
 
 test('rapid repeat click preserves the first request so an unchanged selected checkpoint still applies once',async t=>{
@@ -106,5 +125,39 @@ test('late NY panels receive manual-review notes while their existing direction 
 
 test('mixed mode still keeps its legacy setup and source copy without inventing a TradingView-only primary row',async t=>{
  const h=await harness(t,{sourceOnly:false});assert.equal(h.primary(),undefined);await h.start();assert.equal(h.state.submits,1);h.disconnect.click();assert.match(h.status(),/delayed Auto-fill/);
+});
+
+test('success feedback expires, remains silent on unchanged polling, and repeats on explicit refill',async t=>{
+ const h=await harness(t);await h.start();assert.equal(h.state.audioStarts,3);assert.equal(h.state.submits,1);
+ h.expireFeedback();assert.equal(h.doc.querySelectorAll('.auto-fill-updated').length,0);assert.equal(h.$('personal-auto-fill-popup').hidden,true);
+ h.state.body.packet.last_price=110;await h.poll();assert.equal(h.state.audioStarts,3,'A heartbeat alone is not a new fill');assert.equal(h.doc.querySelectorAll('.auto-fill-updated').length,0);assert.equal(h.$('personal-auto-fill-popup').hidden,true);
+ await h.start();assert.equal(h.state.audioStarts,6,'Explicitly refilling the same snapshot rings once more');assert.equal(h.$('price').classList.contains('auto-fill-updated'),true);assert.equal(h.$('personal-auto-fill-popup').hidden,false);
+});
+
+test('rejected, waiting and failed reads never produce success feedback',async t=>{
+ let mode='unauthorized';
+ const h=await harness(t,{response:state=>{
+  if(mode==='network')throw new TypeError('Failed to fetch');
+  if(mode==='unauthorized')return new Response('{}',{status:401});
+  const body=structuredClone(state.body);
+  if(mode==='waiting'){body.status='waiting';body.packet=null;}
+  if(mode==='stale')body.status='stale';
+  if(mode==='wrong-market')body.packet.market='NQ';
+  return Response.json(body);
+ }});
+ for(mode of ['unauthorized','waiting','stale','wrong-market','network']){await h.start();assertNoSuccessFeedback(h);assert.equal(h.$('price').value,'777');assert.equal(h.state.submits,0);}
+});
+
+test('research loading and Replay do not signal a successful fill',async t=>{
+ const h=await harness(t,{loading:true});await h.start();assertNoSuccessFeedback(h);
+ h.doc.documentElement.dataset.startup='ready';h.$('analyze-btn').disabled=false;h.$('replay-toggle').checked=true;await h.start();assertNoSuccessFeedback(h);assert.equal(h.state.submits,0);assert.equal(h.$('price').value,'777');
+});
+
+test('unsupported audio preserves successful filling, highlighting and Done popup',async t=>{
+ const h=await harness(t,{audioAvailable:false});await h.start();assert.equal(h.state.submits,1);assert.equal(h.$('price').value,'100');assert.equal(h.state.audioStarts,0);assert.equal(h.$('price').classList.contains('auto-fill-updated'),true);assert.equal(h.$('personal-auto-fill-popup').hidden,false);
+});
+
+test('a response arriving after Disconnect cannot produce success feedback',async t=>{
+ let complete;const h=await harness(t,{response:()=>new Promise(resolve=>{complete=resolve;})});h.key.value=READ_KEY;h.primary().click();await settle();h.disconnect.click();complete(Response.json(h.state.body));await settle();assertNoSuccessFeedback(h);assert.equal(h.state.submits,0);assert.equal(h.$('price').value,'777');
 });
 

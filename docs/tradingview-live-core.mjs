@@ -96,25 +96,51 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
  }
  let notesObserver=null,notesExpiry=null;
  if(sourceOnly&&!mountPrivateNotes()){notesObserver=new window.MutationObserver(()=>{if(mountPrivateNotes()){notesObserver.disconnect();clearTimeout(notesExpiry);}});notesObserver.observe(document.body,{childList:true,subtree:true});notesExpiry=setTimeout(()=>notesObserver.disconnect(),30000);}
+ let bellContext,feedbackFade,feedbackHide;
+ const highlightTimers=new Map();
+ const feedbackPopup=document.createElement('div');feedbackPopup.id='personal-auto-fill-popup';feedbackPopup.className='auto-fill-popup';feedbackPopup.hidden=true;feedbackPopup.setAttribute('role','status');feedbackPopup.setAttribute('aria-live','polite');document.body.append(feedbackPopup);
+ function prepareBell(){
+  // Unlock the original bell during the button gesture, before the data request.
+  try{const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;if(!bellContext||bellContext.state==='closed')bellContext=new AudioContext();if(bellContext.state==='suspended')bellContext.resume().catch(()=>{});}catch{}
+ }
+ function playBell(){
+  if(!bellContext||bellContext.state!=='running')return;
+  try{
+   const start=bellContext.currentTime,output=bellContext.createGain();
+   output.gain.setValueAtTime(0,start);output.gain.linearRampToValueAtTime(.035,start+.015);output.gain.exponentialRampToValueAtTime(.0001,start+1.95);output.gain.linearRampToValueAtTime(0,start+2);output.connect(bellContext.destination);
+   const partials=[[880,1],[2376,.24],[3520,.08]];let remaining=partials.length;
+   for(const [frequency,volume]of partials){const oscillator=bellContext.createOscillator(),gain=bellContext.createGain();oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.value=volume;oscillator.connect(gain);gain.connect(output);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();if(!--remaining)output.disconnect();};oscillator.start(start);oscillator.stop(start+2.02);}
+  }catch{/* Audio never blocks a successful input fill. */}
+ }
+ function completeFill(updated){
+  const targets=[...new Set(updated)];if(!targets.length)return;
+  for(const input of targets){clearTimeout(highlightTimers.get(input));input.classList.remove('auto-fill-updated');}
+  void targets[0].offsetWidth;
+  for(const input of targets){input.classList.add('auto-fill-updated');highlightTimers.set(input,setTimeout(()=>{input.classList.remove('auto-fill-updated');highlightTimers.delete(input);},2050));}
+  playBell();
+  clearTimeout(feedbackFade);clearTimeout(feedbackHide);feedbackPopup.textContent=`Done! ${instrument.id} · ${targets.length} fields filled`;feedbackPopup.hidden=false;feedbackPopup.classList.remove('auto-fill-fade');
+  feedbackFade=setTimeout(()=>feedbackPopup.classList.add('auto-fill-fade'),1300);feedbackHide=setTimeout(()=>{feedbackPopup.hidden=true;feedbackPopup.textContent='';},1500);
+ }
  function resetApplied(){appliedMain='';appliedNY='';}
- function setFields(updates){for(const [id,v]of Object.entries(updates)){const el=$(id);if(el)el.value=typeof v==='number'?String(Number(v.toFixed(8))):String(v);}}
+ function setFields(updates){const targets=[];for(const [id,v]of Object.entries(updates)){const el=$(id);if(el){el.value=typeof v==='number'?String(Number(v.toFixed(8))):String(v);targets.push(el);}}return targets;}
  function pause(message){active=false;sequence++;controller?.abort();clearTimeout(timer);connect.textContent='Resume';try{sessionStorage.removeItem(ENABLED);}catch{}say(message,'Paused');}
  function inputContext(){return [instrument.id,$('asof')?.value,$('trading-date')?.value,$('replay-toggle')?.checked,$('ny-date')?.value,follow.checked].join('|');}
  function apply(packet){
   mountPrivateNotes();
   if($('replay-toggle')?.checked){say('Replay is on. Live input updates are paused. Turn Replay off to resume.','Paused');return;}
   if(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled){say('Connected. Waiting for the research data to finish loading.','Waiting');return;}
-  const clock=nyClock();
+  const clock=nyClock(),updated=[];
   applying=true;
   try{
    if(follow.checked){const cutoff=clock.minute>=300?'05:00':'03:00';if($('asof').value!==cutoff){$('asof').value=cutoff;resetApplied();}if($('trading-date').value!==clock.date){$('trading-date').value=clock.date;resetApplied();}if($('date-label'))$('date-label').textContent='Today · '+clock.date;}
    if($('trading-date').value!==clock.date){say('Select today’s New York date or enable Follow latest checkpoint.','Waiting');return;}
    const s=packet.snapshots.find(s=>s.cutoff===$('asof').value),ny=packet.snapshots.find(s=>s.cutoff==='08:30');
-   if(s){const id=JSON.stringify(s)+'|'+$('ud-units')?.value;if(id!==appliedMain){setFields(mainInputPlan(s,$('ud-units')?.value));form.requestSubmit();appliedMain=id;}}
-   if(ny&&$('ny-price')&&$('ny-avr')&&$('ny-date')?.value===clock.date){const id=JSON.stringify(ny)+'|'+$('ny-basis')?.value+'|'+$('ny-position-mode')?.value+'|'+autoPositions.checked;if(id!==appliedNY){setFields(nyInputPlan(ny));$('ny-avr').dispatchEvent(new Event('input',{bubbles:true}));const positions=sessionPositions(ny,$('ny-basis')?.value);if(positions){setFields(positions);for(const id of Object.keys(positions))$(id)?.dispatchEvent(new Event('input',{bubbles:true}));if(autoPositions.checked)$('ny-position-apply')?.click();const note=$('ny-position-status');if(note)note.textContent=autoPositions.checked?note.textContent+' · TradingView personal snapshot.':'TradingView positions filled. Quarter filters retained; click Apply Exact / Wide to use these positions.';}for(const id of ['ny-util-autofill-status','ny-close-autofill-status'])if($(id))$(id).textContent='Not updated by this personal feed: NY close counts and U/D utilization need manual review. Existing direction entries were kept.';$('ny-range-low').dispatchEvent(new Event('input',{bubbles:true}));$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));appliedNY=id;}}
+   if(s){const id=JSON.stringify(s)+'|'+$('ud-units')?.value;if(id!==appliedMain){updated.push(...setFields(mainInputPlan(s,$('ud-units')?.value)));form.requestSubmit();appliedMain=id;}}
+   if(ny&&$('ny-price')&&$('ny-avr')&&$('ny-date')?.value===clock.date){const id=JSON.stringify(ny)+'|'+$('ny-basis')?.value+'|'+$('ny-position-mode')?.value+'|'+autoPositions.checked;if(id!==appliedNY){updated.push(...setFields(nyInputPlan(ny)));$('ny-avr').dispatchEvent(new Event('input',{bubbles:true}));const positions=sessionPositions(ny,$('ny-basis')?.value);if(positions){updated.push(...setFields(positions));for(const id of Object.keys(positions))$(id)?.dispatchEvent(new Event('input',{bubbles:true}));if(autoPositions.checked)$('ny-position-apply')?.click();const note=$('ny-position-status');if(note)note.textContent=autoPositions.checked?note.textContent+' · TradingView personal snapshot.':'TradingView positions filled. Quarter filters retained; click Apply Exact / Wide to use these positions.';}for(const id of ['ny-util-autofill-status','ny-close-autofill-status'])if($(id))$(id).textContent='Not updated by this personal feed: NY close counts and U/D utilization need manual review. Existing direction entries were kept.';$('ny-range-low').dispatchEvent(new Event('input',{bubbles:true}));$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));appliedNY=id;}}
    const time=new Date(packet.observed_at).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
    const applied=[s?.cutoff,ny&&appliedNY?'08:30 NY':null].filter(Boolean).join(' / ');
    say(`${instrument.id}1! · bar closed ${time} NY · ${applied?'applied '+applied:'waiting for the selected checkpoint'}. Five-minute updates; decision opens stay fixed.`,'Connected');
+   completeFill(updated);
   }finally{applying=false;}
  }
  async function read(){
@@ -132,10 +158,10 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
   finally{clearTimeout(expiry);busy=false;setBusy(false);if(active)timer=setTimeout(read,30000);}
  }
- function start(){if(sourceOnly&&busy)return;const key=keyInput.value.trim();if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
- fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test(keyInput.value.trim())){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start();});
- connect.addEventListener('click',start);
- keyInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();start();}});
+ function start(withSound=false){if(sourceOnly&&busy)return;const key=keyInput.value.trim();if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}if(withSound)prepareBell();active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
+ fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test(keyInput.value.trim())){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start(true);});
+ connect.addEventListener('click',()=>start(true));
+ keyInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();start(true);}});
  disconnect.addEventListener('click',()=>{active=false;sequence++;controller?.abort();clearTimeout(timer);keyInput.value='';connect.textContent='Connect';resetApplied();try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}catch{}say(sourceOnly?'Disconnected. Use manual inputs or connect TradingView.':'Disconnected. You can use manual inputs or delayed Auto-fill.','Off');});
  keyInput.addEventListener('input',()=>{if(active)pause('Read key changed. Connect again to use it.');});
  const managed=new Set(['price','avr','prior-high','prior-low','open1930','range-high','range-low','up','down','printed','location','range-position','behavior','ny-price','ny-avr','ny-range-high','ny-range-low','ny-printed','ny-position-asia','ny-position-london']);
@@ -147,6 +173,6 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
  follow.addEventListener('change',()=>{resetApplied();sequence++;if(active)void read();});
  autoPositions.addEventListener('change',()=>{appliedNY='';sequence++;if(active)void read();});
  document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
- window.addEventListener('pagehide',()=>{active=false;controller?.abort();clearTimeout(timer);notesObserver?.disconnect();clearTimeout(notesExpiry);});
+ window.addEventListener('pagehide',()=>{active=false;controller?.abort();clearTimeout(timer);notesObserver?.disconnect();clearTimeout(notesExpiry);clearTimeout(feedbackFade);clearTimeout(feedbackHide);for(const [input,timer]of highlightTimers){clearTimeout(timer);input.classList.remove('auto-fill-updated');}highlightTimers.clear();feedbackPopup.hidden=true;try{bellContext?.close().catch(()=>{});}catch{}});
  try{if(sessionStorage.getItem(ENABLED)==='true'&&keyInput.value)start();}catch{}
 }
