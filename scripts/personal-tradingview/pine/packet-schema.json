@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sessionpath:personal:tradingview:v1",
+  "title": "Private personal TradingView ingress packet; token removed before storage/read",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "token", "market", "source_symbol", "timeframe", "timezone", "confirmed", "observed_at", "sent_at", "session_date", "last_price", "feed_type", "backadjustment", "avr_profile", "snapshots"],
+  "properties": {
+    "schema": {"const": "sessionpath.personal.tradingview.v1"},
+    "token": {"type": "string", "minLength": 43, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+    "market": {"enum": ["CL", "NQ", "ES", "GC"]},
+    "source_symbol": {"enum": ["CL1!", "NQ1!", "ES1!", "GC1!"]},
+    "timeframe": {"const": "5"},
+    "timezone": {"const": "America/New_York"},
+    "confirmed": {"const": true},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "sent_at": {"type": "string", "format": "date-time"},
+    "session_date": {"type": "string", "format": "date"},
+    "last_price": {"type": "number", "exclusiveMinimum": 0},
+    "feed_type": {"const": "continuous_front_contract"},
+    "backadjustment": {"const": "off"},
+    "avr_profile": {"const": "continuous-prior10-0930-1600-frozen-before1930-v1"},
+    "snapshots": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/snapshot"}}
+  },
+  "$defs": {
+    "price": {"type": "number", "exclusiveMinimum": 0},
+    "nullablePrice": {"anyOf": [{"$ref": "#/$defs/price"}, {"type": "null"}]},
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cutoff", "as_of", "ready", "reference_price", "open_1930", "range_high", "range_low", "prior_high", "prior_low", "prior_ny_date", "prior_ny_count", "avr", "avr_count", "avr_dates", "avr_frozen_at", "avr_override", "last_hour_rule", "asia_high", "asia_low", "asia_close", "asia_complete", "london_high", "london_low", "london_close", "london_complete"],
+      "properties": {
+        "cutoff": {"enum": ["03:00", "05:00", "08:30"]},
+        "as_of": {"type": "string", "format": "date-time"},
+        "ready": {"const": true},
+        "reference_price": {"$ref": "#/$defs/price"},
+        "open_1930": {"$ref": "#/$defs/price"},
+        "range_high": {"$ref": "#/$defs/price"},
+        "range_low": {"$ref": "#/$defs/price"},
+        "prior_high": {"$ref": "#/$defs/price"},
+        "prior_low": {"$ref": "#/$defs/price"},
+        "prior_ny_date": {"type": "string", "format": "date"},
+        "prior_ny_count": {"const": 78},
+        "avr": {"$ref": "#/$defs/price"},
+        "avr_count": {"const": 10},
+        "avr_dates": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {"type": "string", "format": "date"}},
+        "avr_frozen_at": {"type": "string", "format": "date-time"},
+        "avr_override": {"const": false},
+        "last_hour_rule": {"type": "integer", "minimum": 1, "maximum": 5},
+        "asia_high": {"$ref": "#/$defs/price"},
+        "asia_low": {"$ref": "#/$defs/price"},
+        "asia_close": {"$ref": "#/$defs/price"},
+        "asia_complete": {"const": true},
+        "london_high": {"$ref": "#/$defs/nullablePrice"},
+        "london_low": {"$ref": "#/$defs/nullablePrice"},
+        "london_close": {"$ref": "#/$defs/nullablePrice"},
+        "london_complete": {"type": "boolean"}
+      },
+      "allOf": [{
+        "if": {"properties": {"cutoff": {"const": "08:30"}}},
+        "then": {"properties": {"london_complete": {"const": true}, "london_high": {"$ref": "#/$defs/price"}, "london_low": {"$ref": "#/$defs/price"}, "london_close": {"$ref": "#/$defs/price"}}},
+        "else": {"properties": {"london_complete": {"const": false}, "london_high": {"type": "null"}, "london_low": {"type": "null"}, "london_close": {"type": "null"}}}
+      }]
+    }
+  }
+}

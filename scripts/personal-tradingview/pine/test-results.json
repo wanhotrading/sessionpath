@@ -1,0 +1,36 @@
+{
+  "schema": "sessionpath.personal.sender-audit.v1",
+  "recorded_at": "2026-11-03T09:32:55.729Z",
+  "command": "node --test work/sessionpath-personal/pine/sender-audit.test.mjs",
+  "node_version": "v24.22.0",
+  "exit_code": 0,
+  "tests": 16,
+  "passed": 16,
+  "failed": 0,
+  "skipped": 0,
+  "source_commit": "0449c1466fb0176a59d03bfccdf3b7054ebaad8c",
+  "files": [
+    {
+      "path": "sessionpath-personal-exporter.pine",
+      "sha256": "fb7d7f7bce903ce9c9d913531f5e80f4214990875d0423125b3cc8edb042bb64"
+    },
+    {
+      "path": "sender-audit.test.mjs",
+      "sha256": "a064e3cff538d591f8eace91c598ddccc499b36fe34299f0492c0040d2a72de4"
+    },
+    {
+      "path": "packet-schema.json",
+      "sha256": "083cd78bbf656551b108e1bed079eb31fcd6da5504667476cf19aeab33e5a3c2"
+    },
+    {
+      "path": "source-audit.json",
+      "sha256": "37b37712cdaa9a3a07d891894a43cad1ac39c347c52e477d1397bb5d52b517f9"
+    }
+  ],
+  "native_pine_compile_verified": false,
+  "live_alert_delivery_verified": false,
+  "limitations": [
+    "String-expression/source-structure/receiver-interoperability checks only; Pine series/state runtime is not executed.",
+    "Conservative previous-weekday rule rejects complete weekday closures without reviewed calendar exceptions."
+  ]
+}

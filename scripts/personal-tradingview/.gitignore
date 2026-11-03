@@ -1,0 +1,6 @@
+node_modules/
+backend/worker.bundle.mjs
+.env
+.env.*
+.dev.vars
+private/

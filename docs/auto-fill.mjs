@@ -1,3 +1,5 @@
+import {validatedObservableFields,mainAutoFillPlan,autoFillSourceStatus,autoFillFailureMessage} from './auto-fill-observables.mjs?v=complete-inputs-20261103';
+export {validatedObservableFields,mainAutoFillPlan};
 import {instrument} from './instrument.mjs';
 import {computeNYPositionAutofill} from './ny-position-autofill-core.mjs';
 import {fillLiveNYPositionHelper,positionFillUnavailable} from './ny-reference-v5.mjs?v=ny-timing-20261102';
@@ -71,14 +73,15 @@ function updateCoverageNotice(note,coverage){
  const message=autoFillCoverageNotice(coverage);note.textContent=message;note.hidden=!message;
 }
 
-export function validateAutoFill(result,{date,cutoff,market,now=Date.now(),requestStartedAt}){
+export function validateAutoFill(result,{date,cutoff,market,now=Date.now(),requestStartedAt,allowedSources=['Yahoo Finance']}){
  if(!result||typeof result!=='object')throw Error('Delayed data is not ready. Try again later.');
  if(result.market!==market)throw Error(`The data service returned a different market. Select ${market} and try auto-fill again.`);
  if(result.date!==date)throw Error(`The data service returned a different trading date. Expected ${date} in New York.`);
  if(result.cutoff!==cutoff)throw Error(`The data service returned a different cutoff. Expected ${cutoff} New York.`);
  if(result.status!=='ready')throw Error(typeof result.error==='string'&&result.error?result.error:'Delayed candles are not complete for this cutoff yet. Try again later.');
  autoFillCoverageNotice(result.coverage);
- if(result.source!=='Yahoo Finance'||result.continuous!==false||!new RegExp('^'+market+'[FGHJKMNQUVXZ]\\d{4}$').test(result.contract||''))throw Error('The front-month contract could not be verified.');
+ if(!Array.isArray(allowedSources)||!['Yahoo Finance','TradingView chart'].includes(result.source)||!allowedSources.includes(result.source)||result.continuous!==false||!new RegExp('^'+market+'[FGHJKMNQUVXZ]\\d{4}$').test(result.contract||''))throw Error('The front-month contract could not be verified.');
+ if(result.source==='TradingView chart'&&!({CL:['NYMEX'],NQ:['CME_MINI','CME'],ES:['CME_MINI','CME'],GC:['COMEX']}[market]||[]).some(exchange=>result.sourceSymbol===exchange+':'+result.contract))throw Error('The personal chart does not identify the matching exchange and delivery contract.');
  const generatedAt=Date.parse(result.generatedAt);
  if(!Number.isFinite(generatedAt)||generatedAt>now+60000||now-generatedAt>120000||Number.isFinite(requestStartedAt)&&generatedAt<requestStartedAt-60000)throw Error('The data service returned an old response. Click auto-fill to fetch fresh delayed candles.');
  const data=result.values;
@@ -89,13 +92,37 @@ export function validateAutoFill(result,{date,cutoff,market,now=Date.now(),reque
  return data;
 }
 
+
+let customAutoFillTransport=null,transportRevision=0;
+export function configureAutoFillTransport(handler){if(handler!==null&&typeof handler!=='function')throw Error('Auto-fill transport must be a function.');const previous=customAutoFillTransport;customAutoFillTransport=handler;transportRevision++;return()=>{if(customAutoFillTransport===handler){customAutoFillTransport=previous;transportRevision++;}};}
+export async function fetchAutoFillResponse(request,{signal}={}){
+ const returned=await(customAutoFillTransport?customAutoFillTransport(request,{signal}):fetch(request.endpoint,{signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'}));
+ if(returned?.response&&returned.payload)return returned;
+ const response=returned;
+ let payload;try{payload=await response.json();}catch{throw Error('Could not read the chart-data service. Your existing inputs were kept. Try again.');}
+ return {response,payload,allowedSources:['Yahoo Finance']};
+}
+function mountFillStatus(row,id){const status=document.createElement('p');status.id=id;status.className='auto-fill-source-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.textContent='Fill known chart inputs for the selected decision time.';row.append(status);return status;}
+function fillStatus(status,text,state='ready'){status.textContent=text;status.dataset.state=state;}
+function provenanceKey(kind){return 'sessionpath-autofill-observables-v1:'+instrument.id+':'+kind;}
+function previousFill(kind){try{const receipt=JSON.parse(sessionStorage.getItem(provenanceKey(kind))||'null');return receipt&&typeof receipt==='object'?receipt:null;}catch{return null;}}
+function saveFill(kind,receipt,targets){try{const previous=previousFill(kind),fields=Object.fromEntries(Object.keys(receipt.fields).filter(id=>$(id)).map(id=>[id,value(id)]));if(previous?.date===receipt.date&&previous.contract===receipt.contract)for(const[id,oldValue]of Object.entries(previous.fields||{}))if(!Object.hasOwn(fields,id)&&value(id)===oldValue&&(id!=='behavior'||previous.cutoff===receipt.cutoff))fields[id]=oldValue;sessionStorage.setItem(provenanceKey(kind),JSON.stringify({...receipt,fields}));}catch{}}
+function applyFilledValues(updates){const targets=Object.keys(updates).map($);if(targets.some(input=>!input))throw Error('The session inputs are not ready. Reload and try again.');for(const[id,number]of Object.entries(updates))$(id).value=typeof number==='number'?String(Number(number.toFixed(6))):number;return targets;}
+function forecastFilledInputs(){
+ const button=$('analyze-btn'),form=$('scenario-form');if(!form||!button||button.disabled)return false;
+ if($('mode-btn')?.classList.contains('active'))$('mode-btn').click();
+ else if(typeof form.requestSubmit==='function')form.requestSubmit(button);
+ else form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+ return !$('form-error')?.textContent.trim();
+}
+
 export function mountAutoFill(){
- const panel=document.querySelector('.input-more');
- if(!panel||$('context-auto-fill'))return;
- const row=document.createElement('div');row.className='context-auto-fill-row';
+ const planning=document.querySelector('#scenario-form .planning-bar');
+ if(!planning||$('context-auto-fill'))return;
+ const row=document.createElement('div');row.className='context-auto-fill-row planning-auto-fill-row';
  const button=document.createElement('button');button.type='button';button.id='context-auto-fill';button.className='quiet';button.textContent='auto-fill';
  button.title='Yahoo Finance delayed front-month futures · prior NY 09:30–16:00 and 19:30 to the selected cutoff. One missing interior 5- or 15-minute overnight candle may be tolerated with a visible warning; session boundaries must be present.';
- row.append(button);const coverageNote=mountCoverageNotice(row,'context-auto-fill-coverage');panel.querySelector('fieldset').before(row);
+ row.append(button);const mainStatus=mountFillStatus(row,'context-auto-fill-status'),coverageNote=mountCoverageNotice(row,'context-auto-fill-coverage');planning.after(row);
  const popup=document.createElement('div');popup.id='auto-fill-popup';popup.className='auto-fill-popup';popup.hidden=true;popup.setAttribute('aria-live','polite');document.body.append(popup);
  let fade,hide,reading=false;
  const highlightTimers=new Map();
@@ -114,39 +141,39 @@ export function mountAutoFill(){
  }
  button.addEventListener('click',async()=>{
   if(reading)return;
-  if($('analyze-btn')?.disabled){notify('Wait for the research data to load, then try again.',true);return;}
+  if($('analyze-btn')?.disabled||document.documentElement?.dataset.startup==='loading'){notify('Wait for the research data to load, then try again.',true);return;}
   if($('replay-toggle')?.checked){notify('Auto-fill uses today’s front-month contract. Turn Replay off.',true);return;}
   const currentDate=today();
   if($('trading-date'))$('trading-date').value=currentDate;
   if($('date-label'))$('date-label').textContent='Today · '+currentDate;
-  const date=value('trading-date'),cutoff=value('asof'),units=value('ud-units'),avr=value('avr');
-  if(units==='percent'&&!(Number(avr)>0)){notify('Enter a positive AVR before filling U/D percentages.',true);return;}
+  const date=value('trading-date'),cutoff=value('asof'),units=value('ud-units');
+  const watched=['trading-date','asof','ud-units','avr','price','printed','range-high','range-low','range-position','prior-low','prior-high','location','open1930','up','down','behavior'],before=Object.fromEntries(watched.map(id=>[id,value(id)])),revision=transportRevision;
   const requestStartedAt=Date.now();let endpoint;
   try{endpoint=buildAutoFillURL(document.querySelector('meta[name="sessionpath-context-endpoint"]')?.content,{market:instrument.id,date,cutoff,nonce:String(requestStartedAt)+String(++requestSequence).padStart(4,'0')});}
-  catch(error){notify(error.message,true);return;}
-  const sound=prepareBell();
-  reading=true;button.disabled=true;button.textContent='Reading…';
+  catch(error){notify(error.message,true);fillStatus(mainStatus,error.message,'error');return;}
+  const sound=prepareBell();reading=true;button.disabled=true;button.textContent='Reading…';fillStatus(mainStatus,'Reading known chart inputs…','loading');
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
   try{
-   const response=await fetch(endpoint,{signal:controller.signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
-   let payload;try{payload=await response.json();}catch{throw Error('Could not read the live-data service. Try again later.');}
-   if(payload?.schema!=='sessionpath.autofill.v2')throw Error('The live-data service is unavailable. Try again later.');
+   const {response,payload,allowedSources}=await fetchAutoFillResponse({endpoint,market:instrument.id,date,cutoff,requestStartedAt},{signal:controller.signal});
+   if(payload?.schema!=='sessionpath.autofill.v2')throw Error('The chart-data service is unavailable. Try again later.');
    const result=payload.result;
-   if(!response.ok&&result?.status==='ready')throw Error('Could not read the delayed-data source. Try again later.');
-   const data=validateAutoFill(result,{date,cutoff,market:instrument.id,requestStartedAt});
-   if(today()!==date)throw Error('The New York trading date changed while reading. Refresh the date and click auto-fill again.');
-   if(value('trading-date')!==date||value('asof')!==cutoff||value('ud-units')!==units||value('avr')!==avr||$('replay-toggle')?.checked)throw Error('Inputs changed while reading. Click auto-fill again.');
-   const multiplier=units==='percent'?100/Number(avr):1;
-   const updates={'prior-low':data.priorLow,'prior-high':data.priorHigh,open1930:data.open1930,'range-high':data.rangeHigh,'range-low':data.rangeLow,up:data.up*multiplier,down:data.down*multiplier};
-   const targets=Object.keys(updates).map(id=>$(id));if(targets.some(e=>!e))throw Error('The session inputs are not ready. Reload and try again.');
-   for(const [id,number]of Object.entries(updates))$(id).value=String(Number(number.toFixed(6)));
-   $('open1930').dispatchEvent(new Event('change',{bubbles:true}));
-   updateCoverageNotice(coverageNote,result.coverage);
-   highlightFilled(targets);
-   playBell(sound);
-   button.title=`Yahoo Finance · ${result.contract} · ${date} · through ${cutoff} New York · delayed data`;
-   notify(`Done! ${result.contract} · ${cutoff} NY`);
-  }catch(error){notify(error.name==='AbortError'?'The delayed-data source timed out. Try again.':error.message||'Auto-fill failed. Try again.',true);}
+   if(!response.ok&&result?.status==='ready')throw Error('Could not read the chart-data source. Try again later.');
+   validateAutoFill(result,{date,cutoff,market:instrument.id,requestStartedAt,allowedSources});
+   const plan=mainAutoFillPlan(result,{units,current:before,previous:previousFill('main'),convention:instrument.autofillConvention});
+   if(today()!==date)throw Error('The New York trading date changed while reading. Click Auto-fill again.');
+   if(transportRevision!==revision||watched.some(id=>value(id)!==before[id])||$('replay-toggle')?.checked)throw Error('Inputs or source changed while reading. Click Auto-fill again.');
+   const targets=applyFilledValues(plan.updates);
+   $('open1930').dispatchEvent(new Event('input',{bubbles:true}));
+   updateCoverageNotice(coverageNote,result.coverage);highlightFilled(targets);playBell(sound);
+   const source=autoFillSourceStatus(result),gaps=plan.missing.length?' Still unavailable: '+plan.missing.join('; ')+'.':'';
+   const manual=plan.usedManualAVR?' Your manual AVR was retained.':'';
+   const forecast=plan.forecastReady?forecastFilledInputs():false;
+   const forecastNote=forecast?' Forecast updated.':plan.forecastReady?' Forecast needs review: '+($('form-error')?.textContent||'Check the current filters.'):' Add the missing required inputs before forecasting.';
+   const status=source+manual+gaps+forecastNote;
+   fillStatus(mainStatus,status,plan.forecastReady&&!plan.missing.length?'ready':'partial');
+   saveFill('main',{...plan.provenance,sourceStatus:source},targets);button.title=source;
+   notify('Done! '+result.contract+' · '+cutoff+' NY');
+  }catch(error){const message=autoFillFailureMessage(error),last=previousFill('main')?.sourceStatus;fillStatus(mainStatus,message+(last?' Last successful fill: '+last:''),'error');notify(message,true);}
   finally{clearTimeout(timeout);reading=false;button.disabled=false;button.textContent='auto-fill';}
  });
 
@@ -157,7 +184,7 @@ export function mountAutoFill(){
   const row=document.createElement('div');row.className='context-auto-fill-row';
   const nyButton=document.createElement('button');nyButton.id='ny-auto-fill';nyButton.type='button';nyButton.className='quiet';nyButton.textContent='auto-fill · 08:30';
   nyButton.title='Fill the 08:30 open, overnight high/low, U/D forecast utilization and archived five-minute close dominance. Utilization uses your frozen NY AVR and the research’s earlier-date Mean forecasts.';
-  row.append(nyButton);const nyCoverageNote=mountCoverageNotice(row,'ny-auto-fill-coverage');controls.before(row);
+  row.append(nyButton);const nyStatus=mountFillStatus(row,'ny-auto-fill-status'),nyCoverageNote=mountCoverageNotice(row,'ny-auto-fill-coverage');controls.before(row);
   mountNYDirectionAutoFillStatus();
   let busy=false;
   nyButton.addEventListener('click',async()=>{
@@ -171,23 +198,27 @@ export function mountAutoFill(){
    try{endpoint=buildAutoFillURL(document.querySelector('meta[name="sessionpath-context-endpoint"]')?.content,{market,date,cutoff,nonce:String(started)+String(++requestSequence).padStart(4,'0')});}
    catch(e){notify(e.message,true);return;}
    const sound=prepareBell(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
-   busy=true;nyButton.disabled=true;nyButton.textContent='Reading…';
+   const revision=transportRevision;
+   busy=true;nyButton.disabled=true;nyButton.textContent='Reading…';fillStatus(nyStatus,'Reading completed New York inputs…','loading');
    try{
-    const response=await fetch(endpoint,{signal:controller.signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
-    const payload=await response.json();
+    const {response,payload,allowedSources}=await fetchAutoFillResponse({endpoint,market,date,cutoff,requestStartedAt:started},{signal:controller.signal});
     if(payload?.schema!=='sessionpath.autofill.v2')throw Error('The live-data service is unavailable. Try again later.');
     if(!response.ok&&payload.result?.status==='ready')throw Error('Could not read the delayed-data source.');
-    const data=validateAutoFill(payload.result,{date,cutoff,market,requestStartedAt:started});
+    const data=validateAutoFill(payload.result,{date,cutoff,market,requestStartedAt:started,allowedSources});
+    const observed=validatedObservableFields(payload.result,{convention:instrument.autofillConvention}),prior=previousFill('ny');
+    const staleAVR=prior&&prior.fields?.['ny-avr']===value('ny-avr')&&(prior.date!==date||prior.contract!==payload.result.contract);
+    const effectiveAVR=observed.avr??(staleAVR?null:value('ny-avr')===''?null:Number(value('ny-avr')));
     let positionPlan,positionError;
     try{positionPlan=computeNYPositionAutofill(payload.result,{market,date,basis:value('ny-basis'),mode:value('ny-position-mode'),convention:instrument.autofillConvention});}
     catch(error){positionError=payload.result.nyPositions?.error||error.message;}
     let directionPlan,directionError;
-    try{directionPlan=await directionFillPlan(payload.result,{date,avr:value('ny-avr')===''?null:Number(value('ny-avr'))});}
+    try{directionPlan=await directionFillPlan(payload.result,{date,avr:effectiveAVR});}
     catch(error){directionError=payload.result.nyDirection?.error||error.message;}
-    if(today()!==date||$('replay-toggle')?.checked!==beforeReplay||value('trading-date')!==beforeTradingDate||value('replay-date')!==beforeReplayDate||ids.some((id,i)=>value(id)!==before[i])||beforePositionFilters!==[...document.querySelectorAll('#ny-reference [data-ny-session]')].map(e=>e.checked).join('|'))throw Error('NY inputs changed while reading. Click auto-fill again.');
-    const updates={'ny-price':data.decisionOpen,'ny-range-high':data.rangeHigh,'ny-range-low':data.rangeLow};
-    const targets=Object.keys(updates).map($);if(targets.some(x=>!x))throw Error('NY inputs are not ready. Reload and try again.');
-    for(const [id,number]of Object.entries(updates))$(id).value=String(Number(number.toFixed(6)));
+    if(transportRevision!==revision||today()!==date||$('replay-toggle')?.checked!==beforeReplay||value('trading-date')!==beforeTradingDate||value('replay-date')!==beforeReplayDate||ids.some((id,i)=>value(id)!==before[i])||beforePositionFilters!==[...document.querySelectorAll('#ny-reference [data-ny-session]')].map(e=>e.checked).join('|'))throw Error('NY inputs changed while reading. Click auto-fill again.');
+    const updates={'ny-price':data.decisionOpen,'ny-range-high':observed.range.rangeHigh,'ny-range-low':observed.range.rangeLow};
+    if(observed.avr!==null)updates['ny-avr']=observed.avr;else if(staleAVR)updates['ny-avr']='';
+    if(effectiveAVR>0)updates['ny-printed']=(observed.range.rangeHigh-observed.range.rangeLow)/effectiveAVR*100;else if(staleAVR)updates['ny-printed']='';
+    const targets=applyFilledValues(updates);
     if(directionPlan)targets.push(...applyDirectionFill(directionPlan,{date,contract:payload.result.contract,avr:Number(value('ny-avr'))}));
     else directionFillUnavailable(directionError||'Complete five-minute candles are not available.');
     if(positionPlan)targets.push(...fillLiveNYPositionHelper(payload.result));
@@ -196,9 +227,12 @@ export function mountAutoFill(){
     if(value('ny-printed')!=='')targets.push($('ny-printed'));
     updateCoverageNotice(nyCoverageNote,payload.result.coverage);
     highlightFilled(targets);playBell(sound);
+    const source=autoFillSourceStatus(payload.result),missing=observed.avr===null?' Frozen ten-session AVR unavailable; '+(effectiveAVR>0?'your manual AVR was retained.':'enter AVR to complete the forecast.') :'';
+    fillStatus(nyStatus,source+missing,observed.avr===null?'partial':'ready');
+    saveFill('ny',{date,contract:payload.result.contract,cutoff,sourceStatus:source,fields:observed.avr===null?{}:{'ny-avr':observed.avr}},targets);
     nyButton.title=`${payload.result.contract} · ${date} · 08:30 NY. Completed 03–05 / 05–08:30 windows; the 08:30 candle’s H/L/C are excluded. Asia/London positions and Exact/Wide selection are applied automatically. Year and shape filters are retained.`;
     notify(positionPlan?`Done! ${payload.result.contract} · ${positionPlan.method} positions applied`:directionPlan?.complete?`Done! ${payload.result.contract} · NY inputs and both direction panels`:directionPlan?`NY prices and candle counts filled. See the U/D usage note.`:`NY prices filled. Direction windows unavailable; see their notes.`,!positionPlan&&!directionPlan);
-   }catch(e){notify(e.name==='AbortError'?'The delayed-data source timed out. Try again.':e.message||'08:30 auto-fill failed. Try again.',true);}
+   }catch(e){const message=autoFillFailureMessage(e),last=previousFill('ny')?.sourceStatus;fillStatus(nyStatus,message+(last?' Last successful fill: '+last:''),'error');notify(message,true);}
    finally{clearTimeout(timeout);busy=false;nyButton.disabled=false;nyButton.textContent='auto-fill · 08:30';}
   });
   return true;

@@ -1,0 +1,94 @@
+{
+  "schema": "sessionpath.personal.pine-source-audit.v1",
+  "source_commit": "0449c1466fb0176a59d03bfccdf3b7054ebaad8c",
+  "retrieved_via": "GitHub fetch_file at exact commit, lines1-245 (blobSHA identifies whole file; excerpt only inspected)",
+  "sources": [
+    {
+      "market": "CL",
+      "url": "https://github.com/wanhotrading/sessionpath/blob/0449c1466fb0176a59d03bfccdf3b7054ebaad8c/docs/session-path-cl-v7.1.pine",
+      "git_blob_sha": "8d5c2f0d664e6f4a31e96a0481aff2a760308a10",
+      "inspected_lines": [
+        1,
+        245
+      ],
+      "checks": {
+        "ny_reference_0930_1600": true,
+        "complete_ny_78": true,
+        "avr_last_ten": true,
+        "cutoffs_03_05_0830": true,
+        "asia_78": true,
+        "london_66_at0830": true,
+        "reference_is_cutoff_open": true,
+        "range_excludes_cutoff_hlc": true
+      }
+    },
+    {
+      "market": "NQ",
+      "url": "https://github.com/wanhotrading/sessionpath/blob/0449c1466fb0176a59d03bfccdf3b7054ebaad8c/docs/data/nq/session-path-nq-v1.5.pine",
+      "git_blob_sha": "a0841be500bba2e1e73ca0e1b368673b278cab95",
+      "inspected_lines": [
+        1,
+        245
+      ],
+      "checks": {
+        "ny_reference_0930_1600": true,
+        "complete_ny_78": true,
+        "avr_last_ten": true,
+        "cutoffs_03_05_0830": true,
+        "asia_78": true,
+        "london_66_at0830": true,
+        "reference_is_cutoff_open": true,
+        "range_excludes_cutoff_hlc": true
+      }
+    },
+    {
+      "market": "ES",
+      "url": "https://github.com/wanhotrading/sessionpath/blob/0449c1466fb0176a59d03bfccdf3b7054ebaad8c/docs/es/data/es/session-path-es-v1.1.pine",
+      "git_blob_sha": "6759e45a6cc62ded409cc487df177d027b7d71ac",
+      "inspected_lines": [
+        1,
+        245
+      ],
+      "checks": {
+        "ny_reference_0930_1600": true,
+        "complete_ny_78": true,
+        "avr_last_ten": true,
+        "cutoffs_03_05_0830": true,
+        "asia_78": true,
+        "london_66_at0830": true,
+        "reference_is_cutoff_open": true,
+        "range_excludes_cutoff_hlc": true
+      }
+    },
+    {
+      "market": "GC",
+      "url": "https://github.com/wanhotrading/sessionpath/blob/0449c1466fb0176a59d03bfccdf3b7054ebaad8c/docs/gc/data/gc/session-path-gc-v1.1.pine",
+      "git_blob_sha": "f0e3b3fe195f5eb7cd1d7baa5f07531cbff2a434",
+      "inspected_lines": [
+        1,
+        245
+      ],
+      "checks": {
+        "ny_reference_0930_1600": true,
+        "complete_ny_78": true,
+        "avr_last_ten": true,
+        "cutoffs_03_05_0830": true,
+        "asia_78": true,
+        "london_66_at0830": true,
+        "reference_is_cutoff_open": true,
+        "range_excludes_cutoff_hlc": true
+      }
+    }
+  ],
+  "shared_original_behavior_function": "f_behavior(float baseline) =>\n    int code = 0\n    if baseline > 0 and not na(close[13])\n        float base = close[13]\n        float bottom = 0.0\n        float top = 0.0\n        int bottomAt = 0\n        int topAt = 0\n        bool contiguous = true\n        for i = 12 to 1\n            contiguous := contiguous and time[i] == time - i * 300000\n            float value = (close[i] - base) / baseline\n            if value < bottom\n                bottom := value\n                bottomAt := 13 - i\n            if value > top\n                top := value\n                topAt := 13 - i\n        float finish = (close[1] - base) / baseline\n        bool recovery = bottom <= -0.08 and finish - bottom >= 0.08 and bottomAt < 12\n        bool fade = top >= 0.08 and top - finish >= 0.08 and topAt < 12\n        code := not contiguous ? 0 : recovery and fade ? (bottomAt < topAt ? 4 : 3) : recovery ? 3 : fade ? 4 : finish >= 0.05 ? 1 : finish <= -0.05 ? 2 : 5\n    code",
+  "changes_from_source": [
+    "Own-market unadjusted continuous1! data with distinct AVR profile",
+    "Confirmed-close heartbeat transport and cached cutoff snapshot JSON",
+    "Prior-NY most recent observed attempt readiness invalidation",
+    "Dates attached to all ten complete AVR reference sessions",
+    "Additional continuity check for the last-hour base candle",
+    "Checkpoint target date resets at new19:30 session, not midnight"
+  ],
+  "native_compile_verified": false,
+  "live_alert_verified": false
+}

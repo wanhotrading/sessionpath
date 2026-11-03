@@ -1,0 +1,235 @@
+//@version=6
+// Personal input bridge v1. Independent of the paid-member 08:30 publisher.
+// Input conventions reviewed at SessionPath 0449c1466fb0176a59d03bfccdf3b7054ebaad8c.
+// Direct unadjusted 1! observations. Continuous AVR may span delivery months/roll gaps.
+indicator("SessionPath personal · confirmed 5m input bridge", overlay = true, max_bars_back = 20)
+
+string TZ = "America/New_York"
+string AVR_PROFILE = "continuous-prior10-0930-1600-frozen-before1930-v1"
+bool senderEnabled = input.bool(false, "Enable personal input bridge", group = "Personal connection")
+string senderToken = input.string("", "Personal write token", group = "Personal connection", tooltip = "Enter only the private scoped personal-feed token. Keep it out of source, logs and screenshots. Configure the webhook URL in the alert dialog.")
+if not timeframe.isminutes or timeframe.multiplier != 5 or not chart.is_standard
+    runtime.error("Use standard five-minute candles with overnight data enabled.")
+if syminfo.type != "futures" or not (syminfo.root == "CL" or syminfo.root == "NQ" or syminfo.root == "ES" or syminfo.root == "GC") or syminfo.ticker != syminfo.root + "1!"
+    runtime.error("Use NYMEX:CL1!, CME_MINI:NQ1!, CME_MINI:ES1! or COMEX:GC1!.")
+if senderEnabled and (str.length(senderToken) < 43 or str.length(senderToken) > 128 or str.match(senderToken, "^[A-Za-z0-9_-]+$") == "")
+    runtime.error("Enter the dedicated personal write token, 43–128 URL-safe characters.")
+
+simple string sourceID = ticker.modify(ticker.standard(syminfo.tickerid), session = session.extended, backadjustment = backadjustment.off)
+[sourceTime, sourceCloseTime, sourceOpen, sourceHigh, sourceLow, sourceClose, sourceTicker] = request.security(sourceID, "5", [time, time_close, open, high, low, close, syminfo.ticker], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off)
+// A repeated security value must never count as a missing real candle.
+bool sourceAligned = not na(sourceTime) and sourceTime == time and sourceCloseTime == time_close and sourceTicker == syminfo.ticker
+bool sourceConfirmed = sourceAligned and barstate.isconfirmed
+int clockMinute = hour(sourceTime, TZ) * 60 + minute(sourceTime, TZ)
+int localYear = year(sourceTime, TZ)
+int localMonth = month(sourceTime, TZ)
+int localDay = dayofmonth(sourceTime, TZ)
+int dayStamp = timestamp(TZ, localYear, localMonth, localDay, 0, 0)
+int anchorDay = clockMinute >= 1170 ? localDay : localDay - 1
+int startForBar = timestamp(TZ, localYear, localMonth, anchorDay, 19, 30)
+int endForBar = timestamp(TZ, localYear, localMonth, anchorDay + 1, 8, 30)
+int targetDay = timestamp(TZ, localYear, localMonth, clockMinute >= 1170 ? localDay + 1 : localDay, 0, 0)
+bool weekdayTarget = dayofweek(targetDay, TZ) >= dayofweek.monday and dayofweek(targetDay, TZ) <= dayofweek.friday
+int priorWeekdayOffset = dayofweek(targetDay, TZ) == dayofweek.monday ? 3 : dayofweek(targetDay, TZ) == dayofweek.sunday ? 2 : 1
+int expectedPriorDay = timestamp(TZ, year(targetDay, TZ), month(targetDay, TZ), dayofmonth(targetDay, TZ) - priorWeekdayOffset, 0, 0)
+bool inNy = clockMinute >= 570 and clockMinute < 960
+bool inOvernight = sourceTime >= startForBar and sourceTime < endForBar
+
+f_utc(int stamp) =>
+    str.format_time(stamp, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+f_date(int stamp) =>
+    str.format_time(stamp, "yyyy-MM-dd", TZ)
+f_number(float value) =>
+    na(value) ? "null" : str.tostring(value, "#.########")
+
+// Every accepted reference session has exactly 78 distinct contiguous confirmed bars.
+// An incomplete latest observed session invalidates prior-NY readiness instead of
+// silently reusing an older complete BBOX. Prior date must be the previous weekday;
+// a whole-day weekday closure/missing day requires manual inputs, not a guessed holiday.
+var array<float> nyRanges = array.new<float>()
+var array<int> nyDates = array.new<int>()
+var int nyActiveDay = na
+var int nyExpectedOpen = na
+var int nyCount = 0
+var bool nyComplete = false
+var bool latestNyAttemptComplete = false
+var float nyHigh = na
+var float nyLow = na
+var float priorNyHigh = na
+var float priorNyLow = na
+var int priorNyDate = na
+if sourceConfirmed and inNy
+    if na(nyActiveDay) or nyActiveDay != dayStamp
+        nyActiveDay := dayStamp
+        nyExpectedOpen := timestamp(TZ, localYear, localMonth, localDay, 9, 30)
+        nyCount := 0
+        nyComplete := clockMinute == 570
+        latestNyAttemptComplete := false
+        nyHigh := sourceHigh
+        nyLow := sourceLow
+    if sourceTime != nyExpectedOpen
+        nyComplete := false
+    nyHigh := math.max(nyHigh, sourceHigh)
+    nyLow := math.min(nyLow, sourceLow)
+    nyCount += 1
+    nyExpectedOpen := sourceCloseTime
+    if clockMinute == 955
+        latestNyAttemptComplete := nyComplete and nyCount == 78 and nyHigh > nyLow
+        if latestNyAttemptComplete
+            priorNyHigh := nyHigh
+            priorNyLow := nyLow
+            priorNyDate := dayStamp
+            array.push(nyRanges, nyHigh - nyLow)
+            array.push(nyDates, dayStamp)
+            if array.size(nyRanges) > 10
+                array.shift(nyRanges)
+                array.shift(nyDates)
+
+var int sessionStart = na
+var int expectedOvernightOpen = na
+var bool complete = false
+var float open1930 = na
+var float runningHigh = na
+var float runningLow = na
+var float nightAvr = na
+var int avrSessions = 0
+var string frozenAvrDates = "[]"
+var float frozenPriorHigh = na
+var float frozenPriorLow = na
+var int frozenPriorDate = na
+var bool frozenPriorComplete = false
+var float asiaHigh = na
+var float asiaLow = na
+var float asiaClose = na
+var int asiaCount = 0
+var float londonHigh = na
+var float londonLow = na
+var float londonClose = na
+var int londonCount = 0
+var int snapshotsDay = na
+var string snapshot0300 = ""
+var string snapshot0500 = ""
+var string snapshot0830 = ""
+
+// Original last-hour classification, using only closes before the checkpoint.
+f_behavior(float baseline) =>
+    int code = 0
+    if baseline > 0 and not na(sourceClose[13])
+        float base = sourceClose[13]
+        float bottom = 0.0
+        float top = 0.0
+        int bottomAt = 0
+        int topAt = 0
+        bool contiguous = sourceTime[13] == sourceTime - 13 * 300000
+        for i = 12 to 1
+            contiguous := contiguous and sourceTime[i] == sourceTime - i * 300000
+            float value = (sourceClose[i] - base) / baseline
+            if value < bottom
+                bottom := value
+                bottomAt := 13 - i
+            if value > top
+                top := value
+                topAt := 13 - i
+        float finish = (sourceClose[1] - base) / baseline
+        bool recovery = bottom <= -0.08 and finish - bottom >= 0.08 and bottomAt < 12
+        bool fade = top >= 0.08 and top - finish >= 0.08 and topAt < 12
+        code := not contiguous ? 0 : recovery and fade ? (bottomAt < topAt ? 4 : 3) : recovery ? 3 : fade ? 4 : finish >= 0.05 ? 1 : finish <= -0.05 ? 2 : 5
+    code
+int behavior = f_behavior(nightAvr)
+
+// Called BEFORE this checkpoint bar's H/L/C is accumulated. Cache the resulting
+// JSON once, so later candles cannot change a previously supplied model input.
+f_snapshot(string cutoff, int stamp, float reference, int rule, bool londonReady) =>
+    string s = "{\"cutoff\":\"" + cutoff + "\",\"as_of\":\"" + f_utc(stamp) + "\",\"ready\":true"
+    s += ",\"reference_price\":" + f_number(reference) + ",\"open_1930\":" + f_number(open1930) + ",\"range_high\":" + f_number(math.max(runningHigh, reference)) + ",\"range_low\":" + f_number(math.min(runningLow, reference))
+    s += ",\"prior_high\":" + f_number(frozenPriorHigh) + ",\"prior_low\":" + f_number(frozenPriorLow) + ",\"prior_ny_date\":\"" + f_date(frozenPriorDate) + "\",\"prior_ny_count\":78"
+    s += ",\"avr\":" + f_number(nightAvr) + ",\"avr_count\":10,\"avr_dates\":" + frozenAvrDates + ",\"avr_frozen_at\":\"" + f_utc(sessionStart) + "\",\"avr_override\":false,\"last_hour_rule\":" + str.tostring(rule)
+    s += ",\"asia_high\":" + f_number(asiaHigh) + ",\"asia_low\":" + f_number(asiaLow) + ",\"asia_close\":" + f_number(asiaClose) + ",\"asia_complete\":true"
+    s += ",\"london_high\":" + f_number(londonReady ? londonHigh : na) + ",\"london_low\":" + f_number(londonReady ? londonLow : na) + ",\"london_close\":" + f_number(londonReady ? londonClose : na) + ",\"london_complete\":" + (londonReady ? "true" : "false") + "}"
+    s
+
+if sourceConfirmed
+    // Roll target date at 19:30, including after a weekend with no chart candles.
+    if na(snapshotsDay) or snapshotsDay != targetDay
+        snapshotsDay := targetDay
+        snapshot0300 := ""
+        snapshot0500 := ""
+        snapshot0830 := ""
+
+    bool atCutoff = clockMinute == 180 or clockMinute == 300 or clockMinute == 510
+    bool londonReady = clockMinute == 510 and londonCount == 66 and londonHigh > londonLow
+    bool ready = weekdayTarget and complete and expectedOvernightOpen == sourceTime and sessionStart == startForBar and avrSessions == 10 and nightAvr > 0 and frozenPriorComplete and frozenPriorHigh > frozenPriorLow and asiaCount == 78 and asiaHigh > asiaLow and behavior > 0 and (clockMinute != 510 or londonReady)
+    if atCutoff and ready
+        string cutoff = clockMinute == 180 ? "03:00" : clockMinute == 300 ? "05:00" : "08:30"
+        string frozenSnapshot = f_snapshot(cutoff, sourceTime, sourceOpen, behavior, londonReady)
+        if clockMinute == 180 and snapshot0300 == ""
+            snapshot0300 := frozenSnapshot
+        if clockMinute == 300 and snapshot0500 == ""
+            snapshot0500 := frozenSnapshot
+        if clockMinute == 510 and snapshot0830 == ""
+            snapshot0830 := frozenSnapshot
+
+    if inOvernight
+        if na(sessionStart) or sessionStart != startForBar
+            sessionStart := startForBar
+            expectedOvernightOpen := startForBar
+            complete := sourceTime == startForBar
+            open1930 := complete ? sourceOpen : na
+            runningHigh := sourceHigh
+            runningLow := sourceLow
+            avrSessions := array.size(nyRanges)
+            nightAvr := avrSessions == 10 ? array.avg(nyRanges) : na
+            frozenAvrDates := "["
+            if array.size(nyDates) > 0
+                for i = 0 to array.size(nyDates) - 1
+                    frozenAvrDates += (i == 0 ? "" : ",") + "\"" + f_date(array.get(nyDates, i)) + "\""
+            frozenAvrDates += "]"
+            frozenPriorHigh := priorNyHigh
+            frozenPriorLow := priorNyLow
+            frozenPriorDate := priorNyDate
+            frozenPriorComplete := latestNyAttemptComplete and not na(priorNyDate) and priorNyDate == nyActiveDay and priorNyDate == expectedPriorDay
+            asiaHigh := na
+            asiaLow := na
+            asiaClose := na
+            asiaCount := 0
+            londonHigh := na
+            londonLow := na
+            londonClose := na
+            londonCount := 0
+        if sourceTime != expectedOvernightOpen
+            complete := false
+        runningHigh := math.max(runningHigh, sourceHigh)
+        runningLow := math.min(runningLow, sourceLow)
+        expectedOvernightOpen := sourceCloseTime
+        if clockMinute >= 1170 or clockMinute < 120
+            asiaHigh := na(asiaHigh) ? sourceHigh : math.max(asiaHigh, sourceHigh)
+            asiaLow := na(asiaLow) ? sourceLow : math.min(asiaLow, sourceLow)
+            asiaClose := sourceClose
+            asiaCount += 1
+        if clockMinute >= 180 and clockMinute < 510
+            londonHigh := na(londonHigh) ? sourceHigh : math.max(londonHigh, sourceHigh)
+            londonLow := na(londonLow) ? sourceLow : math.min(londonLow, sourceLow)
+            londonClose := sourceClose
+            londonCount += 1
+
+bool transportFresh = timenow >= sourceCloseTime and timenow - sourceCloseTime <= 120000
+varip int lastSentClose = na
+if senderEnabled and sourceConfirmed and barstate.isrealtime and transportFresh and (na(lastSentClose) or sourceCloseTime != lastSentClose)
+    string snapshots = "[" + snapshot0300
+    snapshots += (snapshot0300 != "" and snapshot0500 != "" ? "," : "") + snapshot0500
+    snapshots += ((snapshot0300 != "" or snapshot0500 != "") and snapshot0830 != "" ? "," : "") + snapshot0830 + "]"
+    string packet = "{\"schema\":\"sessionpath.personal.tradingview.v1\",\"token\":\"" + senderToken + "\",\"market\":\"" + syminfo.root + "\",\"source_symbol\":\"" + syminfo.ticker + "\",\"timeframe\":\"5\",\"timezone\":\"America/New_York\",\"confirmed\":true"
+    packet += ",\"observed_at\":\"" + f_utc(sourceCloseTime) + "\",\"sent_at\":\"" + f_utc(timenow) + "\",\"session_date\":\"" + f_date(targetDay) + "\",\"last_price\":" + f_number(sourceClose)
+    packet += ",\"feed_type\":\"continuous_front_contract\",\"backadjustment\":\"off\",\"avr_profile\":\"" + AVR_PROFILE + "\",\"snapshots\":" + snapshots + "}"
+    if str.length(packet) > 8192
+        runtime.error("Personal snapshot packet exceeds the 8192-character safety bound.")
+    alert(packet, alert.freq_once_per_bar_close)
+    lastSentClose := sourceCloseTime
+
+var table senderPanel = table.new(position.bottom_right, 1, 3, border_width = 1)
+if barstate.islast
+    table.cell(senderPanel, 0, 0, "SessionPath personal · " + syminfo.ticker, bgcolor = color.rgb(12, 22, 38), text_color = color.rgb(218, 192, 132))
+    string status = not senderEnabled ? "Disabled · private token + webhook required" : not sourceAligned ? "Waiting for an aligned real source candle" : avrSessions < 10 ? "Waiting: load 10 complete prior NY sessions" : not frozenPriorComplete ? "Prior NY incomplete · no model snapshot" : "Enabled · confirmed five-minute observations"
+    table.cell(senderPanel, 0, 1, status, bgcolor = color.rgb(12, 22, 38), text_color = color.silver)
+    string available = (snapshot0300 != "" ? "03:00 " : "") + (snapshot0500 != "" ? "05:00 " : "") + (snapshot0830 != "" ? "08:30" : "")
+    table.cell(senderPanel, 0, 2, "Frozen checkpoints: " + (available == "" ? "none ready" : available), bgcolor = color.rgb(12, 22, 38), text_color = color.silver)

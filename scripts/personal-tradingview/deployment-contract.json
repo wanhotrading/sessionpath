@@ -1,0 +1,13 @@
+{
+  "worker_name": "sessionpath-personal",
+  "entrypoint": "backend/worker.bundle.mjs",
+  "required_secret_bindings": ["READ_TOKEN_HASH", "WRITE_TOKEN_HASH"],
+  "initial_upload_metadata": {
+    "main_module": "worker.bundle.mjs",
+    "compatibility_date": "2026-11-03",
+    "keep_bindings": ["secret_text"],
+    "bindings": [{"type": "durable_object_namespace", "name": "PERSONAL_FEEDS", "class_name": "PersonalFeed"}],
+    "migrations": {"new_tag": "personal-feed-v1", "steps": [{"new_sqlite_classes": ["PersonalFeed"]}]},
+    "observability": {"enabled": true, "logs": {"enabled": true, "head_sampling_rate": 1}, "traces": {"enabled": true, "head_sampling_rate": 0.01}}
+  }
+}

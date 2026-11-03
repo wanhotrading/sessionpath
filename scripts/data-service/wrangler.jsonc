@@ -1,0 +1,15 @@
+{
+  "name": "sessionpath-api",
+  "main": "bridge/public-worker.mjs",
+  "compatibility_date": "2026-11-03",
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": true
+    }
+  }
+}

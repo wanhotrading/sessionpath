@@ -1,0 +1,28 @@
+{
+  "schema": "sessionpath.personal.native-verification.v1",
+  "verified_on": "2026-11-03",
+  "source_sha256": "fb7d7f7bce903ce9c9d913531f5e80f4214990875d0423125b3cc8edb042bb64",
+  "native_compile_verified": true,
+  "native_runtime_verified": true,
+  "verified_symbol": "NYMEX:CL1!",
+  "verified_timeframe": "5",
+  "extended_hours": true,
+  "backadjustment": "off",
+  "sender_enabled": false,
+  "observed_ny_clock": "04:42",
+  "observations": [
+    "Exact source saved as a separate private TradingView script and compiled successfully.",
+    "Temporary chart instance ran without a personal-indicator error.",
+    "Canvas table showed Disabled and frozen03:00 checkpoint ready.",
+    "No token was entered and no alert was created.",
+    "Temporary instance was removed and the original CLZ2026 chart was restored using Undo."
+  ],
+  "workspace_evidence_filename": "SessionPath-personal-sender-compiled-disabled.jpg",
+  "not_verified": [
+    "Native runtime on NQ1!, ES1!, and GC1!",
+    "Authenticated live alert delivery",
+    "Current live model comparison",
+    "A future continuous-contract rollover"
+  ],
+  "note": "This later native receipt supplements the earlier local source/test audits; their native-verification flags describe the checks available when they were recorded. No live observation was inserted into production by this check."
+}

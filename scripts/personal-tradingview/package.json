@@ -1,0 +1,12 @@
+{
+  "name": "sessionpath-personal-tradingview",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.12.0"},
+  "scripts": {
+    "build": "node backend/build.mjs",
+    "pretest": "node backend/build.mjs",
+    "test": "node --test backend/test/*.test.mjs pine/sender-audit.test.mjs test/*.test.mjs"
+  },
+  "devDependencies": {"jsdom": "27.4.0", "miniflare": "4.20260730.0"}
+}
