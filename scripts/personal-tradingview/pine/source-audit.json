@@ -89,6 +89,22 @@
     "Additional continuity check for the last-hour base candle",
     "Checkpoint target date resets at new19:30 session, not midnight"
   ],
-  "native_compile_verified": false,
-  "live_alert_verified": false
+  "native_compile_verified": true,
+  "live_alert_verified": false,
+  "token_display_privacy": {
+    "pre_patch_sha256": "fb7d7f7bce903ce9c9d913531f5e80f4214990875d0423125b3cc8edb042bb64",
+    "patched_sha256": "b3ec61f6e047617a0b431f078af8e6fe8eb04864fe33926cf465b92c62e2f70a",
+    "change": "Only senderToken input adds display = display.none. Status line and Data Window omit the value; the Inputs settings remain plaintext.",
+    "source_only_verified": true,
+    "inputs_are_masked": false,
+    "native_compile_receipt": "native-verification.json: exact patched source compiled and ran on NQ1! with sender disabled and credentials blank; no authenticated alert delivery was tested."
+  },
+  "native_verification": {
+    "receipt": "native-verification.json",
+    "source_sha256": "b3ec61f6e047617a0b431f078af8e6fe8eb04864fe33926cf465b92c62e2f70a",
+    "verified_symbol": "NQ1!",
+    "sender_enabled": false,
+    "token_entered": false,
+    "alert_created": false
+  }
 }

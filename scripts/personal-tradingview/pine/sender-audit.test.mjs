@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {normalizePacket} from '../backend/validation.mjs';
 
 const pine=await readFile(new URL('./sessionpath-personal-exporter.pine',import.meta.url),'utf8');
+const downloadPine=await readFile(new URL('../../../docs/SessionPath-personal-TradingView-sender.pine',import.meta.url),'utf8');
 const sourceAudit=JSON.parse(await readFile(new URL('./source-audit.json',import.meta.url),'utf8'));
 const formatDate=time=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(time));
 const f_utc=time=>new Date(time).toISOString().replace('.000Z','Z');
@@ -24,6 +26,21 @@ test('all four current market sources use the reviewed input conventions',()=>{
  assert.equal(sourceAudit.source_commit,'0449c1466fb0176a59d03bfccdf3b7054ebaad8c');
  assert.deepEqual(sourceAudit.sources.map(s=>s.market),['CL','NQ','ES','GC']);
  for(const source of sourceAudit.sources)assert.ok(Object.values(source.checks).every(Boolean));
+});
+test('token display privacy is the only change from the audited sender and both installers match',()=>{
+ const flag=', display = display.none';
+ const tokenInput=pine.split('\n').filter(line=>/^string senderToken = input\.string\(/.test(line));
+ assert.equal(tokenInput.length,1);
+ assert.match(tokenInput[0],/^string senderToken = input\.string\("", "Personal write token", group = "Personal connection", display = display\.none,/);
+ assert.equal(pine.split(flag).length-1,1,'Privacy flag must occur exactly once, on the token input');
+ const sha256=value=>createHash('sha256').update(value).digest('hex');
+ const previousHash='fb7d7f7bce903ce9c9d913531f5e80f4214990875d0423125b3cc8edb042bb64';
+ assert.equal(sha256(pine.replace(flag,'')),previousHash,'No calculations, sending gates, packet fields or other source may change');
+ assert.equal(downloadPine,pine,'Website download must contain the same privacy fix');
+ assert.equal(sourceAudit.token_display_privacy.pre_patch_sha256,previousHash);
+ assert.equal(sourceAudit.token_display_privacy.patched_sha256,sha256(pine));
+ assert.equal(sourceAudit.token_display_privacy.source_only_verified,true);
+ assert.equal(sourceAudit.token_display_privacy.inputs_are_masked,false);
 });
 test('original last-hour arithmetic is retained with stronger base-candle continuity',()=>{
  const start=pine.indexOf('f_behavior(float baseline) =>');

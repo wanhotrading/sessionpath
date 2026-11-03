@@ -1,22 +1,22 @@
 {
   "schema": "sessionpath.personal.sender-audit.v1",
-  "recorded_at": "2026-11-03T09:32:55.729Z",
-  "command": "node --test work/sessionpath-personal/pine/sender-audit.test.mjs",
+  "recorded_at": "2026-11-03T10:39:57.277Z",
+  "command": "D:\\node.exe --test work/gc-pages-release/scripts/personal-tradingview/pine/sender-audit.test.mjs",
   "node_version": "v24.22.0",
   "exit_code": 0,
-  "tests": 16,
-  "passed": 16,
+  "tests": 17,
+  "passed": 17,
   "failed": 0,
   "skipped": 0,
   "source_commit": "0449c1466fb0176a59d03bfccdf3b7054ebaad8c",
   "files": [
     {
       "path": "sessionpath-personal-exporter.pine",
-      "sha256": "fb7d7f7bce903ce9c9d913531f5e80f4214990875d0423125b3cc8edb042bb64"
+      "sha256": "b3ec61f6e047617a0b431f078af8e6fe8eb04864fe33926cf465b92c62e2f70a"
     },
     {
       "path": "sender-audit.test.mjs",
-      "sha256": "a064e3cff538d591f8eace91c598ddccc499b36fe34299f0492c0040d2a72de4"
+      "sha256": "143f41b009a6ea185760057c1b7c52437d489f6c4f36a8c2717f8f5137401816"
     },
     {
       "path": "packet-schema.json",
@@ -24,13 +24,36 @@
     },
     {
       "path": "source-audit.json",
-      "sha256": "37b37712cdaa9a3a07d891894a43cad1ac39c347c52e477d1397bb5d52b517f9"
+      "sha256": "4ad099448e475f6a82b3f3c0eecf517e4f6417a577ac8e031b34f6331859d057"
+    },
+    {
+      "path": "../../../docs/SessionPath-personal-TradingView-sender.pine",
+      "sha256": "b3ec61f6e047617a0b431f078af8e6fe8eb04864fe33926cf465b92c62e2f70a"
+    },
+    {
+      "path": "native-verification.json",
+      "sha256": "400d946e14dee108a9e2b88bec9966f72453ffb52d0e60a535cdcc65846b1c64"
     }
   ],
-  "native_pine_compile_verified": false,
+  "native_pine_compile_verified": true,
   "live_alert_delivery_verified": false,
   "limitations": [
-    "String-expression/source-structure/receiver-interoperability checks only; Pine series/state runtime is not executed.",
+    "The 17 local tests exercise string expressions, source structure and receiver interoperability, not Pine series/state. A separate native-verification.json records the later disabled NQ runtime.",
     "Conservative previous-weekday rule rejects complete weekday closures without reviewed calendar exceptions."
-  ]
+  ],
+  "privacy_patch": {
+    "source_only_verified": true,
+    "native_compile_receipt": "native-verification.json records a later native compile and disabled NQ runtime for the exact patched SHA256.",
+    "note": "display.none hides status-line/Data-Window input values. Inputs settings remain unmasked; do not capture token-filled settings."
+  },
+  "native_runtime_verified": true,
+  "native_verification_receipt": {
+    "path": "native-verification.json",
+    "source_sha256": "b3ec61f6e047617a0b431f078af8e6fe8eb04864fe33926cf465b92c62e2f70a",
+    "verified_on": "2026-11-03",
+    "symbol": "NQ1!",
+    "disabled_sender": true,
+    "blank_credentials": true,
+    "alert_created": false
+  }
 }

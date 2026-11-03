@@ -7,7 +7,7 @@ indicator("SessionPath personal · confirmed 5m input bridge", overlay = true, m
 string TZ = "America/New_York"
 string AVR_PROFILE = "continuous-prior10-0930-1600-frozen-before1930-v1"
 bool senderEnabled = input.bool(false, "Enable personal input bridge", group = "Personal connection")
-string senderToken = input.string("", "Personal write token", group = "Personal connection", tooltip = "Enter only the private scoped personal-feed token. Keep it out of source, logs and screenshots. Configure the webhook URL in the alert dialog.")
+string senderToken = input.string("", "Personal write token", group = "Personal connection", display = display.none, tooltip = "Enter only the private scoped personal-feed token. Keep it out of source, logs and screenshots. Configure the webhook URL in the alert dialog.")
 if not timeframe.isminutes or timeframe.multiplier != 5 or not chart.is_standard
     runtime.error("Use standard five-minute candles with overnight data enabled.")
 if syminfo.type != "futures" or not (syminfo.root == "CL" or syminfo.root == "NQ" or syminfo.root == "ES" or syminfo.root == "GC") or syminfo.ticker != syminfo.root + "1!"
