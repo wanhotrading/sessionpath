@@ -40,6 +40,10 @@ async function harness(t,{market='CL',units='points',basis='bbox',loading=false,
  const originalNow=Date.now;
  const state={...fullRead(market),calls:[],submits:0,positionApplies:0,nyRefreshes:0,timers:new Map(),nextTimer:1};
  const doc=dom.window.document,$=id=>doc.getElementById(id);
+ // This suite exercises the retained mixed-source branch even when the actual
+ // published pages opt into TradingView-only mode. Its dedicated suite supplies
+ // and verifies that mode separately.
+ doc.querySelector('meta[name="sessionpath-source-mode"]')?.remove();
  doc.documentElement.dataset.startup=loading?'loading':'ready';
  const nyPanel=$('ny-reference')??doc.body.appendChild(doc.createElement('section'));nyPanel.id='ny-reference';nyPanel.innerHTML=nyHTML;
  const tag=doc.createElement('input');tag.id='retained-tag';tag.type='checkbox';tag.checked=true;$('scenario-form').append(tag);

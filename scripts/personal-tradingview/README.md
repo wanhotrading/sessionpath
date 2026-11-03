@@ -42,5 +42,7 @@ See `backend/README.md` and `pine/README.md` for exact validation and setup.
 The receipt identifies authenticated Pine calculations on unadjusted continuous
 front-contract charts. It does not independently rederive raw exchange bars or
 assert the owner's real-time data entitlement. Missing/shortened prior weekday
-coverage conservatively leaves automatic inputs unavailable; manual inputs and
-the existing delayed source remain available.
+coverage conservatively leaves automatic inputs unavailable. In the deployed
+TradingView-only mode, manual inputs remain available and Auto-fill reads only
+this private feed. Existing values are retained until a verified checkpoint is
+applied; they are not evidence of a successful TradingView refresh.

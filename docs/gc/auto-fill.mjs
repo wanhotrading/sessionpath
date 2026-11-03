@@ -119,6 +119,7 @@ function forecastFilledInputs(){
 }
 
 export function mountAutoFill(){
+ if(document.querySelector('meta[name="sessionpath-source-mode"]')?.content==='tradingview-only')return;
  const planning=document.querySelector('#scenario-form .planning-bar');
  if(!planning||$('context-auto-fill'))return;
  const row=document.createElement('div');row.className='context-auto-fill-row planning-auto-fill-row';
