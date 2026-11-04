@@ -53,6 +53,12 @@ test('manual Decision time survives automatic polls',async t=>{
  const h=await harness(t,{reconnect:true});await settle();assert.equal(h.$('asof').value,'05:00');h.change('asof','03:00');await settle();assert.equal(h.$('range-high').value,'102');await h.poll();assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');
 });
 
+test('an explicit assistant forecast pins its checkpoint against later background polls',async t=>{
+ const h=await harness(t,{reconnect:true});await settle();assert.equal(h.$('asof').value,'05:00');
+ h.doc.dispatchEvent(new h.doc.defaultView.CustomEvent('sessionpath:assistant-request',{detail:{requestId:'chat-03',market:'CL',window:'03:00-05:00'}}));
+ h.$('asof').value='03:00';await h.poll();assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');
+});
+
 test('NY date away and back refills only today and resets its fingerprint',async t=>{
  const h=await harness(t);await h.start();h.change('ny-date','2026-11-02');await settle();h.$('ny-price').value='999';h.change('ny-date','2026-11-03');await settle();assert.equal(h.$('ny-price').value,'100');assert.equal(h.state.nyRefreshes,2);
 });

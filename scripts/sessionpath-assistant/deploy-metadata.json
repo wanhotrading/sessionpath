@@ -1,0 +1,34 @@
+{
+  "main_module": "worker.bundle.mjs",
+  "compatibility_date": "2026-11-04",
+  "bindings": [
+    {
+      "type": "durable_object_namespace",
+      "name": "ASSISTANT_QUOTA",
+      "class_name": "AssistantQuota"
+    }
+  ],
+  "migrations": {
+    "new_tag": "assistant-quota-v1",
+    "steps": [
+      {
+        "new_sqlite_classes": [
+          "AssistantQuota"
+        ]
+      }
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
+    }
+  }
+}

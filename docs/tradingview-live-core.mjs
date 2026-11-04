@@ -176,6 +176,9 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  const contextFields=new Set(['asof','trading-date','ny-date','replay-toggle','ny-basis','ny-position-mode','ud-units']);
  document.addEventListener('change',e=>{if(!applying&&contextFields.has(e.target.id)){if(e.target.id==='asof')followLatest=false;resetApplied();sequence++;if(active)void read();}});
  document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
+ // An explicit chat forecast pins its selected decision checkpoint just like a
+ // manual Decision time change, so later background polls cannot replace it.
+ document.addEventListener('sessionpath:assistant-request',event=>{const r=event.detail;if(r?.market===instrument.id&&['03:00-05:00','05:00-08:30','08:30-16:00'].includes(r.window))followLatest=false;});
  window.addEventListener('pagehide',()=>{active=false;controller?.abort();clearTimeout(timer);notesObserver?.disconnect();clearTimeout(notesExpiry);clearTimeout(feedbackFade);clearTimeout(feedbackHide);for(const [input,timer]of highlightTimers){clearTimeout(timer);input.classList.remove('auto-fill-updated');}highlightTimers.clear();feedbackPopup.hidden=true;try{bellContext?.close().catch(()=>{});}catch{}});
  // Existing private tab sessions keep working. The explicitly configured public
  // Auto-fill route needs no browser credential or setup controls.

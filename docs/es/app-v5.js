@@ -1,8 +1,10 @@
+import {mountAssistantForecastAdapter,expansionResult} from '../assistant-forecast-adapter.mjs?v=assistant-20261104';
+import {mainInputPlan,nyInputPlan,sessionPositions} from '../tradingview-live-core.mjs';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
 import {loadAsset,yieldToBrowser} from './startup-load.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
-import {instrument,dataPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs?v=coin-cover-20261023';
+import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs?v=coin-cover-20261023';
 import {setupDeviceView} from './device-view.mjs';
 import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=three-states-20261023';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
@@ -11,7 +13,7 @@ import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-2026
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=tools-slide-20261022';
 import {mountReplayTools} from './replay-tools.mjs';
-import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=ny-timing-20261102';
+import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=assistant-20261104';
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
@@ -255,4 +257,25 @@ async function startResearch(){
  }
  for(const id of ['compare-a','compare-b'])$(id).addEventListener('change',()=>renderComparison(state));
 }
+mountAssistantForecastAdapter({
+ market:instrument.id,feedURL:new URL('/api/autofill',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href,
+ isReady:()=>state.ready,isReplay:()=>$('replay-toggle').checked,isHistorical:()=>state.library,
+ readExpansion:async({model})=>expansionResult(await getJSON(assetPath('research-observations.json')),model.query),
+ context:()=>JSON.stringify({fields:fields.map(id=>$(id)?.value),tags:[...state.selected],checkpoints:$('use-checkpoints').checked,ny:[...document.querySelectorAll('#ny-reference input,#ny-reference select')].map(el=>[el.id,el.type==='checkbox'?el.checked:el.value])}),
+ applySnapshot:({request,snapshot,packet})=>{
+  const put=updates=>{for(const[id,value]of Object.entries(updates))if($(id))$(id).value=typeof value==='number'?String(Number(value.toFixed(8))):String(value);};
+  if(request.minute===510){
+   const positions=sessionPositions(snapshot,$('ny-basis').value);
+   if(!positions)throw Object.assign(new Error('The 08:30 checkpoint is missing complete Asia/London positions.'),{code:'CHECKPOINT_INCOMPLETE'});
+   $('trading-date').value=packet.session_date;$('ny-date').value=packet.session_date;$('ny-end').value='960';
+   put(nyInputPlan(snapshot));put(positions);
+   for(const id of Object.keys(positions))$(id).dispatchEvent(new Event('input',{bubbles:true}));
+   $('ny-position-apply').click();$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
+  }else{
+   $('trading-date').value=packet.session_date;$('asof').value=request.cutoff;
+   put(mainInputPlan(snapshot,$('ud-units').value));analyze();
+  }
+ },
+ readForecast:({request})=>request.minute===510?null:({query:state.query,box:state.box,code:state.box&&state.query?makeForecastCode(state.box,state.query):'',conditions:{tags:[...state.selected],tagMode:state.query?.tagMode,year:state.query?.year,nearestCaseLimit:state.query?.limit,bboxLocation:state.query?.location,lastHourBehavior:state.query?.behavior,earlierCheckpointCount:state.query?.observations?.length||0}})
+});
 await startResearch();
