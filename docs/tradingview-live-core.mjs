@@ -145,6 +145,9 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  }
  async function read(){
   clearTimeout(timer);if(!active||busy||document.hidden)return;
+  // A fresh managed connection can mount before the research module. Wait
+  // locally for its handlers instead of fetching a packet that cannot apply.
+  if(managedURL&&(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled)){timer=setTimeout(read,500);return;}
   const seq=sequence,context=inputContext();busy=true;setBusy(true);controller=new AbortController();const expiry=setTimeout(()=>controller.abort(),10000);
   try{
    const target=managedURL?new URL(managedURL):new URL('/api/snapshots',url);target.searchParams.set('market',instrument.id);

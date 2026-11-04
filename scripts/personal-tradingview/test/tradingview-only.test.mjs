@@ -51,6 +51,30 @@ test('managed failure stays terse and never falls back to private anonymous read
  const h=await harness(t,{readKey:null,managedReadURL:'https://sessionpath-personal.jjj-jason2345.workers.dev/api/autofill',response:()=>new Response('{}',{status:503})});await settle();assert.equal(h.status(),'Failed to fetch');assert.equal(h.state.calls.length,1);assert.equal(new URL(h.state.calls[0].url).pathname,'/api/autofill');assert.equal(h.$('price').value,'777');assertNoSuccessFeedback(h);
 });
 
+async function localReadinessTick(h){
+ const pending=[...h.state.timers.entries()].find(([,timer])=>timer.ms===500);assert.ok(pending,'a local readiness retry is scheduled');h.state.timers.delete(pending[0]);pending[1].fn();await settle();
+}
+
+test('fresh managed cold start waits locally, then fills as soon as research is ready',async t=>{
+ const h=await harness(t,{loading:true,readKey:null,managedReadURL:'https://sessionpath-personal.jjj-jason2345.workers.dev/api/autofill'});await settle();assert.equal(h.state.calls.length,0);assert.equal(h.state.submits,0);assertNoSuccessFeedback(h);
+ await localReadinessTick(h);assert.equal(h.state.calls.length,0,'loading does not poll the server');assert.ok(![...h.state.timers.values()].some(timer=>timer.ms===30000),'no transport retry delays readiness');
+ h.doc.documentElement.dataset.startup='ready';await localReadinessTick(h);assert.equal(h.state.calls.length,0,'disabled analysis still prevents an early fetch');
+ h.$('analyze-btn').disabled=false;await localReadinessTick(h);assert.equal(h.state.calls.length,1);assert.equal(h.state.submits,1);assert.equal(h.$('asof').value,'05:00');assert.equal(h.$('price').value,'100');assert.equal(h.status(),'Connected');
+});
+
+test('managed readiness wait preserves an explicit Decision time selected during startup',async t=>{
+ const h=await harness(t,{loading:true,readKey:null,managedReadURL:'https://sessionpath-personal.jjj-jason2345.workers.dev/api/autofill'});h.change('asof','03:00');await settle();assert.equal(h.state.calls.length,0);h.doc.documentElement.dataset.startup='ready';h.$('analyze-btn').disabled=false;await localReadinessTick(h);assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');assert.equal(h.state.submits,1);
+});
+
+test('Replay remains protected when a managed cold start becomes ready',async t=>{
+ const h=await harness(t,{loading:true,readKey:null,managedReadURL:'https://sessionpath-personal.jjj-jason2345.workers.dev/api/autofill'});h.$('replay-toggle').checked=true;h.doc.documentElement.dataset.startup='ready';h.$('analyze-btn').disabled=false;await localReadinessTick(h);assert.equal(h.state.calls.length,1);assert.equal(h.state.submits,0);assert.equal(h.$('price').value,'777');assertNoSuccessFeedback(h);
+ h.change('replay-toggle',false);await settle();assert.equal(h.state.submits,1);assert.equal(h.$('price').value,'100');
+});
+
+test('pagehide cancels the managed local readiness retry without requesting or applying data',async t=>{
+ const h=await harness(t,{loading:true,readKey:null,managedReadURL:'https://sessionpath-personal.jjj-jason2345.workers.dev/api/autofill'});await settle();const pending=[...h.state.timers.values()].find(timer=>timer.ms===500);assert.ok(pending);h.dom.window.dispatchEvent(new h.dom.window.Event('pagehide'));assert.ok(![...h.state.timers.values()].some(timer=>timer.ms===500));h.doc.documentElement.dataset.startup='ready';h.$('analyze-btn').disabled=false;pending.fn();await settle();assert.equal(h.state.calls.length,0);assert.equal(h.state.submits,0);assert.equal(h.$('price').value,'777');assertNoSuccessFeedback(h);
+});
+
 for(const route of ['http://sessionpath-access.example/api/autofill','https://user:password@sessionpath-access.example/api/autofill','https://sessionpath-access.example/api/autofill?key=do-not-publish'])test('invalid or credential-bearing managed route is rejected before mounting or fetching',async t=>{
  const h=await harness(t,{readKey:null,managedReadURL:route});await settle();assert.equal(h.primary(),null);assert.equal(h.state.calls.length,0);assert.equal(h.$('price').value,'777');
 });
