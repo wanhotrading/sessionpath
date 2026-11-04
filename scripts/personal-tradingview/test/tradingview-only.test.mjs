@@ -107,10 +107,11 @@ test('normal03:00 confirmation wait automatically becomes a successful03:05 fill
 });
 
 test('connected key leaves the editable field while polling and explicit refills retain the scoped authorization',async t=>{
- const h=await harness(t);h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.key.value,'');assert.equal(h.key.placeholder,'Saved for this tab');
+ const h=await harness(t);h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.key.value,'');assert.equal(h.key.placeholder,'Saved for this tab');assert.equal(h.key.readOnly,true);
+ h.key.value='unexpected browser edit';h.key.dispatchEvent(new h.dom.window.Event('input',{bubbles:true}));assert.equal(h.badge(),'Connected');
  await h.poll();assert.equal(h.state.calls.at(-1).options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(h.badge(),'Connected');
  h.primary().click();await settle();assert.equal(h.state.calls.at(-1).options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(h.key.value,'');
- h.disconnect.click();const n=h.state.calls.length;h.primary().click();await settle();assert.equal(h.state.calls.length,n);assert.equal(h.key.placeholder,'');
+ h.disconnect.click();const n=h.state.calls.length;h.primary().click();await settle();assert.equal(h.state.calls.length,n);assert.equal(h.key.placeholder,'');assert.equal(h.key.readOnly,false);
 });
 
 for(const market of ['CL','NQ','ES','GC'])test(`${market}: explicit Auto-fill uses only private auth and honors selected03:00 instead of clock's05:00`,async t=>{

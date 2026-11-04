@@ -90,7 +90,7 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
  box.querySelector('.tv-pine').href=pineURL;box.querySelector('input[readonly]').value=url.href.replace(/\/$/,'')+'/webhook';
  let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='';
  try{savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
- if(savedReadKey)keyInput.placeholder='Saved for this tab';
+ if(savedReadKey){keyInput.placeholder='Saved for this tab';keyInput.readOnly=true;}
  function say(message,state){status.textContent=message;if(fillStatus)fillStatus.textContent=message;badge.textContent=state;box.dataset.state=state.toLowerCase();}
  function setBusy(value){if(sourceOnly){fillButton.disabled=value;connect.disabled=value;}}
  function mountPrivateNotes(){
@@ -171,12 +171,12 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
   finally{clearTimeout(expiry);busy=false;setBusy(false);if(active)timer=setTimeout(read,30000);}
  }
- function start(withSound=false){if(sourceOnly&&busy)return;const key=keyInput.value.trim()||savedReadKey;if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}if(withSound)prepareBell();savedReadKey=key;keyInput.value='';keyInput.placeholder='Saved for this tab';active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
- fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test(keyInput.value.trim()||savedReadKey)){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start(true);});
+ function start(withSound=false){if(sourceOnly&&busy)return;const key=keyInput.readOnly?savedReadKey:keyInput.value.trim()||savedReadKey;if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}if(withSound)prepareBell();savedReadKey=key;keyInput.value='';keyInput.placeholder='Saved for this tab';keyInput.readOnly=true;active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
+ fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test((keyInput.readOnly?savedReadKey:keyInput.value.trim()||savedReadKey))){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start(true);});
  connect.addEventListener('click',()=>start(true));
  keyInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();start(true);}});
- disconnect.addEventListener('click',()=>{active=false;sequence++;controller?.abort();clearTimeout(timer);savedReadKey='';keyInput.value='';keyInput.placeholder='';connect.textContent='Connect';resetApplied();try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}catch{}say(sourceOnly?'Disconnected. Use manual inputs or connect TradingView.':'Disconnected. You can use manual inputs or delayed Auto-fill.','Off');});
- keyInput.addEventListener('input',()=>{if(active)pause('Read key changed. Connect again to use it.');});
+ disconnect.addEventListener('click',()=>{active=false;sequence++;controller?.abort();clearTimeout(timer);savedReadKey='';keyInput.value='';keyInput.placeholder='';keyInput.readOnly=false;connect.textContent='Connect';resetApplied();try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}catch{}say(sourceOnly?'Disconnected. Use manual inputs or connect TradingView.':'Disconnected. You can use manual inputs or delayed Auto-fill.','Off');});
+ keyInput.addEventListener('input',()=>{if(active&&!keyInput.readOnly)pause('Read key changed. Connect again to use it.');});
  const managed=new Set(['price','avr','prior-high','prior-low','open1930','range-high','range-low','up','down','printed','location','range-position','behavior','ny-price','ny-avr','ny-range-high','ny-range-low','ny-printed','ny-position-asia','ny-position-london']);
  const manualEdit=e=>{if(active&&!applying&&e.isTrusted&&managed.has(e.target.id))pause('Paused after your manual edit. Resume to fill from TradingView again.');};
  document.addEventListener('input',manualEdit);document.addEventListener('change',manualEdit);
