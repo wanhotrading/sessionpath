@@ -88,8 +88,9 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
  const autoPositions=document.createElement('input');autoPositions.type='checkbox';
  positionLabel.append(autoPositions,document.createTextNode('Apply NY position filters automatically'));box.querySelector('.tv-connection-controls').append(positionLabel);
  box.querySelector('.tv-pine').href=pineURL;box.querySelector('input[readonly]').value=url.href.replace(/\/$/,'')+'/webhook';
- let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0;
- try{keyInput.value=sessionStorage.getItem(KEY)||'';}catch{}
+ let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='';
+ try{savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
+ if(savedReadKey)keyInput.placeholder='Saved for this tab';
  function say(message,state){status.textContent=message;if(fillStatus)fillStatus.textContent=message;badge.textContent=state;box.dataset.state=state.toLowerCase();}
  function setBusy(value){if(sourceOnly){fillButton.disabled=value;connect.disabled=value;}}
  function mountPrivateNotes(){
@@ -160,7 +161,7 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
   const seq=sequence,context=inputContext();busy=true;setBusy(true);controller=new AbortController();const expiry=setTimeout(()=>controller.abort(),10000);
   try{
    const target=new URL('/api/snapshots',url);target.searchParams.set('market',instrument.id);
-   const response=await fetch(target,{headers:{Authorization:'Bearer '+keyInput.value.trim()},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
+   const response=await fetch(target,{headers:{Authorization:'Bearer '+savedReadKey},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
    if(response.status===401)throw Error('The private read key is incorrect. Re-enter it and connect again.');
    if(!response.ok)throw Error('The TradingView bridge is unavailable. Your current inputs were kept.');
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
@@ -170,11 +171,11 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
   finally{clearTimeout(expiry);busy=false;setBusy(false);if(active)timer=setTimeout(read,30000);}
  }
- function start(withSound=false){if(sourceOnly&&busy)return;const key=keyInput.value.trim();if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}if(withSound)prepareBell();active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
- fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test(keyInput.value.trim())){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start(true);});
+ function start(withSound=false){if(sourceOnly&&busy)return;const key=keyInput.value.trim()||savedReadKey;if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}if(withSound)prepareBell();savedReadKey=key;keyInput.value='';keyInput.placeholder='Saved for this tab';active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
+ fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test(keyInput.value.trim()||savedReadKey)){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start(true);});
  connect.addEventListener('click',()=>start(true));
  keyInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();start(true);}});
- disconnect.addEventListener('click',()=>{active=false;sequence++;controller?.abort();clearTimeout(timer);keyInput.value='';connect.textContent='Connect';resetApplied();try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}catch{}say(sourceOnly?'Disconnected. Use manual inputs or connect TradingView.':'Disconnected. You can use manual inputs or delayed Auto-fill.','Off');});
+ disconnect.addEventListener('click',()=>{active=false;sequence++;controller?.abort();clearTimeout(timer);savedReadKey='';keyInput.value='';keyInput.placeholder='';connect.textContent='Connect';resetApplied();try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}catch{}say(sourceOnly?'Disconnected. Use manual inputs or connect TradingView.':'Disconnected. You can use manual inputs or delayed Auto-fill.','Off');});
  keyInput.addEventListener('input',()=>{if(active)pause('Read key changed. Connect again to use it.');});
  const managed=new Set(['price','avr','prior-high','prior-low','open1930','range-high','range-low','up','down','printed','location','range-position','behavior','ny-price','ny-avr','ny-range-high','ny-range-low','ny-printed','ny-position-asia','ny-position-london']);
  const manualEdit=e=>{if(active&&!applying&&e.isTrusted&&managed.has(e.target.id))pause('Paused after your manual edit. Resume to fill from TradingView again.');};
@@ -186,5 +187,5 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
  autoPositions.addEventListener('change',()=>{appliedNY='';sequence++;if(active)void read();});
  document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
  window.addEventListener('pagehide',()=>{active=false;controller?.abort();clearTimeout(timer);notesObserver?.disconnect();clearTimeout(notesExpiry);clearTimeout(feedbackFade);clearTimeout(feedbackHide);for(const [input,timer]of highlightTimers){clearTimeout(timer);input.classList.remove('auto-fill-updated');}highlightTimers.clear();feedbackPopup.hidden=true;try{bellContext?.close().catch(()=>{});}catch{}});
- try{if(sessionStorage.getItem(ENABLED)==='true'&&keyInput.value)start();}catch{}
+ try{if(sessionStorage.getItem(ENABLED)==='true'&&savedReadKey)start();}catch{}
 }

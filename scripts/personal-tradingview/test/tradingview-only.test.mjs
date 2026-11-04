@@ -106,6 +106,13 @@ test('normal03:00 confirmation wait automatically becomes a successful03:05 fill
  await h.poll();assert.equal(h.badge(),'Connected');assert.match(h.status(),/applied 03:00/);assert.equal(h.$('range-high').value,'102');assert.equal(h.state.submits,1);assert.equal(h.state.audioStarts,3);
 });
 
+test('connected key leaves the editable field while polling and explicit refills retain the scoped authorization',async t=>{
+ const h=await harness(t);h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.key.value,'');assert.equal(h.key.placeholder,'Saved for this tab');
+ await h.poll();assert.equal(h.state.calls.at(-1).options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(h.badge(),'Connected');
+ h.primary().click();await settle();assert.equal(h.state.calls.at(-1).options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(h.key.value,'');
+ h.disconnect.click();const n=h.state.calls.length;h.primary().click();await settle();assert.equal(h.state.calls.length,n);assert.equal(h.key.placeholder,'');
+});
+
 for(const market of ['CL','NQ','ES','GC'])test(`${market}: explicit Auto-fill uses only private auth and honors selected03:00 instead of clock's05:00`,async t=>{
  const h=await harness(t,{market});h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.state.calls.length,1);const call=h.state.calls[0];assert.equal(new URL(call.url).origin,'https://sessionpath-personal.jjj-jason2345.workers.dev');assert.equal(new URL(call.url).pathname,'/api/snapshots');assert.equal(call.options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(new URL(call.url).searchParams.get('market'),market);assert.equal(h.box.querySelector('.tv-follow').checked,false);assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');assert.equal(h.$('range-low').value,'98');assert.equal(h.state.submits,1);assert.ok(!call.url.includes('yahoo'));assert.ok(!call.url.includes('sessionpath-data'));
  for(const id of [...mainIDs,...nyIDs])assert.ok(h.$(id).classList.contains('auto-fill-updated'),id+' is visibly filled');
