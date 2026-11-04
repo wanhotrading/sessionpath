@@ -1,9 +1,10 @@
 import {writeFile} from 'node:fs/promises';
+import {FREE_MODEL} from '../router.mjs';
 const base='https://sessionpath-assistant.jjj-jason2345.workers.dev';
 const headers={'Content-Type':'application/json',Origin:'https://wanhotrading.github.io'};
 const healthResponse=await fetch(base+'/health',{signal:AbortSignal.timeout(12000)});
 const health=await healthResponse.json();
-if(!healthResponse.ok||health.freeModelsOnly!==true||health.model!=='openrouter/free')throw Error('FREE_ONLY_SERVICE_FAILED');
+if(!healthResponse.ok||health.freeModelsOnly!==true||health.model!==FREE_MODEL)throw Error('FREE_ONLY_SERVICE_FAILED');
 const results=[];
 for(const [market,window,message]of [['CL','03:00-05:00','CL, 03-05 range'],['NQ','05:00-08:30','NQ 05-0830'],['ES','08:30-16:00','ES 08:30-16:00'],['GC','03:00-05:00','GC 03-05']]){
  const response=await fetch(base+'/api/chat',{method:'POST',headers,body:JSON.stringify({message,context:{market,window}}),signal:AbortSignal.timeout(12000)});

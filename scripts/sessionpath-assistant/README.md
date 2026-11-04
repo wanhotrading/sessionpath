@@ -4,13 +4,23 @@ The assistant interprets requests. SessionPath's existing deterministic forecast
 engine remains the only source of prices, probabilities and indicator codes.
 No model-generated forecast numbers or Pine code are accepted.
 
-The Worker uses only `openrouter/free`, without a fallback array, plugins or
-user-selected models. OpenRouter documents that this router falls back only to
-free models. `OPENROUTER_API_KEY` must be configured as a Worker secret, never in
+The Worker uses only `nvidia/nemotron-3.5-super-vl:free`, without a fallback array,
+plugins or user-selected models. The official OpenRouter model catalog verified
+zero prompt/completion pricing, optional reasoning and structured-output support
+for this exact free variant. `OPENROUTER_API_KEY` must be configured as a Worker secret, never in
 GitHub Pages or browser JavaScript. An unavailable free model is an explicit
 error; it never falls back to paid inference. Exact commands such as
 `CL 03-05 range` use a local parser and are labeled `rules`; natural language
 uses the real OpenRouter request and is labeled `openrouter`.
+
+Intent classification explicitly sends `reasoning: {enabled: false}` while
+retaining a 512-token output cap. Some free reasoning models
+otherwise consume the entire cap before returning JSON; hiding reasoning text
+alone does not prevent that consumption. Output-limit and empty-result failures
+have fixed error codes without returning provider reasoning, usage or raw text.
+The exact free variant is pinned because the dynamic free router rejected the
+reasoning-control combination in an actual request. There is no automatic model
+substitution if this pinned free endpoint becomes unavailable.
 
 ## Request and response
 
@@ -32,6 +42,16 @@ responses to 24 KiB and an upstream attempt to 15 seconds. No automatic retries.
 
 Errors use `{ "ok": false, "error": { "code": "...", "message": "..." } }`.
 Errors deliberately omit provider diagnostics, prompts and credentials.
+Fixed error codes distinguish upstream request rejection (400/422), rejected
+API keys (401), account/key credit restrictions (402), denied access (403),
+capacity limits (429), and other availability failures. A 402 classification
+does not assume whether an account balance or a particular key limit caused it.
+For 400/422 responses only, at most 8 KiB of provider error text is inspected to
+select a fixed reasoning-control, structured-output or credit/key-budget
+classification. Only the top error message is classified; when it is generic,
+the nested `metadata.raw` JSON error message may be used. Other metadata fields
+are never scanned. Raw error text and metadata are never returned, logged or stored.
+Oversized or unreadable error bodies remain the generic request-rejected error.
 
 ## Persistent public usage limits
 
@@ -56,6 +76,9 @@ observability and trace sampling and declares `ASSISTANT_QUOTA` plus the SQLite
 migration. Configure `OPENROUTER_API_KEY` through the platform secret API. The
 metadata contains no secret or deployment token. Enable its workers.dev route
 or configure an explicit hostname before using the frontend.
+The migration in the metadata is for the initial deployment only. For later
+updates, omit migrations, keep the existing `ASSISTANT_QUOTA` namespace, and
+preserve secret bindings with `keep_bindings: ["secret_text"]`.
 
 `GET /health` exposes service identity and free-only routing, without secrets,
 quota counters, prompts or data feed access.
@@ -67,6 +90,8 @@ needs Miniflare and verifies actual RPC, concurrent enforcement, SQLite
 persistence and restart behavior. Existing project test dependencies can be
 reused via the personal TradingView package-test-loader; no new install is needed.
 
-References: [OpenRouter free router](https://openrouter.ai/docs/guides/routing/model-variants/free),
+References: [verified free model](https://openrouter.ai/nvidia/nemotron-3.5-super-vl:free),
+[OpenRouter free variants](https://openrouter.ai/docs/guides/routing/model-variants/free),
 [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs),
+[reasoning token controls](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens),
 [Cloudflare SQLite storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/).
