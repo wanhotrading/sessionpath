@@ -10,6 +10,17 @@ export function nyClock(now=Date.now()){
  const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now).map(x=>[x.type,x.value]));
  return {date:`${p.year}-${p.month}-${p.day}`,minute:Number(p.hour)*60+Number(p.minute)};
 }
+export function checkpointWaitState(body,{market,cutoff='03:00',now=Date.now()}={}){
+ const selected=CUTS.includes(cutoff)?cutoff:'03:00',clock=nyClock(now),minute=Number(selected.slice(0,2))*60+Number(selected.slice(3)),due=minute+5;
+ const expected=String(Math.floor(due/60)).padStart(2,'0')+':'+String(due%60).padStart(2,'0');
+ const p=body?.packet,received=Date.parse(body?.receivedAt),observed=Date.parse(p?.observed_at);
+ if(!p||p.market!==market||!Number.isFinite(received)||!Number.isFinite(observed))return {state:'Waiting',code:'NO_MARKET_DATA',message:`No ${market}1! data has reached this connection. Check that its personal sender alert is active.`};
+ if(p.session_date!==clock.date||now-received>480000||now-observed>480000)return {state:'Unavailable',code:'STALE_MARKET_DATA',message:`${market}1! has no fresh data for today’s New York session. Check its personal sender alert.`};
+ const label=new Date(observed).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
+ if(clock.minute<due)return {state:'Connected',code:'CHECKPOINT_PENDING',message:`${market}1! is connected · last bar ${label} NY. The ${selected} checkpoint is expected after ${expected} NY, when its five-minute candle closes. Auto-fill will apply it automatically; keep this page open.`};
+ if(observed<now-120000||nyClock(observed).minute<due)return {state:'Connected',code:'AWAITING_CHECKPOINT_DELIVERY',message:`${market}1! is connected · last bar ${label} NY. Waiting for the ${expected} NY update carrying the ${selected} checkpoint. Auto-fill retries automatically.`};
+ return {state:'Waiting',code:'CHECKPOINT_INCOMPLETE',message:`${market}1! is sending fresh data, but the ${selected} checkpoint is incomplete. Check the personal sender’s coverage status on TradingView.`};
+}
 export function validatePersonalRead(body,{market,now=Date.now()}){
  if(body?.schema!==READ_SCHEMA)throw Error('The personal feed returned an unrecognized response.');
  if(body.status==='waiting')return null;
@@ -139,7 +150,8 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
    if(ny&&$('ny-price')&&$('ny-avr')&&$('ny-date')?.value===clock.date){const id=JSON.stringify(ny)+'|'+$('ny-basis')?.value+'|'+$('ny-position-mode')?.value+'|'+autoPositions.checked;if(id!==appliedNY){updated.push(...setFields(nyInputPlan(ny)));$('ny-avr').dispatchEvent(new Event('input',{bubbles:true}));const positions=sessionPositions(ny,$('ny-basis')?.value);if(positions){updated.push(...setFields(positions));for(const id of Object.keys(positions))$(id)?.dispatchEvent(new Event('input',{bubbles:true}));if(autoPositions.checked)$('ny-position-apply')?.click();const note=$('ny-position-status');if(note)note.textContent=autoPositions.checked?note.textContent+' · TradingView personal snapshot.':'TradingView positions filled. Quarter filters retained; click Apply Exact / Wide to use these positions.';}for(const id of ['ny-util-autofill-status','ny-close-autofill-status'])if($(id))$(id).textContent='Not updated by this personal feed: NY close counts and U/D utilization need manual review. Existing direction entries were kept.';$('ny-range-low').dispatchEvent(new Event('input',{bubbles:true}));$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));appliedNY=id;}}
    const time=new Date(packet.observed_at).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
    const applied=[s?.cutoff,ny&&appliedNY?'08:30 NY':null].filter(Boolean).join(' / ');
-   say(`${instrument.id}1! · bar closed ${time} NY · ${applied?'applied '+applied:'waiting for the selected checkpoint'}. Five-minute updates; decision opens stay fixed.`,'Connected');
+   if(!s){const waiting=checkpointWaitState({packet,receivedAt:packet.observed_at},{market:instrument.id,cutoff:$('asof').value});say(waiting.message,waiting.state);}
+   else say(`${instrument.id}1! · bar closed ${time} NY · ${applied?'applied '+applied:'waiting for the selected checkpoint'}. Five-minute updates; decision opens stay fixed.`,'Connected');
    completeFill(updated);
   }finally{applying=false;}
  }
@@ -153,7 +165,7 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
    if(!response.ok)throw Error('The TradingView bridge is unavailable. Your current inputs were kept.');
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
    const packet=validatePersonalRead(body,{market:instrument.id});
-   if(!packet){say('Connected. No complete checkpoint yet. Check the sender’s alert and coverage status; snapshots arrive five minutes after each checkpoint.','Waiting');return;}
+   if(!packet){const cutoff=follow.checked?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);return;}
    apply(packet);
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
   finally{clearTimeout(expiry);busy=false;setBusy(false);if(active)timer=setTimeout(read,30000);}

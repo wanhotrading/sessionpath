@@ -98,6 +98,14 @@ test('Auto-fill without a key opens and focuses private setup, with zero data re
  assertNoSuccessFeedback(h);
 });
 
+test('normal03:00 confirmation wait automatically becomes a successful03:05 fill without reconnecting',async t=>{
+ const h=await harness(t,{market:'CL',follow:false});const ready=structuredClone(h.state.body);
+ h.state.now=Date.parse('2026-11-03T08:02:00Z');h.state.body={...ready,status:'waiting',receivedAt:'2026-11-03T08:00:01Z',packet:{...ready.packet,observed_at:'2026-11-03T08:00:00Z',sent_at:'2026-11-03T08:00:00Z',snapshots:[]}};
+ h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.badge(),'Connected');assert.match(h.status(),/03:05 NY/);assertNoSuccessFeedback(h);assert.equal(h.$('price').value,'777');
+ h.state.now=Date.parse('2026-11-03T08:05:10Z');h.state.body={...ready,receivedAt:'2026-11-03T08:05:01Z',packet:{...ready.packet,observed_at:'2026-11-03T08:05:00Z',sent_at:'2026-11-03T08:05:00Z',snapshots:[ready.packet.snapshots[0]]}};
+ await h.poll();assert.equal(h.badge(),'Connected');assert.match(h.status(),/applied 03:00/);assert.equal(h.$('range-high').value,'102');assert.equal(h.state.submits,1);assert.equal(h.state.audioStarts,3);
+});
+
 for(const market of ['CL','NQ','ES','GC'])test(`${market}: explicit Auto-fill uses only private auth and honors selected03:00 instead of clock's05:00`,async t=>{
  const h=await harness(t,{market});h.key.value=READ_KEY;h.primary().click();await settle();assert.equal(h.state.calls.length,1);const call=h.state.calls[0];assert.equal(new URL(call.url).origin,'https://sessionpath-personal.jjj-jason2345.workers.dev');assert.equal(new URL(call.url).pathname,'/api/snapshots');assert.equal(call.options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(new URL(call.url).searchParams.get('market'),market);assert.equal(h.box.querySelector('.tv-follow').checked,false);assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');assert.equal(h.$('range-low').value,'98');assert.equal(h.state.submits,1);assert.ok(!call.url.includes('yahoo'));assert.ok(!call.url.includes('sessionpath-data'));
  for(const id of [...mainIDs,...nyIDs])assert.ok(h.$(id).classList.contains('auto-fill-updated'),id+' is visibly filled');
