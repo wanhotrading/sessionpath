@@ -13,22 +13,28 @@ test('Workers runtime authenticates, persists SQLite DO state across restart and
  const persist=await mkdtemp(path.join(tmpdir(),'sessionpath-personal-runtime-'));
  // The installed official workerd release supports through 2026-08-06.
  // Production's requested compatibility date is checked by Cloudflare upload.
- const options={modules:true,script:source,compatibilityDate:'2026-08-06',durableObjects:{PERSONAL_FEEDS:{className:'PersonalFeed',useSQLite:true}},bindings:{READ_TOKEN_HASH:hash(READ_TOKEN),WRITE_TOKEN_HASH:hash(WRITE_TOKEN)},durableObjectsPersist:persist,log:new Log(LogLevel.ERROR)};
+ const options={modules:true,script:source,compatibilityDate:'2026-08-06',durableObjects:{PERSONAL_FEEDS:{className:'PersonalFeed',useSQLite:true}},bindings:{READ_TOKEN_HASH:hash(READ_TOKEN),WRITE_TOKEN_HASH:hash(WRITE_TOKEN),PUBLIC_AUTOFILL_ENABLED:'true'},durableObjectsPersist:persist,log:new Log(LogLevel.ERROR)};
  const post=packet=>({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(packet)});
  const get={headers:{Authorization:'Bearer '+READ_TOKEN,Origin:'https://wanhotrading.github.io'}};
  let mf=new Miniflare(options);
  try{
   assert.equal((await mf.dispatchFetch('http://bridge/api/snapshots?market=CL')).status,401);
+  assert.equal((await (await mf.dispatchFetch('http://bridge/api/autofill?market=CL')).json()).status,'waiting');
   assert.equal((await mf.dispatchFetch('http://bridge/webhook',post({...packet,token:READ_TOKEN}))).status,401);
   assert.deepEqual(await (await mf.dispatchFetch('http://bridge/webhook',post(packet))).json(),{status:'accepted'});
   assert.deepEqual(await (await mf.dispatchFetch('http://bridge/webhook',post(packet))).json(),{status:'duplicate'});
   const r=await mf.dispatchFetch('http://bridge/api/snapshots?market=CL',get),body=await r.json();
   assert.equal(body.status,'ready');assert.equal(body.packet.token,undefined);assert.equal(body.packet.snapshots.length,3);
   assert.equal(r.headers.get('cache-control'),'no-store, max-age=0');
+  const publicResponse=await mf.dispatchFetch('http://bridge/api/autofill?market=CL',{headers:{Origin:'https://wanhotrading.github.io'}});
+  assert.deepEqual(await publicResponse.json(),body);
+  assert.equal(publicResponse.headers.get('access-control-allow-origin'),'https://wanhotrading.github.io');
+  assert.equal((await mf.dispatchFetch('http://bridge/api/autofill?market=INVALID')).status,400);
   assert.equal((await (await mf.dispatchFetch('http://bridge/api/snapshots?market=NQ',get)).json()).status,'waiting');
   await mf.dispose();mf=new Miniflare(options);
   const recovered=await (await mf.dispatchFetch('http://bridge/api/snapshots?market=CL',get)).json();
   assert.deepEqual(recovered,body);
+  assert.deepEqual(await (await mf.dispatchFetch('http://bridge/api/autofill?market=CL')).json(),body);
   const changed=structuredClone(packet);changed.observed_at='2026-11-03T13:40:00Z';changed.sent_at=changed.observed_at;changed.snapshots[0].reference_price=101;
   // Future timestamps fail before they can alter persisted values.
   assert.equal((await mf.dispatchFetch('http://bridge/webhook',post(changed))).status,400);

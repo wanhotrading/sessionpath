@@ -2,6 +2,11 @@
   "worker_name": "sessionpath-personal",
   "entrypoint": "backend/worker.bundle.mjs",
   "required_secret_bindings": ["READ_TOKEN_HASH", "WRITE_TOKEN_HASH"],
+  "public_autofill": {
+    "path": "/api/autofill",
+    "access": "Public, read-only normalized market inputs; webhook writes stay authenticated",
+    "binding": {"type": "plain_text", "name": "PUBLIC_AUTOFILL_ENABLED", "text": "true"}
+  },
   "initial_upload_metadata": {
     "main_module": "worker.bundle.mjs",
     "compatibility_date": "2026-11-03",

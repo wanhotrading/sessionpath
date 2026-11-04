@@ -2,6 +2,12 @@ import {FeedError,normalizePacket,PERSONAL_MARKETS,targetSessionDate} from './va
 export const PERSONAL_ORIGIN='https://wanhotrading.github.io';
 export const MAX_BODY_BYTES=16384;
 const encoder=new TextEncoder();
+function hasValidMarketQuery(url){return [...url.searchParams.keys()].every(k=>k==='market')&&url.searchParams.getAll('market').length===1&&Object.hasOwn(PERSONAL_MARKETS,url.searchParams.get('market'));}
+async function readSnapshot(market,env,current){
+  const latest=await env.PERSONAL_FEEDS.getByName(market).getLatest();
+  const stale=latest&&(current-latest.observedMs>480000||current-Date.parse(latest.receivedAt)>480000||latest.packet.session_date!==targetSessionDate(current));
+  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:latest?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation'};
+}
 export async function sha256(value,cryptoImpl=globalThis.crypto){return Array.from(new Uint8Array(await cryptoImpl.subtle.digest('SHA-256',encoder.encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function authenticateToken(token,expectedHash,cryptoImpl=globalThis.crypto){
   if(typeof expectedHash!=='string'||!/^[a-f0-9]{64}$/.test(expectedHash))throw new FeedError('SERVICE_UNCONFIGURED',503);
@@ -32,9 +38,11 @@ export function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto
       if(origin&&origin!==PERSONAL_ORIGIN)throw new FeedError('ORIGIN_DENIED',403);
       if(origin===PERSONAL_ORIGIN)headers.set('Access-Control-Allow-Origin',origin);
       if(request.method==='OPTIONS'){
-        if(origin!==PERSONAL_ORIGIN||url.pathname!=='/api/snapshots'||[...url.searchParams.keys()].some(k=>k!=='market')||url.searchParams.getAll('market').length!==1||!Object.hasOwn(PERSONAL_MARKETS,url.searchParams.get('market')))throw new FeedError('ORIGIN_DENIED',403);
-        if(request.headers.get('Access-Control-Request-Method')!=='GET'||(request.headers.get('Access-Control-Request-Headers')??'').split(',').some(x=>x.trim()&&!['authorization'].includes(x.trim().toLowerCase())))throw new FeedError('PREFLIGHT_DENIED',403);
-        headers.set('Access-Control-Allow-Methods','GET');headers.set('Access-Control-Allow-Headers','Authorization');headers.set('Access-Control-Max-Age','300');return reply(null,204);
+        const privateRead=url.pathname==='/api/snapshots',publicRead=url.pathname==='/api/autofill'&&env.PUBLIC_AUTOFILL_ENABLED==='true';
+        if(origin!==PERSONAL_ORIGIN||(!privateRead&&!publicRead)||!hasValidMarketQuery(url))throw new FeedError('ORIGIN_DENIED',403);
+        const allowedHeaders=privateRead?['authorization']:[];
+        if(request.headers.get('Access-Control-Request-Method')!=='GET'||(request.headers.get('Access-Control-Request-Headers')??'').split(',').some(x=>x.trim()&&!allowedHeaders.includes(x.trim().toLowerCase())))throw new FeedError('PREFLIGHT_DENIED',403);
+        headers.set('Access-Control-Allow-Methods','GET');if(privateRead)headers.set('Access-Control-Allow-Headers','Authorization');headers.set('Access-Control-Max-Age','300');return reply(null,204);
       }
       if(url.pathname==='/health'&&request.method==='GET'&&!url.search)return reply({ok:true,service:'sessionpath-personal'});
       if(url.pathname==='/webhook'&&request.method==='POST'){
@@ -48,14 +56,18 @@ export function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto
         if(result.status==='conflict')throw new FeedError(result.code,409);
         return reply({status:result.status});
       }
+      // This opt-in route deliberately shares the validated feed with everyone.
+      // It never reads or forwards the private bearer/write credential.
+      if(url.pathname==='/api/autofill'&&request.method==='GET'){
+        if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
+        if(!hasValidMarketQuery(url))throw new FeedError('INVALID_QUERY');
+        return reply(await readSnapshot(url.searchParams.get('market'),env,now()));
+      }
       if(url.pathname==='/api/snapshots'&&request.method==='GET'){
-        if([...url.searchParams.keys()].some(k=>k!=='market')||url.searchParams.getAll('market').length!==1||!Object.hasOwn(PERSONAL_MARKETS,url.searchParams.get('market')))throw new FeedError('INVALID_QUERY');
+        if(!hasValidMarketQuery(url))throw new FeedError('INVALID_QUERY');
         const bearer=/^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(request.headers.get('Authorization')??'');
         if(!await authenticateToken(bearer?.[1],env.READ_TOKEN_HASH,cryptoImpl))throw new FeedError('UNAUTHORIZED',401);
-        const latest=await env.PERSONAL_FEEDS.getByName(url.searchParams.get('market')).getLatest();
-        const current=now();
-        const stale=latest&&(current-latest.observedMs>480000||current-Date.parse(latest.receivedAt)>480000||latest.packet.session_date!==targetSessionDate(current));
-        return reply({schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:latest?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation'});
+        return reply(await readSnapshot(url.searchParams.get('market'),env,now()));
       }
       throw new FeedError('NOT_FOUND',404);
     }catch(error){

@@ -61,38 +61,25 @@ export function sessionPositions(s,basis='bbox'){
  return result;
 }
 
-export function mountPersonalTradingView({instrument,endpoint,pineURL}){
+export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  const document=globalThis.document,window=document.defaultView;
  const $=id=>document.getElementById(id),form=$('scenario-form');
- if(!form||$('personal-tradingview'))return;
+ if(!form||$('personal-auto-fill-row'))return;
  const sourceOnly=document.querySelector('meta[name="sessionpath-source-mode"]')?.content==='tradingview-only';
  let url;try{url=new URL(endpoint);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Error();}catch{return;}
- const box=document.createElement('details');box.id='personal-tradingview';box.className='personal-tradingview';
- box.innerHTML='<summary>TradingView · personal connection <span class="tv-connection-badge">Off</span></summary><div class="tv-connection-body"><div class="tv-connection-controls"><label>Private read key<input type="password" autocomplete="off" spellcheck="false" data-private aria-label="TradingView private read key"></label><button type="button" class="quiet tv-connect">Connect</button><button type="button" class="text-button tv-disconnect">Disconnect</button><label class="inline-check"><input type="checkbox" class="tv-follow" checked> Follow latest checkpoint</label></div><p class="tv-connection-status" role="status" aria-live="polite">Enter your private read key to connect. It stays in this browser tab’s session.</p><div class="tv-setup-links"><a class="quiet tv-pine" download="SessionPath-personal-TradingView-sender.pine">Download personal sender</a><label>TradingView webhook URL<input type="text" readonly data-private aria-label="TradingView personal webhook URL"></label></div></div>';
- let fillButton=null,fillStatus=null;
- if(sourceOnly){
-  const row=document.createElement('div');row.id='personal-auto-fill-row';row.className='context-auto-fill-row planning-auto-fill-row';
-  fillButton=document.createElement('button');fillButton.type='button';fillButton.id='personal-auto-fill';fillButton.className='quiet';fillButton.textContent='Auto-fill · TradingView';fillButton.setAttribute('aria-controls',box.id);fillButton.setAttribute('aria-describedby','personal-auto-fill-status');
-  fillStatus=document.createElement('p');fillStatus.id='personal-auto-fill-status';fillStatus.className='compact-note';fillStatus.setAttribute('role','status');fillStatus.setAttribute('aria-live','polite');fillStatus.textContent='Connect TradingView; existing inputs have not been refreshed from your chart.';
-  row.append(fillButton,fillStatus);const planning=form.querySelector('.planning-bar');if(planning)planning.after(row);else form.prepend(row);
- }
- // Both source controls sit below the selected decision time. Auto-fill may
- // mount asynchronously; relocate once when its row becomes available.
- const place=()=>{const row=form.querySelector('.planning-auto-fill-row')||$('planning-auto-fill-row');if(row){row.after(box);return true;}return false;};
- if(!place()){form.querySelector('.planning-bar')?.after(box);if(!box.isConnected)form.prepend(box);const observer=new window.MutationObserver(()=>{if(place()){observer.disconnect();clearTimeout(expiry);}});observer.observe(form,{childList:true,subtree:true});const expiry=setTimeout(()=>observer.disconnect(),30000);}
- const keyInput=box.querySelector('input[type=password]'),connect=box.querySelector('.tv-connect'),disconnect=box.querySelector('.tv-disconnect'),follow=box.querySelector('.tv-follow'),status=box.querySelector('.tv-connection-status'),badge=box.querySelector('.tv-connection-badge');
- // Connection settings are not model inputs, even while displayed in its form.
- box.addEventListener('input',e=>e.stopPropagation());
- box.addEventListener('change',e=>e.stopPropagation());
- const positionLabel=document.createElement('label');positionLabel.className='inline-check';
- const autoPositions=document.createElement('input');autoPositions.type='checkbox';
- positionLabel.append(autoPositions,document.createTextNode('Apply NY position filters automatically'));box.querySelector('.tv-connection-controls').append(positionLabel);
- box.querySelector('.tv-pine').href=pineURL;box.querySelector('input[readonly]').value=url.href.replace(/\/$/,'')+'/webhook';
- let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='';
- try{savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
- if(savedReadKey){keyInput.placeholder='Saved for this tab';keyInput.readOnly=true;}
- function say(message,state){status.textContent=message;if(fillStatus)fillStatus.textContent=message;badge.textContent=state;box.dataset.state=state.toLowerCase();}
- function setBusy(value){if(sourceOnly){fillButton.disabled=value;connect.disabled=value;}}
+ // A managed route is opt-in. Never silently turn the private bearer endpoint
+ // into a public feed, and never put a server credential in this module.
+ let managedURL=null;
+ if(managedReadURL){try{managedURL=new URL(managedReadURL,window.location.href);if(managedURL.protocol!=='https:'||managedURL.username||managedURL.password||managedURL.search||managedURL.hash)throw Error();}catch{return;}}
+ const row=document.createElement('div');row.id='personal-auto-fill-row';row.className='context-auto-fill-row planning-auto-fill-row';
+ const fillButton=document.createElement('button');fillButton.type='button';fillButton.id='personal-auto-fill';fillButton.className='quiet';fillButton.textContent='Auto-fill';fillButton.setAttribute('aria-describedby','personal-auto-fill-status');
+ const fillStatus=document.createElement('p');fillStatus.id='personal-auto-fill-status';fillStatus.className='compact-note';fillStatus.setAttribute('role','status');fillStatus.setAttribute('aria-live','polite');fillStatus.textContent='Failed to fetch';
+ row.append(fillButton,fillStatus);const planning=form.querySelector('.planning-bar');if(planning)planning.after(row);else form.prepend(row);
+ let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='',followLatest=true;
+ const autoPositions=true;
+ try{if(managedURL){sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}else savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
+ function say(message,state){fillStatus.textContent=state==='Connected'?'Connected':'Failed to fetch';}
+ function setBusy(value){fillButton.disabled=value;fillButton.setAttribute('aria-busy',String(value));}
  function mountPrivateNotes(){
   if(!sourceOnly)return true;
   let count=0;
@@ -103,7 +90,7 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
    count++;
   }
   const positionNote=$('ny-position-status');
-  if(positionNote&&/Auto-fill\s*·?\s*08:30\s+below/i.test(positionNote.textContent))positionNote.textContent='Connect TradingView to fill completed 08:30 session positions. Quarter filters stay unchanged unless you choose Apply Exact / Wide or explicitly enable automatic position filters.';
+  if(positionNote&&/Auto-fill\s*·?\s*08:30\s+below/i.test(positionNote.textContent))positionNote.textContent='Auto-fill applies completed 08:30 session positions using the selected Exact / Wide method.';
   return count===2&&Boolean(positionNote);
  }
  let notesObserver=null,notesExpiry=null;
@@ -135,8 +122,8 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
  }
  function resetApplied(){appliedMain='';appliedNY='';}
  function setFields(updates){const targets=[];for(const [id,v]of Object.entries(updates)){const el=$(id);if(el){el.value=typeof v==='number'?String(Number(v.toFixed(8))):String(v);targets.push(el);}}return targets;}
- function pause(message){active=false;sequence++;controller?.abort();clearTimeout(timer);connect.textContent='Resume';try{sessionStorage.removeItem(ENABLED);}catch{}say(message,'Paused');}
- function inputContext(){return [instrument.id,$('asof')?.value,$('trading-date')?.value,$('replay-toggle')?.checked,$('ny-date')?.value,follow.checked].join('|');}
+ function pause(message){active=false;sequence++;controller?.abort();clearTimeout(timer);try{sessionStorage.removeItem(ENABLED);}catch{}say(message,'Paused');}
+ function inputContext(){return [instrument.id,$('asof')?.value,$('trading-date')?.value,$('replay-toggle')?.checked,$('ny-date')?.value,followLatest].join('|');}
  function apply(packet){
   mountPrivateNotes();
   if($('replay-toggle')?.checked){say('Replay is on. Live input updates are paused. Turn Replay off to resume.','Paused');return;}
@@ -144,11 +131,11 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
   const clock=nyClock(),updated=[];
   applying=true;
   try{
-   if(follow.checked){const cutoff=clock.minute>=300?'05:00':'03:00';if($('asof').value!==cutoff){$('asof').value=cutoff;resetApplied();}if($('trading-date').value!==clock.date){$('trading-date').value=clock.date;resetApplied();}if($('date-label'))$('date-label').textContent='Today · '+clock.date;}
+   if(followLatest){const cutoff=clock.minute>=300?'05:00':'03:00';if($('asof').value!==cutoff){$('asof').value=cutoff;resetApplied();}if($('trading-date').value!==clock.date){$('trading-date').value=clock.date;resetApplied();}if($('date-label'))$('date-label').textContent='Today · '+clock.date;}
    if($('trading-date').value!==clock.date){say('Select today’s New York date or enable Follow latest checkpoint.','Waiting');return;}
    const s=packet.snapshots.find(s=>s.cutoff===$('asof').value),ny=packet.snapshots.find(s=>s.cutoff==='08:30');
    if(s){const id=JSON.stringify(s)+'|'+$('ud-units')?.value;if(id!==appliedMain){updated.push(...setFields(mainInputPlan(s,$('ud-units')?.value)));form.requestSubmit();appliedMain=id;}}
-   if(ny&&$('ny-price')&&$('ny-avr')&&$('ny-date')?.value===clock.date){const id=JSON.stringify(ny)+'|'+$('ny-basis')?.value+'|'+$('ny-position-mode')?.value+'|'+autoPositions.checked;if(id!==appliedNY){updated.push(...setFields(nyInputPlan(ny)));$('ny-avr').dispatchEvent(new Event('input',{bubbles:true}));const positions=sessionPositions(ny,$('ny-basis')?.value);if(positions){updated.push(...setFields(positions));for(const id of Object.keys(positions))$(id)?.dispatchEvent(new Event('input',{bubbles:true}));if(autoPositions.checked)$('ny-position-apply')?.click();const note=$('ny-position-status');if(note)note.textContent=autoPositions.checked?note.textContent+' · TradingView personal snapshot.':'TradingView positions filled. Quarter filters retained; click Apply Exact / Wide to use these positions.';}for(const id of ['ny-util-autofill-status','ny-close-autofill-status'])if($(id))$(id).textContent='Not updated by this personal feed: NY close counts and U/D utilization need manual review. Existing direction entries were kept.';$('ny-range-low').dispatchEvent(new Event('input',{bubbles:true}));$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));appliedNY=id;}}
+   if(ny&&$('ny-price')&&$('ny-avr')&&$('ny-date')?.value===clock.date){const id=JSON.stringify(ny)+'|'+$('ny-basis')?.value+'|'+$('ny-position-mode')?.value+'|'+autoPositions;if(id!==appliedNY){updated.push(...setFields(nyInputPlan(ny)));$('ny-avr').dispatchEvent(new Event('input',{bubbles:true}));const positions=sessionPositions(ny,$('ny-basis')?.value);if(positions){updated.push(...setFields(positions));for(const id of Object.keys(positions))$(id)?.dispatchEvent(new Event('input',{bubbles:true}));if(autoPositions)$('ny-position-apply')?.click();const note=$('ny-position-status');if(note)note.textContent=autoPositions?note.textContent+' · TradingView personal snapshot.':'TradingView positions filled. Quarter filters retained; click Apply Exact / Wide to use these positions.';}for(const id of ['ny-util-autofill-status','ny-close-autofill-status'])if($(id))$(id).textContent='Not updated by this personal feed: NY close counts and U/D utilization need manual review. Existing direction entries were kept.';$('ny-range-low').dispatchEvent(new Event('input',{bubbles:true}));$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));appliedNY=id;}}
    const time=new Date(packet.observed_at).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
    const applied=[s?.cutoff,ny&&appliedNY?'08:30 NY':null].filter(Boolean).join(' / ');
    if(!s){const waiting=checkpointWaitState({packet,receivedAt:packet.observed_at},{market:instrument.id,cutoff:$('asof').value});say(waiting.message,waiting.state);}
@@ -160,32 +147,34 @@ export function mountPersonalTradingView({instrument,endpoint,pineURL}){
   clearTimeout(timer);if(!active||busy||document.hidden)return;
   const seq=sequence,context=inputContext();busy=true;setBusy(true);controller=new AbortController();const expiry=setTimeout(()=>controller.abort(),10000);
   try{
-   const target=new URL('/api/snapshots',url);target.searchParams.set('market',instrument.id);
-   const response=await fetch(target,{headers:{Authorization:'Bearer '+savedReadKey},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
+   const target=managedURL?new URL(managedURL):new URL('/api/snapshots',url);target.searchParams.set('market',instrument.id);
+   const response=await fetch(target,{headers:managedURL?{}:{Authorization:'Bearer '+savedReadKey},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
    if(response.status===401)throw Error('The private read key is incorrect. Re-enter it and connect again.');
    if(!response.ok)throw Error('The TradingView bridge is unavailable. Your current inputs were kept.');
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
    const packet=validatePersonalRead(body,{market:instrument.id});
-   if(!packet){const cutoff=follow.checked?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);return;}
+   if(!packet){const cutoff=followLatest?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);return;}
    apply(packet);
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
   finally{clearTimeout(expiry);busy=false;setBusy(false);if(active)timer=setTimeout(read,30000);}
  }
- function start(withSound=false){if(sourceOnly&&busy)return;const key=keyInput.readOnly?savedReadKey:keyInput.value.trim()||savedReadKey;if(!/^[a-f0-9]{64}$/.test(key)){say('Enter the 64-character private read key from your connection file.','Off');return;}if(withSound)prepareBell();savedReadKey=key;keyInput.value='';keyInput.placeholder='Saved for this tab';keyInput.readOnly=true;active=true;sequence++;resetApplied();connect.textContent='Refresh';try{sessionStorage.setItem(KEY,key);sessionStorage.setItem(ENABLED,'true');}catch{}say('Connecting to your private TradingView snapshots…','Waiting');void read();}
- fillButton?.addEventListener('click',()=>{if(busy)return;follow.checked=false;if(!/^[a-f0-9]{64}$/.test((keyInput.readOnly?savedReadKey:keyInput.value.trim()||savedReadKey))){box.open=true;say('Enter your private TradingView read key in the connection settings, then choose Auto-fill · TradingView. Existing inputs have not been refreshed from your chart.','Off');keyInput.focus();return;}start(true);});
- connect.addEventListener('click',()=>start(true));
- keyInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();start(true);}});
- disconnect.addEventListener('click',()=>{active=false;sequence++;controller?.abort();clearTimeout(timer);savedReadKey='';keyInput.value='';keyInput.placeholder='';keyInput.readOnly=false;connect.textContent='Connect';resetApplied();try{sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}catch{}say(sourceOnly?'Disconnected. Use manual inputs or connect TradingView.':'Disconnected. You can use manual inputs or delayed Auto-fill.','Off');});
- keyInput.addEventListener('input',()=>{if(active&&!keyInput.readOnly)pause('Read key changed. Connect again to use it.');});
+ function start(withSound=false){
+  if(busy)return;
+  if(!managedURL&&!/^[a-f0-9]{64}$/.test(savedReadKey)){say('','Off');return;}
+  if(withSound)prepareBell();active=true;sequence++;resetApplied();
+  try{if(!managedURL)sessionStorage.setItem(ENABLED,'true');}catch{}
+  void read();
+ }
+ fillButton.addEventListener('click',()=>{if(busy)return;followLatest=false;start(true);});
  const managed=new Set(['price','avr','prior-high','prior-low','open1930','range-high','range-low','up','down','printed','location','range-position','behavior','ny-price','ny-avr','ny-range-high','ny-range-low','ny-printed','ny-position-asia','ny-position-london']);
  const manualEdit=e=>{if(active&&!applying&&e.isTrusted&&managed.has(e.target.id))pause('Paused after your manual edit. Resume to fill from TradingView again.');};
  document.addEventListener('input',manualEdit);document.addEventListener('change',manualEdit);
  document.addEventListener('click',e=>{if(active&&!applying&&e.isTrusted&&e.target.closest?.('#context-auto-fill,#ny-auto-fill,#reset-btn,#ny-clear,#local-review-apply,.checkpoint'))pause('Paused while you use another input source or reset the form. Resume to fill from TradingView.');},true);
  const contextFields=new Set(['asof','trading-date','ny-date','replay-toggle','ny-basis','ny-position-mode','ud-units']);
- document.addEventListener('change',e=>{if(!applying&&contextFields.has(e.target.id)){resetApplied();sequence++;if(active)void read();}});
- follow.addEventListener('change',()=>{resetApplied();sequence++;if(active)void read();});
- autoPositions.addEventListener('change',()=>{appliedNY='';sequence++;if(active)void read();});
+ document.addEventListener('change',e=>{if(!applying&&contextFields.has(e.target.id)){if(e.target.id==='asof')followLatest=false;resetApplied();sequence++;if(active)void read();}});
  document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
  window.addEventListener('pagehide',()=>{active=false;controller?.abort();clearTimeout(timer);notesObserver?.disconnect();clearTimeout(notesExpiry);clearTimeout(feedbackFade);clearTimeout(feedbackHide);for(const [input,timer]of highlightTimers){clearTimeout(timer);input.classList.remove('auto-fill-updated');}highlightTimers.clear();feedbackPopup.hidden=true;try{bellContext?.close().catch(()=>{});}catch{}});
- try{if(sessionStorage.getItem(ENABLED)==='true'&&savedReadKey)start();}catch{}
+ // Existing private tab sessions keep working. The explicitly configured public
+ // Auto-fill route needs no browser credential or setup controls.
+ try{if(managedURL||sessionStorage.getItem(ENABLED)==='true'&&savedReadKey)start();}catch{}
 }

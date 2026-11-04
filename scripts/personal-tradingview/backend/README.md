@@ -1,7 +1,8 @@
 # Personal SessionPath TradingView bridge
 
-This separate Worker receives the owner's Pine alerts and serves authenticated
-snapshots to the public SessionPath frontend. It does not invoke the paid Model
+This separate Worker receives the owner's Pine alerts and serves validated
+snapshots to SessionPath. Private reads remain authenticated; an explicit
+deployment flag also permits public Auto-fill reads. It does not invoke the paid Model
 publisher, touch Supabase, or change the public Yahoo data service.
 
 ## Runtime and deployment contract
@@ -15,6 +16,11 @@ publisher, touch Supabase, or change the public Yahoo data service.
 - Secrets: `READ_TOKEN_HASH`, `WRITE_TOKEN_HASH`, each the lowercase SHA-256 hex
   digest of an independently generated random 256-bit token. No plaintext token
   belongs in source, GitHub, Worker settings, URLs, logs, or deployment receipts.
+- Optional non-secret setting: `PUBLIC_AUTOFILL_ENABLED="true"` enables the
+  intentionally public, read-only `/api/autofill` endpoint. An absent setting,
+  boolean value, or any other string keeps that route disabled. Keep this flag
+  separate from the private credential hashes; enabling it does not change
+  authentication for `/api/snapshots` or `/webhook`.
 - Root must configure the secrets and binding and verify the actual Workers
   runtime before reporting commissioning. Node tests inject the native Node
   timing-safe comparison; production uses Workers' Web Crypto extension.
@@ -56,10 +62,27 @@ Eight minutes without a new observed bar/receipt, or a different target session,
 returns `stale`. Clients must not apply stale snapshots. This is a five-minute
 confirmed snapshot bridge; `last_price` is separate from frozen model inputs.
 
+`GET /api/autofill?market=CL` (also NQ, ES, GC) returns the same read schema,
+normalized packet, receipt, and freshness status without a browser key, cookie,
+or Authorization header, **only when `PUBLIC_AUTOFILL_ENABLED` is exactly the
+string `true`**. Otherwise it returns `404 NOT_FOUND` without reading storage.
+The endpoint requires exactly one supported `market` parameter and rejects
+additional parameters, including tokens. It does not read or forward either
+credential. The browser can use this public route without storing a read key;
+the write token remains private to the sender and authenticated webhook.
+
+Enabling public Auto-fill deliberately makes these feed snapshots readable by
+everyone, including direct requests without an Origin header. It is not a
+private connection hidden behind a server-stored read key. The private
+`/api/snapshots` route still requires the original bearer credential.
+
 Only `https://wanhotrading.github.io` receives CORS access. Foreign Origin headers
-are denied, and browser preflights permit only authenticated snapshot GETs.
-Server-side requests without an Origin remain credential protected. CORS is not
-used as authentication. All responses use `no-store`; errors contain fixed codes.
+are denied. Browser preflights permit authenticated snapshot GETs and, when
+enabled, public Auto-fill GETs without privileged headers. Server-side requests
+without an Origin require credentials for private reads and webhook writes, but
+not for the enabled public route. CORS is not authentication and does not limit
+the public route to website visitors. All responses use `no-store`; errors
+contain fixed codes.
 
 ## Source validation
 
@@ -90,7 +113,8 @@ continuous baseline is one explicit delivery contract.
 Run `node --test test/*.test.mjs` and `node build.mjs`. Tests cover scoped auth,
 bounded streaming, CORS, malformed/tampered feeds, timestamps/DST/session rollover,
 frozen snapshots, duplicate/out-of-order delivery, market isolation, persistence
-reconstruction, and concurrent transaction ordering. Actual Durable Object RPC,
+reconstruction, concurrent transaction ordering, and strict public-route opt-in
+without weakening private read/write authentication. Actual Durable Object RPC,
 SQLite-backed storage, and Workers timingSafeEqual require runtime commissioning.
 
 Primary implementation references:
