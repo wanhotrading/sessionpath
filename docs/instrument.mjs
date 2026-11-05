@@ -1,10 +1,10 @@
 import {mountMarketEmblem} from './market-emblem.mjs';
 // Market configuration is resolved once per page load; switching reloads isolated state.
 export const instruments = Object.freeze({
- CL: Object.freeze({id:'CL',name:'Crude oil',roots:['CL','MCL'],tickSize:.01,forecastPrefix:'SP5',expansionPrefix:'SP6',snapshotPrefix:'SPI1',returnPrefix:'BPR1',indicatorLabel:'CL / MCL v7.1',indicatorFile:'session-path-cl-v7.1.pine',indicatorDownload:'SessionPath-CL-v7.1.pine'}),
- NQ: Object.freeze({id:'NQ',name:'Nasdaq-100',roots:['NQ','MNQ'],tickSize:.25,forecastPrefix:'SPNQ1',expansionPrefix:'SPNQ2',snapshotPrefix:'NSPI1',returnPrefix:'NBPR1',indicatorLabel:'NQ / MNQ v1.5',indicatorFile:'data/nq/session-path-nq-v1.5.pine',indicatorDownload:'SessionPath-NQ-v1.5.pine'}),
- ES: Object.freeze({id:'ES',name:'S&P 500',roots:['ES','MES'],tickSize:.25,pointValue:50,forecastPrefix:'SPES1',expansionPrefix:'SPES2',snapshotPrefix:'ESPI1',returnPrefix:'EBPR1',indicatorLabel:'ES / MES v1.1',indicatorFile:'es/data/es/session-path-es-v1.1.pine',indicatorDownload:'SessionPath-ES-v1.1.pine',route:'es/'}),
- GC: Object.freeze({id:'GC',name:'Gold',roots:['GC','MGC'],tickSize:.1,pointValue:100,tickValue:10,microPointValue:10,microTickValue:1,forecastPrefix:'SPGC1',expansionPrefix:'SPGC2',snapshotPrefix:'GCPI1',returnPrefix:'GBPR1',indicatorLabel:'GC / MGC v1.1',indicatorFile:'gc/data/gc/session-path-gc-v1.1.pine',indicatorDownload:'SessionPath-GC-v1.1.pine',route:'gc/'})
+ CL: Object.freeze({id:'CL',name:'Crude oil',roots:['CL','MCL'],tickSize:.01,forecastPrefix:'SP5',expansionPrefix:'SP6',snapshotPrefix:'SPI1',returnPrefix:'BPR1',indicatorLabel:'CL / MCL v7.2',indicatorFile:'session-path-cl-v7.2.pine',indicatorDownload:'SessionPath-CL-v7.2.pine'}),
+ NQ: Object.freeze({id:'NQ',name:'Nasdaq-100',roots:['NQ','MNQ'],tickSize:.25,forecastPrefix:'SPNQ1',expansionPrefix:'SPNQ2',snapshotPrefix:'NSPI1',returnPrefix:'NBPR1',indicatorLabel:'NQ / MNQ v1.6',indicatorFile:'data/nq/session-path-nq-v1.6.pine',indicatorDownload:'SessionPath-NQ-v1.6.pine'}),
+ ES: Object.freeze({id:'ES',name:'S&P 500',roots:['ES','MES'],tickSize:.25,pointValue:50,forecastPrefix:'SPES1',expansionPrefix:'SPES2',snapshotPrefix:'ESPI1',returnPrefix:'EBPR1',indicatorLabel:'ES / MES v1.2',indicatorFile:'es/data/es/session-path-es-v1.2.pine',indicatorDownload:'SessionPath-ES-v1.2.pine',route:'es/'}),
+ GC: Object.freeze({id:'GC',name:'Gold',roots:['GC','MGC'],tickSize:.1,pointValue:100,tickValue:10,microPointValue:10,microTickValue:1,forecastPrefix:'SPGC1',expansionPrefix:'SPGC2',snapshotPrefix:'GCPI1',returnPrefix:'GBPR1',indicatorLabel:'GC / MGC v1.2',indicatorFile:'gc/data/gc/session-path-gc-v1.2.pine',indicatorDownload:'SessionPath-GC-v1.2.pine',route:'gc/'})
 });
 export function resolveInstrument(value){return Object.hasOwn(instruments,value)?instruments[value]:instruments.CL;}
 const selected=typeof location==='undefined'?'CL':new URL(location.href).searchParams.get('instrument');

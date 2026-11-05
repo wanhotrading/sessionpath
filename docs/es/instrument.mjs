@@ -1,5 +1,5 @@
 // ES-only development staging. Unknown markets fail closed.
-export const instruments=Object.freeze({ES:Object.freeze({id:'ES',name:'S&P 500',roots:['ES','MES'],tickSize:.25,pointValue:50,tickValue:12.5,forecastPrefix:'SPES1',expansionPrefix:'SPES2',snapshotPrefix:'ESPI1',returnPrefix:'EBPR1',indicatorLabel:'ES / MES v1.1',indicatorFile:'data/es/session-path-es-v1.1.pine',indicatorDownload:'SessionPath-ES-v1.1.pine',dataDirectory:'data/es/'})});
+export const instruments=Object.freeze({ES:Object.freeze({id:'ES',name:'S&P 500',roots:['ES','MES'],tickSize:.25,pointValue:50,tickValue:12.5,forecastPrefix:'SPES1',expansionPrefix:'SPES2',snapshotPrefix:'ESPI1',returnPrefix:'EBPR1',indicatorLabel:'ES / MES v1.2',indicatorFile:'data/es/session-path-es-v1.2.pine',indicatorDownload:'SessionPath-ES-v1.2.pine',dataDirectory:'data/es/'})});
 export function resolveInstrument(value){if(value==null||value==='')value='ES';if(!Object.hasOwn(instruments,value))throw Error('Use the market selector to open this instrument’s own SessionPath workflow.');return instruments[value];}
 export const instrument=resolveInstrument(typeof location==='undefined'?'ES':new URL(location.href).searchParams.get('instrument'));
 export const dataPath=file=>instrument.dataDirectory+file;
