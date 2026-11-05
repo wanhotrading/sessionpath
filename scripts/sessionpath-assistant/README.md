@@ -3,6 +3,8 @@
 The assistant interprets requests. SessionPath's existing deterministic forecast
 engine remains the only source of prices, probabilities and indicator codes.
 No model-generated forecast numbers or Pine code are accepted.
+The separate opt-in screenshot route returns bounded visual descriptions only;
+it never calls the forecast adapter or generates a trading recommendation.
 
 The Worker uses only `nvidia/nemotron-3.5-super-vl:free`, without a fallback array,
 plugins or user-selected models. The official OpenRouter model catalog verified
@@ -87,6 +89,8 @@ Oversized or unreadable error bodies remain the generic request-rejected error.
 
 ## Persistent public usage limits
 
+Both text interpretation and screenshot reading reserve from the same budget.
+
 SQLite-backed `AssistantQuota` coordinates one global budget of 40 actual AI
 attempts per UTC day, with 10 per client/day and 5 per rolling ten minutes.
 Reservations are atomic and persist across restarts. Failed upstream attempts
@@ -99,6 +103,53 @@ retained: no raw IPs, prompts, responses or credentials. CORS allows only the
 GitHub Pages origin; server-side requests still require a trusted Cloudflare
 address before AI inference. CORS is not an authentication mechanism: this is
 intentionally a public assistant with a strict shared free-use budget.
+
+## Screenshot descriptions
+
+`POST /api/chart` accepts one user-initiated image upload:
+
+```json
+{"message":"Describe the visible movement so far.","context":{"market":"CL","window":"03:00-05:00","date":null},"image":{"dataUrl":"data:image/jpeg;base64,..."}}
+```
+
+`message` is optional or may be blank; its default is “Describe the visible price
+movement so far.” Other fields are exact and `context.date` is explicitly nullable.
+Only base64 JPEG/PNG/WebP data URLs are accepted. The HTTP body is capped at
+2 MiB, the data URL at 1.5 MiB, image headers at 4096 pixels per edge and 12 MP.
+GIF, SVG, remote image URLs, mismatched MIME signatures, corrupt/truncated headers
+and animated image headers are rejected before quota is reserved. Image headers
+and chunk boundaries are inspected without decompressing pixels; JPEG frame
+headers must be within the first 64 KiB, as in normalized browser screenshots.
+This is bounded header validation, not a full image codec decoder.
+
+The existing pinned free model receives an official Chat Completions multipart
+user message: a `text` content part followed by `image_url` with the base64 data
+URL. No remote image fetch, tool or paid fallback is enabled. It uses the same
+server secret and quota object as text chat, with a 40-second upstream deadline,
+1600-token output cap and no automatic retry. Images are processed for the
+requested call and are not stored or logged by this Worker. The selected free
+provider receives the upload, so its own data terms still apply.
+
+The shared reference in `docs/chart-reading-reference.mjs` is inlined into the
+Worker during build and also supplies the user-copyable comparison prompt.
+
+The exact success response is:
+
+```json
+{"ok":true,"schema":"sessionpath.assistant.chart.v1","action":"describe_chart","market":"CL","window":"03:00-05:00","date":null,"model":"nvidia/nemotron-3.5-super-vl:free","referenceVersion":"sessionpath-chart-v1","analysis":{"summary":"...","sequence":["..."],"bbox":"...","sessionpath":"...","uncertainties":["..."]}}
+```
+
+Analysis fields are plain descriptive text: summary at most 800 characters,
+sequence one to eight observations of at most 400 each, BBOX and SessionPath
+descriptions at most 600 each, and uncertainties one to eight items of at most
+300 each. Total text is capped at 6000 characters. Strict output validation
+rejects additional fields, explicit numerical probability claims, URLs, markup,
+indicator-code strings and common trade-instruction patterns. Exact legible
+percentage annotations such as AVR usage may be described as visible evidence;
+they are not converted into a new live probability or forecast. Blank,
+cropped or unreadable charts must identify uncertainty instead of fabricating
+candles, levels or the unseen next outcome. Context metadata is a user label,
+not independent proof of the chart's symbol, date or timezone.
 
 ## Deployment
 
@@ -126,4 +177,6 @@ References: [verified free model](https://openrouter.ai/nvidia/nemotron-3.5-supe
 [OpenRouter free variants](https://openrouter.ai/docs/guides/routing/model-variants/free),
 [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs),
 [reasoning token controls](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens),
+[Chat Completions image schema](https://openrouter.ai/openapi.json),
+[image inputs](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding),
 [Cloudflare SQLite storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/).

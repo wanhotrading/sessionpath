@@ -1,4 +1,5 @@
 import {validateRequest, validateIntent, parseExactForecast, resolveMessageDate, nyToday, renderIntent, INTENT_SCHEMA} from './intent.mjs';
+import {CHART_MAX_REQUEST_BYTES, CHART_TIMEOUT_MS, ChartInputError, validateChartRequest, handleChartAnalysis} from './chart-vision.mjs';
 
 export const ASSISTANT_ORIGIN = 'https://wanhotrading.github.io';
 // Verified against the official model catalog: zero prompt/completion pricing,
@@ -108,7 +109,7 @@ function requestBody(input, {today, date}) {
   };
 }
 
-export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TIMEOUT_MS, now = () => Date.now()} = {}) {
+export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TIMEOUT_MS, chartTimeoutMs = CHART_TIMEOUT_MS, now = () => Date.now()} = {}) {
   return async function handle(request, env) {
     const origin = request.headers.get('Origin');
     if (origin && origin !== ASSISTANT_ORIGIN) return errorReply(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed.', origin);
@@ -116,7 +117,8 @@ export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TI
     if (request.method === 'GET' && url.pathname === '/health') {
       return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, freeModelsOnly: true}, 200, origin);
     }
-    if (url.pathname !== '/api/chat') return errorReply(404, 'NOT_FOUND', 'Not found.', origin);
+    const chartRoute = url.pathname === '/api/chart';
+    if (url.pathname !== '/api/chat' && !chartRoute) return errorReply(404, 'NOT_FOUND', 'Not found.', origin);
     if (request.method === 'OPTIONS') {
       if (request.headers.get('Access-Control-Request-Method') !== 'POST') return errorReply(405, 'METHOD_NOT_ALLOWED', 'Use POST.', origin);
       const requestedHeaders = (request.headers.get('Access-Control-Request-Headers') ?? '').toLowerCase().split(',').map(item => item.trim()).filter(Boolean);
@@ -127,15 +129,20 @@ export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TI
     if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
       return errorReply(415, 'JSON_REQUIRED', 'Send a JSON request.', origin);
     }
-    if (Number(request.headers.get('Content-Length')) > INPUT_MAX_BYTES) return errorReply(413, 'REQUEST_TOO_LARGE', 'Keep the request short.', origin);
+    const inputLimit = chartRoute ? CHART_MAX_REQUEST_BYTES : INPUT_MAX_BYTES;
+    if (Number(request.headers.get('Content-Length')) > inputLimit) return errorReply(413, 'REQUEST_TOO_LARGE', 'Keep the request short.', origin);
     let input;
     const requestNow = now();
-    try { input = validateRequest(JSON.parse(await boundedText(request.body, INPUT_MAX_BYTES)), {now: requestNow}); }
+    try {
+      const body = JSON.parse(await boundedText(request.body, inputLimit));
+      input = chartRoute ? validateChartRequest(body, {now: requestNow}) : validateRequest(body, {now: requestNow});
+    }
     catch (error) {
-      if (error instanceof RequestFailure) return errorReply(error.status, error.code, error.message, origin);
+      if (error instanceof RequestFailure || error instanceof ChartInputError) return errorReply(error.status, error.code, error.message, origin);
       return errorReply(400, 'INVALID_REQUEST', 'Enter a short message and a supported market and window.', origin);
     }
     if (!input) return errorReply(400, 'INVALID_REQUEST', 'Enter a short message and a supported market and window.', origin);
+    if (chartRoute) return handleChartAnalysis({...input, clientAddress: request.headers.get('CF-Connecting-IP')}, env, {fetcher, timeoutMs: chartTimeoutMs, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model: FREE_MODEL, endpoint: OPENROUTER_URL});
     const dated = resolveMessageDate(input.message, {now: requestNow, date: input.context.date});
     if (!['none', 'valid'].includes(dated.status)) {
       return reply(renderIntent({action: 'clarify', market: input.context.market, window: input.context.window, concept: null, date: null}, 'rules', {dateStatus: dated.status}), 200, origin);

@@ -5,15 +5,17 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Miniflare} from 'miniflare';
+import {RASTER_FIXTURES} from './chart-fixtures.mjs';
 
 const scriptPath = fileURLToPath(new URL('../worker.bundle.mjs', import.meta.url));
-function runtime(persistence) {
+function runtime(persistence, extras = {}) {
   // Existing bundled Miniflare supports dates through 2026-08-06. Production
   // retains today's 2026-11-04 date in deploy-metadata.json; no new runtime APIs
   // are required here, and the deployed endpoint must also receive smoke tests.
   return new Miniflare({modules: true, scriptPath, compatibilityDate: '2026-08-06',
     durableObjects: {ASSISTANT_QUOTA: {className: 'AssistantQuota', useSQLite: true}},
     durableObjectsPersist: persistence,
+    ...extras,
   });
 }
 
@@ -45,4 +47,34 @@ test('real Workers runtime exports DO RPC, serializes concurrent quota reservati
     if (mf) await mf.dispose();
     await rm(directory, {recursive: true, force: true});
   }
+});
+
+test('real chart and text HTTP routes share one persistent quota and use actual image_url multipart requests', async () => {
+  let upstreamCalls = 0;
+  const result = {summary: 'The visible chart is not readable.', sequence: ['No candle path can be established.'], bbox: 'No readable BBOX boundaries.', sessionpath: 'No readable SessionPath boundaries.', uncertainties: ['Readable candles and time labels are needed.']};
+  const mf = runtime(undefined, {bindings: {OPENROUTER_API_KEY: 'dummy-runtime-key'}, outboundService: async request => {
+    upstreamCalls++;
+    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions');
+    const body = await request.json();
+    assert.equal(body.model, 'nvidia/nemotron-3.5-super-vl:free');
+    let content;
+    if (Array.isArray(body.messages[1].content)) {
+      assert.equal(body.messages[1].content[1].type, 'image_url');
+      assert.equal(body.messages[1].content[1].image_url.url, RASTER_FIXTURES.jpeg);
+      content = result;
+    } else content = {action: 'explain', market: 'CL', window: '03:00-05:00', concept: 'mean_box', date: null};
+    return Response.json({choices: [{finish_reason: 'stop', message: {content: JSON.stringify(content)}}]});
+  }});
+  const headers = {'Content-Type': 'application/json', 'CF-Connecting-IP': '192.0.2.8', Origin: 'https://wanhotrading.github.io'};
+  const context = {market: 'CL', window: '03:00-05:00', date: null};
+  const chart = () => mf.dispatchFetch('https://assistant.test/api/chart', {method: 'POST', headers, body: JSON.stringify({message: '', context, image: {dataUrl: RASTER_FIXTURES.jpeg}})});
+  try {
+    const first = await chart(); assert.equal(first.status, 200);
+    const body = await first.json(); assert.equal(body.schema, 'sessionpath.assistant.chart.v1'); assert.deepEqual(body.analysis, result);
+    const text = await mf.dispatchFetch('https://assistant.test/api/chat', {method: 'POST', headers, body: JSON.stringify({message: 'Explain the mean box, please.', context})});
+    assert.equal(text.status, 200); assert.equal((await text.json()).interpreter, 'openrouter');
+    for (let i = 0; i < 3; i++) assert.equal((await chart()).status, 200);
+    const blocked = await chart(); assert.equal(blocked.status, 429); assert.equal((await blocked.json()).error.code, 'FREE_USAGE_LIMIT');
+    assert.equal(upstreamCalls, 5);
+  } finally {await mf.dispose();}
 });

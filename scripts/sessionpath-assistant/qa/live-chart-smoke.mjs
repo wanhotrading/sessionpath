@@ -1,0 +1,12 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+const [imagePath,receiptPath]=process.argv.slice(2);
+if(!imagePath||!receiptPath)throw new Error('Usage: node live-chart-smoke.mjs IMAGE RECEIPT_JSON');
+const bytes=await readFile(imagePath),mime=/\.png$/i.test(imagePath)?'image/png':'image/jpeg';
+const request={message:'Describe the visible price movement so far, through 04:00 New York. Distinguish wick breaches from completed closes, earlier events from the latest completed-close state, and BBOX from SessionPath. This is a synthetic test chart, not a live market.',context:{market:'CL',window:'03:00-05:00',date:null},image:{dataUrl:`data:${mime};base64,${bytes.toString('base64')}`}};
+const start=Date.now(),response=await fetch('https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chart',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://wanhotrading.github.io'},body:JSON.stringify(request),signal:AbortSignal.timeout(55000)});
+const result=await response.json();
+const receipt={fixtureSha256:createHash('sha256').update(bytes).digest('hex'),request:{message:request.message,context:request.context},status:response.status,elapsedMs:Date.now()-start,result};
+await writeFile(receiptPath,JSON.stringify(receipt,null,2)+'\n');
+console.log(JSON.stringify({status:receipt.status,elapsedMs:receipt.elapsedMs,result},null,2));
+if(!response.ok||result.ok!==true||result.action!=='describe_chart'||result.schema!=='sessionpath.assistant.chart.v1')process.exitCode=1;

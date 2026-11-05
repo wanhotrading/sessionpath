@@ -1,8 +1,13 @@
+import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs';
+
 const MARKETS=['CL','NQ','ES','GC'];
 const WINDOWS=['03:00-05:00','05:00-08:30','08:30-16:00'];
 const CONCEPTS=['mean_box','containment','avr_expansion','extension'];
 const STORAGE='sessionpath-assistant-chat-v1';
 const ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chat';
+const CHART_ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chart';
+const MAX_IMAGE_BYTES=10*1024*1024,MAX_IMAGE_PIXELS=16000000,MAX_IMAGE_URL=1572864;
+const DEFAULT_CHART_QUESTION='Describe the visible price movement so far.';
 const DEFINITIONS={
  mean_box:'The mean box shows average historical upside and downside from the decision open. Its edges are average excursions, not guaranteed boundaries.',
  containment:'Containment is the share of historical full-window paths that stayed inside the fitted mean box. It is different from a final close inside or a return after a breach, and is not a trade win rate.',
@@ -21,6 +26,48 @@ const nyDate=now=>{const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{t
 const monthWords='(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
 const dateMentionPattern=new RegExp('\\b'+monthWords+'\\.?\\s*\\d{1,2}\\b|\\b\\d{1,2}(?:st|nd|rd|th)?\\s*'+monthWords+'\\b|\\b(?:today|yesterday)\\b|\\b\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}\\b|\\b\\d{1,2}\\/\\d{1,2}\\b|\\d{1,2}月|昨天|昨日|今天|今日','iu');
 const mentionsDate=query=>dateMentionPattern.test(query);
+
+export function chartImageDimensions(input,mime){
+ const bytes=input instanceof Uint8Array?input:new Uint8Array(input),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let width,height;
+ const ascii=(start,length)=>String.fromCharCode(...bytes.subarray(start,start+length));
+ if(mime==='image/png'&&bytes.length>=24&&bytes[0]===137&&ascii(1,3)==='PNG'&&ascii(12,4)==='IHDR'){width=view.getUint32(16);height=view.getUint32(20);}
+ else if(mime==='image/jpeg'&&bytes.length>=4&&bytes[0]===255&&bytes[1]===216){
+  let position=2;while(position+3<bytes.length){if(bytes[position++]!==255)break;while(bytes[position]===255)position++;const marker=bytes[position++];if(marker===217||marker===218)break;if(marker===1||(marker>=208&&marker<=215))continue;if(position+2>bytes.length)break;const length=view.getUint16(position);if(length<2||position+length>bytes.length)break;if([192,193,194,195,197,198,199,201,202,203,205,206,207].includes(marker)&&length>=7){height=view.getUint16(position+3);width=view.getUint16(position+5);break;}position+=length;}
+ }else if(mime==='image/webp'&&bytes.length>=30&&ascii(0,4)==='RIFF'&&ascii(8,4)==='WEBP'){
+  const chunk=ascii(12,4);if(chunk==='VP8X'){width=1+bytes[24]+(bytes[25]<<8)+(bytes[26]<<16);height=1+bytes[27]+(bytes[28]<<8)+(bytes[29]<<16);}
+  else if(chunk==='VP8 '&&bytes[23]===157&&bytes[24]===1&&bytes[25]===42){width=view.getUint16(26,true)&16383;height=view.getUint16(28,true)&16383;}
+  else if(chunk==='VP8L'&&bytes[20]===47){const bits=view.getUint32(21,true);width=(bits&16383)+1;height=((bits>>>14)&16383)+1;}
+ }
+ if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>16384||height>16384)throw new Error('Choose a valid PNG, JPEG or WebP screenshot.');
+ if(width*height>MAX_IMAGE_PIXELS)throw new Error('The screenshot is over 16 megapixels. Crop or resize it before attaching.');
+ return {width,height};
+}
+
+export async function normalizeChartImage(file,{document:doc=globalThis.document}={}){
+ const win=doc.defaultView;if(!file||!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('Choose a PNG, JPEG or WebP screenshot.');
+ if(!Number.isFinite(file.size)||file.size<1||file.size>MAX_IMAGE_BYTES)throw new Error('Choose a screenshot smaller than 10 MB.');
+ const bytes=typeof file.arrayBuffer==='function'?await file.arrayBuffer():await new Promise((resolve,reject)=>{const reader=new win.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('The screenshot could not be read.'));reader.readAsArrayBuffer(file);});
+ chartImageDimensions(bytes,file.type);let bitmap,temporaryURL,canvas;
+ try{
+  if(typeof win.createImageBitmap==='function')bitmap=await win.createImageBitmap(file,{imageOrientation:'from-image'});
+  else bitmap=await new Promise((resolve,reject)=>{const img=new win.Image();temporaryURL=win.URL.createObjectURL(file);img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('The screenshot could not be decoded.'));img.src=temporaryURL;});
+  const width=bitmap.width||bitmap.naturalWidth,height=bitmap.height||bitmap.naturalHeight;if(!(width>0&&height>0)||width*height>MAX_IMAGE_PIXELS)throw new Error('The screenshot is over 16 megapixels. Crop or resize it before attaching.');
+  const ratio=Math.min(1,2048/Math.max(width,height));canvas=doc.createElement('canvas');canvas.width=Math.max(1,Math.round(width*ratio));canvas.height=Math.max(1,Math.round(height*ratio));const context=canvas.getContext('2d');if(!context)throw new Error('This browser could not prepare the screenshot.');
+  context.fillStyle='#ffffff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  // Drawing pixels to JPEG removes source metadata and prevents animated input
+  // previews. Only this normalized image can be submitted to the vision API.
+  for(const quality of [.84,.72,.6]){const dataUrl=canvas.toDataURL('image/jpeg',quality);if(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/u.test(dataUrl)&&dataUrl.length<=MAX_IMAGE_URL)return {dataUrl,width:canvas.width,height:canvas.height};}
+  throw new Error('The prepared screenshot is still too large. Crop the chart and try again.');
+ }finally{bitmap?.close?.();if(canvas){canvas.width=0;canvas.height=0;}if(temporaryURL)win.URL.revokeObjectURL(temporaryURL);}
+}
+
+export function validateChartReading(body,context){
+ const text=(value,max)=>plain(value,max)&&value.trim().length>0,list=(value,max)=>Array.isArray(value)&&value.length>=1&&value.length<=8&&value.every(item=>text(item,max));
+ if(body?.ok!==true||body.schema!=='sessionpath.assistant.chart.v1'||body.action!=='describe_chart'||body.market!==context.market||body.window!==context.window||(body.date??null)!==(context.date??null)||!text(body.model,160)||body.referenceVersion!==CHART_REFERENCE_VERSION)return false;
+ const a=body.analysis;return a&&text(a.summary,800)&&list(a.sequence,400)&&text(a.bbox,600)&&text(a.sessionpath,600)&&list(a.uncertainties,300)&&[a.summary,...a.sequence,a.bbox,a.sessionpath,...a.uncertainties].reduce((total,value)=>total+value.length,0)<=6000;
+}
+
+export function chartComparisonPrompt(question,context){return `${CHART_COMPARISON_PROMPT}\n\nReference version: ${CHART_REFERENCE_VERSION}\nUser question: ${question}\nSelected context (not verified from the screenshot): ${JSON.stringify(context)}\nAttach the same screenshot in GPT before comparing the descriptions. Do not treat the selected context as verified chart metadata.`;}
 
 export function validateChatIntent(value){
  if(!value||value.ok!==true||!['forecast','explain','clarify'].includes(value.action)||!MARKETS.includes(value.market)||!WINDOWS.includes(value.window)||!(value.concept===null||CONCEPTS.includes(value.concept))||!plain(value.message,400)||!['rules','openrouter'].includes(value.interpreter))return null;
@@ -73,10 +120,10 @@ function validForecast(result,intent){
  return ['containment','upperTouch','lowerTouch'].every(key=>{const p=result.probabilities[key];return p&&Number.isFinite(p.p)&&p.p>=0&&p.p<=1&&Number.isInteger(p.n)&&p.n===result.sampleCount&&Number.isInteger(p.k)&&p.k>=0&&p.k<=p.n&&Math.abs(p.k/p.n-p.p)<=1/p.n;});
 }
 
-export function mountAssistantChat({instrument,document:doc=globalThis.document,fetchImpl=(...args)=>fetch(...args),navigate=url=>doc.defaultView.location.assign(url),storage=doc.defaultView.sessionStorage,rootURL=new URL('./',import.meta.url),requestTimeout=30000,now=()=>Date.now()}={}){
+export function mountAssistantChat({instrument,document:doc=globalThis.document,fetchImpl=(...args)=>fetch(...args),navigate=url=>doc.defaultView.location.assign(url),storage=doc.defaultView.sessionStorage,rootURL=new URL('./',import.meta.url),requestTimeout=30000,now=()=>Date.now(),prepareImage=normalizeChartImage}={}){
  if(doc.getElementById('sessionpath-assistant')||!MARKETS.includes(instrument?.id))return null;
  const win=doc.defaultView,element=(tag,className,text)=>{const el=doc.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
- const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set();
+ const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set(),attachment=null,preparingImage=false,attachmentVersion=0;
  const host=element('aside','sp-assistant');host.id='sessionpath-assistant';host.setAttribute('aria-label','SessionPath assistant');
  const viewport=element('div','sp-chat-viewport');viewport.hidden=true;viewport.dataset.state='closed';
  const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','SessionPath conversation');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');panel.inert=true;viewport.append(panel);
@@ -84,10 +131,11 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const history=element('div','sp-chat-history');history.setAttribute('role','log');history.setAttribute('aria-label','Conversation');history.setAttribute('aria-live','polite');history.setAttribute('aria-relevant','additions');
  const examples=element('div','sp-chat-examples');for(const query of ['CL 03-05','NQ 05-0830','GC 08:30-16:00']){const button=element('button','',query);button.type='button';button.addEventListener('click',()=>{input.value=query;submit(query);});examples.append(button);}
  const status=element('p','sp-chat-status');status.setAttribute('role','status');
- panel.append(header,history,examples,status);
+ const attachmentBox=element('section','sp-chat-attachment');attachmentBox.hidden=true;attachmentBox.setAttribute('aria-label','Screenshot to send');const preview=element('img','sp-chat-preview');preview.alt='Selected chart screenshot';const attachmentInfo=element('div','sp-chat-attachment-info'),attachmentName=element('span','sp-chat-filename'),attachmentSize=element('small','sp-chat-image-size');attachmentInfo.append(attachmentName,attachmentSize);const removeAttachment=element('button','sp-chat-remove-image','×');removeAttachment.type='button';removeAttachment.setAttribute('aria-label','Remove screenshot');const disclosure=element('p','sp-chat-image-disclosure','Send shares this image with OpenRouter/NVIDIA. Crop out account details.');attachmentBox.append(preview,attachmentInfo,removeAttachment,disclosure);
+ panel.append(header,history,attachmentBox,examples,status);
  const form=element('form','sp-chat-composer');form.noValidate=true;form.tabIndex=-1;const toggle=element('button','sp-chat-mark','SP');toggle.type='button';toggle.setAttribute('aria-label','Open conversation');toggle.setAttribute('aria-controls',panel.id);toggle.setAttribute('aria-expanded','false');
  const input=element('input','sp-chat-input');input.type='text';input.placeholder='Ask SessionPath · CL, 03–05 range';input.maxLength=600;input.setAttribute('aria-label','Ask SessionPath');input.autocomplete='off';
- const send=element('button','sp-chat-send','Send');send.type='submit';form.append(toggle,input,send);host.append(viewport,form);doc.body.append(host);
+ const attach=element('button','sp-chat-attach','＋');attach.type='button';attach.setAttribute('aria-label','Attach chart screenshot');attach.title='Attach a PNG, JPEG or WebP screenshot';const filePicker=element('input');filePicker.type='file';filePicker.accept='image/png,image/jpeg,image/webp';filePicker.hidden=true;filePicker.setAttribute('aria-label','Choose chart screenshot');const send=element('button','sp-chat-send','Send');send.type='submit';form.append(toggle,attach,filePicker,input,send);host.append(viewport,form);doc.body.append(host);
  const save=()=>{try{storage.setItem(STORAGE,JSON.stringify({messages:messages.slice(-10),pending,lastDate}));}catch{}};
  const reducedMotion=win.matchMedia?.('(prefers-reduced-motion: reduce)');let motionTimer=null;
  const motionOff=()=>reducedMotion?.matches||doc.body.classList.contains('motion-paused');
@@ -117,8 +165,30 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const scroll=()=>{history.scrollTop=history.scrollHeight;};
  function bubble(role,text,{remember=true}={}){const item=element('div','sp-chat-message sp-chat-'+role);item.append(element('p','',text));history.append(item);if(remember){messages.push({role,text:text.slice(0,1200)});while(messages.length>10)messages.shift();save();}while(history.children.length>10)history.firstElementChild.remove();scroll();return item;}
  for(const message of messages)bubble(message.role,message.text,{remember:false});
- function setBusy(value,text=''){busy=value;send.disabled=value;input.readOnly=value;for(const button of examples.children)button.disabled=value;status.textContent=text;host.setAttribute('aria-busy',String(value));}
- function failure(error,query){if(error?.name==='AbortError'||destroyed)return;bubble('assistant',plain(error?.message,400)?error.message:'Failed to fetch. Please try again.');const retry=element('button','sp-chat-retry','Try again');retry.type='button';retry.addEventListener('click',()=>submit(query));history.lastElementChild.append(retry);scroll();}
+ function setBusy(value,text=''){busy=value;send.disabled=value||preparingImage;attach.disabled=value||preparingImage;removeAttachment.disabled=value;input.readOnly=value;for(const button of examples.children)button.disabled=value||preparingImage;status.textContent=text;host.setAttribute('aria-busy',String(value||preparingImage));}
+ function clearAttachment(){attachmentVersion++;if(attachment?.previewURL)win.URL.revokeObjectURL(attachment.previewURL);attachment=null;preparingImage=false;preview.removeAttribute('src');attachmentName.textContent='';attachmentSize.textContent='';attachmentBox.hidden=true;delete host.dataset.hasImage;filePicker.value='';if(!destroyed)setBusy(busy);}
+ async function stageImage(file){
+  if(busy||preparingImage||destroyed)return false;open();preparingImage=true;let prepared=false;const version=++attachmentVersion;setBusy(false,'Preparing screenshot locally…');
+  try{
+   const normalized=await prepareImage(file,{document:doc});if(destroyed||version!==attachmentVersion)return false;
+   if(!normalized||typeof normalized.dataUrl!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/u.test(normalized.dataUrl)||normalized.dataUrl.length>MAX_IMAGE_URL)throw new Error('The screenshot could not be prepared. Crop it and try again.');
+   const binary=win.atob(normalized.dataUrl.split(',')[1]),data=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
+   const blob=new win.Blob([data],{type:'image/jpeg'}),previewURL=win.URL.createObjectURL(blob);if(attachment?.previewURL)win.URL.revokeObjectURL(attachment.previewURL);
+   attachment={dataUrl:normalized.dataUrl,previewURL,name:plain(file?.name,240)?file.name:'Chart screenshot'};preview.src=previewURL;attachmentName.textContent=attachment.name;attachmentSize.textContent=`${normalized.width} × ${normalized.height} · ready to send`;attachmentBox.hidden=false;host.dataset.hasImage='true';prepared=true;return true;
+  }catch(error){if(!destroyed&&version===attachmentVersion)status.textContent=plain(error?.message,400)?error.message:'The screenshot could not be prepared.';return false;}
+  finally{if(!destroyed&&version===attachmentVersion){const message=status.textContent;preparingImage=false;setBusy(false,prepared?'Screenshot ready. Press Send when you are ready.':message);}filePicker.value='';}
+ }
+ function contextNow(){const cutoff=doc.getElementById('asof')?.value;return {market:instrument.id,window:lastWindow===WINDOWS[2]?lastWindow:cutoff==='05:00'?WINDOWS[1]:cutoff==='03:00'?WINDOWS[0]:lastWindow,date:lastDate??null};}
+ function failure(error,query,{chart=false}={}){if(error?.name==='AbortError'||destroyed)return;bubble('assistant',plain(error?.message,400)?error.message:'Failed to fetch. Please try again.',{remember:!chart});const retry=element('button','sp-chat-retry','Try again'),retryAttachmentVersion=attachmentVersion;retry.type='button';retry.addEventListener('click',()=>{if(chart&&(!attachment||attachmentVersion!==retryAttachmentVersion)){open();status.textContent='Attach the original screenshot again, or press Send to read the current one.';return;}submit(query);});history.lastElementChild.append(retry);scroll();}
+ function renderChart(body,query,context){
+  const item=bubble('assistant','Chart reading',{remember:false});item.classList.add('sp-chat-chart-reading');item.append(element('p','sp-chat-note',`Selected context: ${context.market} · ${context.window} NY · ${context.date??'live / today'}. This selection does not verify the screenshot’s market, date or timeframe.`));
+  item.append(element('p','sp-chat-note','Experimental AI reading · verify prices and completed-close times against the chart.'));
+  const a=body.analysis;item.append(element('p','sp-chat-chart-summary',a.summary));const sequence=element('ol','sp-chat-sequence');for(const step of a.sequence)sequence.append(element('li','',step));item.append(sequence);
+  for(const [label,text]of [['BBOX',a.bbox],['SessionPath',a.sessionpath]]){const detail=element('p','sp-chat-chart-detail');detail.append(element('strong','',label+' · '),doc.createTextNode(text));item.append(detail);}
+  item.append(element('strong','sp-chat-uncertainty-title','What cannot be confirmed'));const uncertainty=element('ul','sp-chat-uncertainties');for(const text of a.uncertainties)uncertainty.append(element('li','',text));item.append(uncertainty,element('p','sp-chat-note',`${body.model} · ${body.referenceVersion}. Visual description; no forecast code is calculated from the image.`));
+  const copy=element('button','sp-chat-comparison-copy','Copy comparison prompt'),feedback=element('span','sp-chat-copy-feedback','Copied!');copy.type='button';feedback.hidden=true;feedback.setAttribute('role','status');let timer,fallback;
+  copy.addEventListener('click',async()=>{const prompt=chartComparisonPrompt(query,context);try{await win.navigator.clipboard.writeText(prompt);clearTimeout(timer);copyTimers.delete(timer);feedback.hidden=false;feedback.classList.remove('sp-chat-faded');timer=setTimeout(()=>{feedback.classList.add('sp-chat-faded');copyTimers.delete(timer);},2000);copyTimers.add(timer);}catch{if(!fallback){fallback=element('textarea','sp-chat-code');fallback.readOnly=true;fallback.value=prompt;fallback.setAttribute('aria-label','Comparison prompt to copy');item.append(fallback);}fallback.focus();fallback.select();}});item.append(copy,feedback);scroll();
+ }
  function renderForecast(result,intent){
   const fmt=value=>value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),heading=`${result.market} · ${result.window.replace('-', ' → ')} NY`;
   const mode=result.mode??(result.date===nyDate(now())?'live':'historical');
@@ -149,16 +219,25 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   renderForecast(result,intent);
  }
  async function submit(query=input.value,resumedIntent=null){
-  if(busy||destroyed)return;if(!plain(query,600)||!query.trim()){open();status.textContent='Ask for a market and a session, for example CL 03-05.';return;}
-  query=query.trim();controller?.abort();controller=new AbortController();const signal=controller.signal;let timedOut=false;open();setBusy(true,'Understanding your request…');if(!resumedIntent)bubble('user',query);input.value='';
+  if(busy||preparingImage||destroyed)return;const chart=!resumedIntent&&attachment;
+  if(chart&&typeof query==='string'&&!query.trim())query=DEFAULT_CHART_QUESTION;
+  if(!plain(query,600)||!query.trim()){open();status.textContent='Ask for a market and a session, for example CL 03-05.';return;}
+  query=query.trim();controller?.abort();controller=new AbortController();const signal=controller.signal;let timedOut=false;open();setBusy(true,chart?'Reading your screenshot…':'Understanding your request…');if(!resumedIntent)bubble('user',query,{remember:!chart});input.value='';
   try{
+   if(chart){
+    const context=contextNow(),timeout=setTimeout(()=>{timedOut=true;controller.abort();},45000);let response;
+    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:query,context,image:{dataUrl:chart.dataUrl}}),signal});}finally{clearTimeout(timeout);}
+    if(signal.aborted||destroyed)throw abortError();let body;try{body=await response.json();}catch{throw new Error('The chart reader returned an unreadable response. Please try again.');}
+    if(!response.ok||body.ok!==true)throw new Error(plain(body?.error?.message,400)?body.error.message:response.status===429?'Free chart-reading limit reached. Please try again later.':'The free chart reader is temporarily unavailable. Please try again.');
+    if(!validateChartReading(body,context))throw new Error('The chart reading was incomplete. Please refresh and try again.');
+    renderChart(body,query,context);clearAttachment();return;
+   }
    let intent=resumedIntent;
    if(!intent){
-    const cutoff=doc.getElementById('asof')?.value;const contextWindow=lastWindow===WINDOWS[2]?lastWindow:cutoff==='05:00'?WINDOWS[1]:cutoff==='03:00'?WINDOWS[0]:lastWindow;
     // Presence of date (including null) tells the server this client preserves
     // dated intents. Cached pre-date clients must never get a historical intent
     // that they would accidentally execute as today's forecast.
-    const context={market:instrument.id,window:contextWindow,date:lastDate??null};
+    const context=contextNow();
     const timeout=setTimeout(()=>{timedOut=true;controller.abort();},20000);let response;try{response=await fetchImpl(ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:query,context}),signal});}finally{clearTimeout(timeout);}
     if(signal.aborted)throw abortError();let body;try{body=await response.json();}catch{throw new Error('The assistant returned an unreadable response. Please try again.');}
     if(!response.ok||body.ok!==true)throw new Error(plain(body?.error?.message,400)?body.error.message:response.status===429?'Usage limit reached. Please try again later.':'The assistant is temporarily unavailable. Please try again.');
@@ -168,11 +247,16 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    if(intent.action==='forecast')await runForecast(intent,query,signal);
    else if(intent.action==='explain')bubble('assistant',DEFINITIONS[intent.concept]);
    else bubble('assistant',intent.message||'Choose CL, NQ, ES or GC and one window: 03:00–05:00, 05:00–08:30 or 08:30–16:00 NY.');
-  }catch(error){failure(timedOut?new Error('The assistant took too long. Please try again.'):error,query);}finally{if(!destroyed)setBusy(false);}
+  }catch(error){if(chart&&!destroyed)input.value=query;failure(timedOut?new Error(chart?'The chart reader took too long. Your screenshot is still attached; try again.':'The assistant took too long. Please try again.'):error,query,{chart:Boolean(chart)});}finally{if(!destroyed)setBusy(false);}
  }
+ attach.addEventListener('click',()=>filePicker.click());filePicker.addEventListener('change',()=>{const file=filePicker.files?.[0];if(file)stageImage(file);});removeAttachment.addEventListener('click',()=>{if(!busy)clearAttachment();});
+ host.addEventListener('dragover',event=>{if([...event.dataTransfer?.types??[]].includes('Files')){event.preventDefault();host.classList.add('sp-chat-dragover');}});
+ host.addEventListener('dragleave',event=>{if(!host.contains(event.relatedTarget))host.classList.remove('sp-chat-dragover');});
+ host.addEventListener('drop',event=>{host.classList.remove('sp-chat-dragover');const file=event.dataTransfer?.files?.[0];if(!file)return;event.preventDefault();stageImage(file);});
+ host.addEventListener('paste',event=>{const items=[...event.clipboardData?.items??[]],file=items.find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile()??[...event.clipboardData?.files??[]].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();stageImage(file);}});
  form.addEventListener('submit',event=>{event.preventDefault();submit();});toggle.addEventListener('click',()=>{open();input.focus();});input.addEventListener('focus',open);input.addEventListener('pointerdown',open);input.addEventListener('input',open);close.addEventListener('click',collapse);host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();collapse();}});
- function destroy(){destroyed=true;controller?.abort();clearTimeout(motionTimer);motionObserver.disconnect();reducedMotion?.removeEventListener?.('change',finishPausedMotion);for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',destroy);host.remove();}
+ function destroy(){destroyed=true;controller?.abort();clearAttachment();clearTimeout(motionTimer);motionObserver.disconnect();reducedMotion?.removeEventListener?.('change',finishPausedMotion);for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',destroy);host.remove();}
  win.addEventListener('pagehide',destroy,{once:true});
  if(pending){const continuation=pending;pending=null;save();if(continuation.intent.market===instrument.id)submit(continuation.query,continuation.intent);}
- return {submit,destroy,element:host};
+ return {submit,attachImage:stageImage,clearAttachment,destroy,element:host};
 }
