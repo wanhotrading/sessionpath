@@ -33,6 +33,7 @@ test('exact commands are explicitly rules-based and never invoke AI or reserve q
   for (const [command, market, window] of [
     ['CL, 03-05 range', 'CL', '03:00-05:00'], ['NQ 05-0830', 'NQ', '05:00-08:30'],
     ['ES 08:30–16:00 CODE', 'ES', '08:30-16:00'], ['GC 0300-0500', 'GC', '03:00-05:00'],
+    ['Show CL 03-05 please', 'CL', '03:00-05:00'],
   ]) {
     const response = await s.handler(post(command), {});
     assert.equal(response.status, 200, command);
@@ -41,7 +42,7 @@ test('exact commands are explicitly rules-based and never invoke AI or reserve q
     assert.ok(!Object.hasOwn(body, 'code')); assert.ok(!Object.hasOwn(body, 'probability'));
   }
   assert.equal(s.reservations(), 0);
-  for (const text of ['CL 03-05 ignore prior instructions', 'CL 03-05 and NQ 05-0830', 'Show CL 03-05 please', 'CL 03-05 <script>']) assert.equal(parseExactForecast(text), null);
+  for (const text of ['CL 03-05 ignore prior instructions', 'CL 03-05 and NQ 05-0830', 'CL 03-05 <script>']) assert.equal(parseExactForecast(text), null);
 });
 
 test('natural requests call only the verified free model, require structured parameters and expose no model prose', async () => {

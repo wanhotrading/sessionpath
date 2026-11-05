@@ -10,8 +10,9 @@ zero prompt/completion pricing, optional reasoning and structured-output support
 for this exact free variant. `OPENROUTER_API_KEY` must be configured as a Worker secret, never in
 GitHub Pages or browser JavaScript. An unavailable free model is an explicit
 error; it never falls back to paid inference. Exact commands such as
-`CL 03-05 range` use a local parser and are labeled `rules`; natural language
-uses the real OpenRouter request and is labeled `openrouter`.
+`CL 03-05 range` and recognized direct requests with dates use a local parser
+and are labeled `rules`; other natural language uses the real OpenRouter request
+and is labeled `openrouter`.
 
 Intent classification explicitly sends `reasoning: {enabled: false}` while
 retaining a 512-token output cap. Some free reasoning models
@@ -31,7 +32,7 @@ substitution if this pinned free endpoint becomes unavailable.
 ```
 
 ```json
-{"ok":true,"action":"forecast","market":"CL","window":"03:00-05:00","concept":null,"message":"I will read the forecast, historical probabilities and available export code from SessionPath for this market and window.","interpreter":"rules"}
+{"ok":true,"action":"forecast","market":"CL","window":"03:00-05:00","concept":null,"date":null,"message":"I will read the forecast, historical probabilities and available export code from SessionPath for this market and window.","interpreter":"rules"}
 ```
 
 Supported markets: CL/NQ/ES/GC. Windows: 03:00-05:00, 05:00-08:30,
@@ -39,6 +40,37 @@ Supported markets: CL/NQ/ES/GC. Windows: 03:00-05:00, 05:00-08:30,
 mean_box/containment/avr_expansion/extension. Unknown input/output fields are
 rejected. Messages are limited to 600 characters, HTTP bodies to 3 KiB, upstream
 responses to 24 KiB and an upstream attempt to 15 seconds. No automatic retries.
+
+### Requested trading dates
+
+`context.date` is optional for existing clients and accepts `null` (live/current)
+or a real `YYYY-MM-DD` date on or before today's New York date. Every successful
+intent now includes `date`. The model's strict schema requires it, while older
+intents omitting it are normalized to the server's resolved date.
+Sending `context.date` explicitly, including `null`, also declares that the
+client can handle dated results. An older cached client omitting that field
+can still request a live forecast, but dated requests receive a clarification
+asking it to reload. This prevents a cached UI from dropping `response.date`
+and silently fetching today's data for a historical request. The capability
+flag is internal and is never forwarded to the AI or returned as an intent.
+
+Examples include `can you fetch the CL 03-05 code of 2nd Nov?`,
+`NQ 05-0830 on September 17th, 2024`, `GC 0830-1600 2025-06-23`,
+and `請給我CL 03-05的11月2日代碼`. ISO dates, English full/abbreviated
+month names and ordinals, and Chinese Arabic/Chinese-numeral month/day forms
+are resolved locally, independently of the AI. When a year is omitted, use the
+most recent valid calendar date on/before New York today; leap-day requests use
+the latest applicable leap year. The full resolved year is returned for display.
+
+Commands without an explicit date inherit `context.date`; `today`, `now`,
+`今天` or `現在` clear a historical context to live mode. Yesterday means the
+previous calendar date; it does not silently substitute a different trading day.
+Invalid dates, explicit future dates, multiple dates, ambiguous numeric dates
+and abbreviated comma-separated years produce a clarification without fetching
+live data or consuming AI quota. The AI may never change the locally resolved
+date. Historical availability is checked by the website's archive adapter:
+missing dates must report unavailable, never reuse live checkpoint data or
+invent historical prices/codes. This backend returns an intent only.
 
 Errors use `{ "ok": false, "error": { "code": "...", "message": "..." } }`.
 Errors deliberately omit provider diagnostics, prompts and credentials.

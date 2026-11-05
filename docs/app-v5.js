@@ -1,4 +1,4 @@
-import {mountAssistantForecastAdapter,expansionResult} from './assistant-forecast-adapter.mjs?v=assistant-20261104';
+import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=assistant-history-20261105';
 import {mainInputPlan,nyInputPlan,sessionPositions} from './tradingview-live-core.mjs';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
 import {loadAsset,yieldToBrowser} from './startup-load.mjs';
@@ -13,7 +13,7 @@ import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-2026
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=tools-slide-20261022';
 import {mountReplayTools} from './replay-tools.mjs';
-import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=assistant-20261104';
+import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=assistant-history-20261105';
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
@@ -259,10 +259,20 @@ async function startResearch(){
 mountAssistantForecastAdapter({
  market:instrument.id,feedURL:new URL('/api/autofill',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href,
  isReady:()=>state.ready,isReplay:()=>$('replay-toggle').checked,isHistorical:()=>state.library,
+ prepareLive:({request,snapshot,packet})=>{
+  if(request.minute===510&&!sessionPositions(snapshot,$('ny-basis').value))throw Object.assign(new Error('The 08:30 checkpoint is missing complete Asia/London positions.'),{code:'CHECKPOINT_INCOMPLETE'});
+  // Reuse the normal input-reset path with today's verified values before
+  // turning Replay off; old historical prices are never relabelled as today.
+  applyReplaySnapshot({date:packet.session_date,minute:request.minute,contract:packet.source_symbol,price:snapshot.reference_price,avr:snapshot.avr,open1930:snapshot.open_1930,rangeHigh:snapshot.range_high,rangeLow:snapshot.range_low,priorHigh:snapshot.prior_high,priorLow:snapshot.prior_low,behavior:mainInputPlan(snapshot).behavior},{includeBehavior:true});
+  for(const id of ['ny-position-asia','ny-position-london'])if($(id)){$(id).value='';$(id).dispatchEvent(new Event('input',{bubbles:true}));}
+  $('replay-toggle').checked=false;$('replay-toggle').dispatchEvent(new Event('change',{bubbles:true}));
+ },
+ readHistorical:({request})=>loadHistoricalForecast({request,archive:archivedForecastRecord(state.days,state.timeline,request),loadSupplement:()=>loadAsset(ASSISTANT_HISTORY_URL,{timeout:6000,attempts:1}),feedURL:new URL('/api/history',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href}),
  readExpansion:async({model})=>expansionResult(await getJSON(assetPath('research-observations.json')),model.query),
- context:()=>JSON.stringify({fields:fields.map(id=>$(id)?.value),tags:[...state.selected],checkpoints:$('use-checkpoints').checked,ny:[...document.querySelectorAll('#ny-reference input,#ny-reference select')].map(el=>[el.id,el.type==='checkbox'?el.checked:el.value])}),
+ context:()=>JSON.stringify({fields:fields.map(id=>$(id)?.value),tags:[...state.selected],replay:$('replay-toggle').checked,library:state.library,checkpoints:$('use-checkpoints').checked,ny:[...document.querySelectorAll('#ny-reference input,#ny-reference select')].map(el=>[el.id,el.type==='checkbox'?el.checked:el.value])}),
  applySnapshot:({request,snapshot,packet})=>{
   const put=updates=>{for(const[id,value]of Object.entries(updates))if($(id))$(id).value=typeof value==='number'?String(Number(value.toFixed(8))):String(value);};
+  if(request.historical)applyReplaySnapshot({date:packet.session_date,minute:request.minute,contract:packet.source_symbol,price:snapshot.reference_price,avr:snapshot.avr,open1930:snapshot.open_1930,rangeHigh:snapshot.range_high,rangeLow:snapshot.range_low,priorHigh:snapshot.prior_high,priorLow:snapshot.prior_low,behavior:snapshot.last_hour_behavior||mainInputPlan(snapshot).behavior},{includeBehavior:true});
   if(request.minute===510){
    const positions=sessionPositions(snapshot,$('ny-basis').value);
    if(!positions)throw Object.assign(new Error('The 08:30 checkpoint is missing complete Asia/London positions.'),{code:'CHECKPOINT_INCOMPLETE'});
@@ -272,7 +282,8 @@ mountAssistantForecastAdapter({
    $('ny-position-apply').click();$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
   }else{
    $('trading-date').value=packet.session_date;$('asof').value=request.cutoff;
-   put(mainInputPlan(snapshot,$('ud-units').value));analyze();
+   const updates=mainInputPlan(snapshot,$('ud-units').value);if(request.historical&&snapshot.last_hour_behavior)updates.behavior=snapshot.last_hour_behavior;
+   put(updates);analyze();
   }
  },
  readForecast:({request})=>request.minute===510?null:({query:state.query,box:state.box,code:state.box&&state.query?makeForecastCode(state.box,state.query):'',conditions:{tags:[...state.selected],tagMode:state.query?.tagMode,year:state.query?.year,nearestCaseLimit:state.query?.limit,bboxLocation:state.query?.location,lastHourBehavior:state.query?.behavior,earlierCheckpointCount:state.query?.observations?.length||0}})

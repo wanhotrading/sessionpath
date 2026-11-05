@@ -26,6 +26,10 @@ test('real Workers runtime exports DO RPC, serializes concurrent quota reservati
     assert.equal(health.status, 200); assert.equal((await health.json()).freeModelsOnly, true);
     const exact = await mf.dispatchFetch('https://assistant.test/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: 'CL 03-05 range', context: {market: 'GC', window: '08:30-16:00'}})});
     assert.equal(exact.status, 200); assert.equal((await exact.json()).market, 'CL');
+    const dated = await mf.dispatchFetch('https://assistant.test/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: 'Can you fetch CL 03-05 code of February 29th, 2024?', context: {market: 'GC', window: '08:30-16:00', date: null}})});
+    assert.equal(dated.status, 200);
+    const datedBody = await dated.json();
+    assert.equal(datedBody.date, '2024-02-29'); assert.equal(datedBody.action, 'forecast'); assert.equal(datedBody.interpreter, 'rules');
     let namespace = await mf.getDurableObjectNamespace('ASSISTANT_QUOTA');
     let stub = namespace.get(namespace.idFromName('global-free-ai-v1'));
     const results = await Promise.all(Array.from({length: 20}, () => stub.reserve({ip: '192.0.2.4'})));

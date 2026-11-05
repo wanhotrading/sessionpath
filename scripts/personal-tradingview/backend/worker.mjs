@@ -4,6 +4,7 @@ import {createPersonalHandler} from './router.mjs';
 
 export class PersonalFeed extends DurableObject {
   async getLatest(){return new PersonalFeedStore(this.ctx.storage).getLatest();}
+  async getHistory(date){return new PersonalFeedStore(this.ctx.storage).getHistory(date);}
   async accept(envelope){return new PersonalFeedStore(this.ctx.storage).accept(envelope);}
 }
 export default {fetch:createPersonalHandler()};

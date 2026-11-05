@@ -25,10 +25,14 @@ publisher, touch Supabase, or change the public Yahoo data service.
   runtime before reporting commissioning. Node tests inject the native Node
   timing-safe comparison; production uses Workers' Web Crypto extension.
 
-SQLite-backed Durable Object KV storage retains exactly one `latest` receipt per
-market. Its transaction serializes monotonic updates and prevents later alerts
+SQLite-backed Durable Object KV storage retains one `latest` receipt and up to
+1,024 dates of frozen historical checkpoints per market. Its transaction
+serializes monotonic updates and prevents later alerts
 from changing or removing an already accepted cutoff for the same session. It
-stores no credential, request body, or request header. No alarm or cron is used.
+stores no credential, original request body, or request header. History is saved
+only when a completed checkpoint is added, rather than on every heartbeat. Old
+deployments preserve their latest complete day lazily during rollover. The
+oldest historical date is pruned at the limit. No alarm or cron is used.
 
 ## HTTP contract
 
@@ -70,6 +74,15 @@ The endpoint requires exactly one supported `market` parameter and rejects
 additional parameters, including tokens. It does not read or forward either
 credential. The browser can use this public route without storing a read key;
 the write token remains private to the sender and authenticated webhook.
+
+`GET /api/history?market=CL&date=2026-11-03` uses the same public opt-in flag.
+It returns `sessionpath.tradingview.history.v1` with the requested `date`,
+`status: "ready" | "unavailable"`, receipt and original normalized packet.
+Only authenticated, validated incoming checkpoints are retained; this route
+cannot import or change prices. It accepts exactly one market and calendar
+date no later than today's New York date. Historical records deliberately do
+not use the live eight-minute freshness rule. An absent day returns null data,
+never a substitute current-day packet. Existing live/private routes are unchanged.
 
 Enabling public Auto-fill deliberately makes these feed snapshots readable by
 everyone, including direct requests without an Origin header. It is not a

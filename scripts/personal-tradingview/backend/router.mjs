@@ -3,6 +3,15 @@ export const PERSONAL_ORIGIN='https://wanhotrading.github.io';
 export const MAX_BODY_BYTES=16384;
 const encoder=new TextEncoder();
 function hasValidMarketQuery(url){return [...url.searchParams.keys()].every(k=>k==='market')&&url.searchParams.getAll('market').length===1&&Object.hasOwn(PERSONAL_MARKETS,url.searchParams.get('market'));}
+const historyDateFormat=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
+function hasValidHistoryQuery(url,current){
+  const date=url.searchParams.get('date'),parts=Object.fromEntries(historyDateFormat.formatToParts(current).map(p=>[p.type,p.value])),today=`${parts.year}-${parts.month}-${parts.day}`;
+  return [...url.searchParams.keys()].every(k=>k==='market'||k==='date')&&url.searchParams.getAll('market').length===1&&url.searchParams.getAll('date').length===1&&Object.hasOwn(PERSONAL_MARKETS,url.searchParams.get('market'))&&/^20\d{2}-\d{2}-\d{2}$/.test(date??'')&&Number.isFinite(Date.parse(date+'T00:00:00Z'))&&new Date(date+'T00:00:00Z').toISOString().slice(0,10)===date&&date<=today;
+}
+async function readHistory(market,date,env){
+  const saved=await env.PERSONAL_FEEDS.getByName(market).getHistory(date);
+  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:saved?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation'};
+}
 async function readSnapshot(market,env,current){
   const latest=await env.PERSONAL_FEEDS.getByName(market).getLatest();
   const stale=latest&&(current-latest.observedMs>480000||current-Date.parse(latest.receivedAt)>480000||latest.packet.session_date!==targetSessionDate(current));
@@ -38,8 +47,8 @@ export function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto
       if(origin&&origin!==PERSONAL_ORIGIN)throw new FeedError('ORIGIN_DENIED',403);
       if(origin===PERSONAL_ORIGIN)headers.set('Access-Control-Allow-Origin',origin);
       if(request.method==='OPTIONS'){
-        const privateRead=url.pathname==='/api/snapshots',publicRead=url.pathname==='/api/autofill'&&env.PUBLIC_AUTOFILL_ENABLED==='true';
-        if(origin!==PERSONAL_ORIGIN||(!privateRead&&!publicRead)||!hasValidMarketQuery(url))throw new FeedError('ORIGIN_DENIED',403);
+        const privateRead=url.pathname==='/api/snapshots',publicRead=url.pathname==='/api/autofill'&&env.PUBLIC_AUTOFILL_ENABLED==='true',historyRead=url.pathname==='/api/history'&&env.PUBLIC_AUTOFILL_ENABLED==='true';
+        if(origin!==PERSONAL_ORIGIN||(!privateRead&&!publicRead&&!historyRead)||!(historyRead?hasValidHistoryQuery(url,now()):hasValidMarketQuery(url)))throw new FeedError('ORIGIN_DENIED',403);
         const allowedHeaders=privateRead?['authorization']:[];
         if(request.headers.get('Access-Control-Request-Method')!=='GET'||(request.headers.get('Access-Control-Request-Headers')??'').split(',').some(x=>x.trim()&&!allowedHeaders.includes(x.trim().toLowerCase())))throw new FeedError('PREFLIGHT_DENIED',403);
         headers.set('Access-Control-Allow-Methods','GET');if(privateRead)headers.set('Access-Control-Allow-Headers','Authorization');headers.set('Access-Control-Max-Age','300');return reply(null,204);
@@ -62,6 +71,11 @@ export function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto
         if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
         if(!hasValidMarketQuery(url))throw new FeedError('INVALID_QUERY');
         return reply(await readSnapshot(url.searchParams.get('market'),env,now()));
+      }
+      if(url.pathname==='/api/history'&&request.method==='GET'){
+        if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
+        if(!hasValidHistoryQuery(url,now()))throw new FeedError('INVALID_QUERY');
+        return reply(await readHistory(url.searchParams.get('market'),url.searchParams.get('date'),env));
       }
       if(url.pathname==='/api/snapshots'&&request.method==='GET'){
         if(!hasValidMarketQuery(url))throw new FeedError('INVALID_QUERY');

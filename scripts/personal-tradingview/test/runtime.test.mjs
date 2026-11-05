@@ -29,12 +29,15 @@ test('Workers runtime authenticates, persists SQLite DO state across restart and
   const publicResponse=await mf.dispatchFetch('http://bridge/api/autofill?market=CL',{headers:{Origin:'https://wanhotrading.github.io'}});
   assert.deepEqual(await publicResponse.json(),body);
   assert.equal(publicResponse.headers.get('access-control-allow-origin'),'https://wanhotrading.github.io');
+  const historical=await (await mf.dispatchFetch('http://bridge/api/history?market=CL&date=2026-11-03')).json();
+  assert.equal(historical.schema,'sessionpath.tradingview.history.v1');assert.equal(historical.status,'ready');assert.deepEqual(historical.packet,body.packet);
   assert.equal((await mf.dispatchFetch('http://bridge/api/autofill?market=INVALID')).status,400);
   assert.equal((await (await mf.dispatchFetch('http://bridge/api/snapshots?market=NQ',get)).json()).status,'waiting');
   await mf.dispose();mf=new Miniflare(options);
   const recovered=await (await mf.dispatchFetch('http://bridge/api/snapshots?market=CL',get)).json();
   assert.deepEqual(recovered,body);
   assert.deepEqual(await (await mf.dispatchFetch('http://bridge/api/autofill?market=CL')).json(),body);
+  assert.deepEqual(await (await mf.dispatchFetch('http://bridge/api/history?market=CL&date=2026-11-03')).json(),historical);
   const changed=structuredClone(packet);changed.observed_at='2026-11-03T13:40:00Z';changed.sent_at=changed.observed_at;changed.snapshots[0].reference_price=101;
   // Future timestamps fail before they can alter persisted values.
   assert.equal((await mf.dispatchFetch('http://bridge/webhook',post(changed))).status,400);
