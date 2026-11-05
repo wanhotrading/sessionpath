@@ -157,7 +157,7 @@ export function mountNYReference(days,timeline) {
   timingPanel.update({code:$('ny-code').value,method:researchMethod,date:$('ny-date').value});
   if($('ny-code').value){$('ny-code').value=timingPanel.decorateCode($('ny-code').value);if(timingPanel.exportBlocked)$('ny-copy').disabled=true;if(timingPanel.exportStatus)$('ny-code-status').textContent=timingPanel.exportStatus;}
 if($('ny-code').value)document.dispatchEvent(new CustomEvent('sessionpath:forecast-export',{detail:{code:$('ny-code').value,model:{
-   code:$('ny-code').value,exportBlocked:timingPanel.exportBlocked,error:timingPanel.exportStatus||'',
+   code:$('ny-code').value,exportPending:timingPanel.exportPending,exportBlocked:timingPanel.exportBlocked,error:timingPanel.exportStatus||'',
    query:{date:$('ny-date').value,minute:510,endMinute:end,price,avr,printed:readNYPrinted(),year:filters.year,rangeHigh:$('ny-range-high').value===''?null:Number($('ny-range-high').value),rangeLow:$('ny-range-low').value===''?null:Number($('ny-range-low').value)},
    box:{n:s.n,coverage:s.coverage,inside:s.inside,interval:wilson(s.inside,s.n),touchUp:s.touchUp,touchDown:s.touchDown,upPoints:s.up*avr,downPoints:s.down*avr,upMedianPoints:s.upMedian*avr,downMedianPoints:s.downMedian*avr,extensionUpPoints:s.extensionUp*avr,extensionDownPoints:s.extensionDown*avr,endMinute:end,dates:s.cohort.map(item=>item.day.date)},
    conditions:{basis,positionMode:$('ny-position-mode').value,method:researchMethod,...filters}

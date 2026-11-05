@@ -77,6 +77,27 @@ test('NY structured export events supply actual renderer values, with no result-
  const result=await received;assert.equal(result.ok,true);assert.equal(result.requestId,h.input.requestId);assert.equal(result.code,h.state.model.code);assert.equal(result.range.upper,102);assert.equal(result.probabilities.containment.p,.5);
 });
 
+test('NY timing research pending export waits for the later ready code on the first attempt',async t=>{
+ const dom=new JSDOM('<!doctype html><main></main>');t.after(()=>dom.window.close());
+ const h=harness({window:'08:30-16:00'}),apply=h.options.applySnapshot;let readyTimer,readySent=false;
+ const emit=model=>dom.window.document.dispatchEvent(new dom.window.CustomEvent('sessionpath:forecast-export',{detail:{code:model.code,model}}));
+ const bridge=mountAssistantForecastAdapter({...h.options,document:dom.window.document,readForecast:()=>null,applySnapshot:args=>{
+  apply(args);emit({...h.state.model,code:'PENDING-BASE-CODE',exportPending:true,exportBlocked:true,error:'Loading chart research…'});
+  readyTimer=setTimeout(()=>{readySent=true;emit({...h.state.model,code:'READY-CODE-WITH-TIMING',exportPending:false,exportBlocked:false,error:''});},10);
+ }});t.after(()=>{clearTimeout(readyTimer);bridge.destroy();});
+ const result=await bridge.request(h.input);assert.equal(readySent,true);assert.equal(result.ok,true);assert.equal(result.code,'READY-CODE-WITH-TIMING');assert.equal(h.state.applies,1);
+});
+
+test('permanently blocked NY timing export still fails without waiting for another event',{timeout:1000},async t=>{
+ const dom=new JSDOM('<!doctype html><main></main>');t.after(()=>dom.window.close());
+ const h=harness({window:'08:30-16:00'}),apply=h.options.applySnapshot;
+ const bridge=mountAssistantForecastAdapter({...h.options,document:dom.window.document,readForecast:()=>null,applySnapshot:args=>{
+  apply(args);const model={...h.state.model,exportPending:false,exportBlocked:true,error:'Chart research unavailable. Choose Mean box code only.'};
+  dom.window.document.dispatchEvent(new dom.window.CustomEvent('sessionpath:forecast-export',{detail:{code:model.code,model}}));
+ }});t.after(()=>bridge.destroy());
+ const result=await bridge.request(h.input);assert.equal(result.ok,false);assert.equal(result.error.code,'EXPORT_UNAVAILABLE');assert.match(result.error.message,/Chart research unavailable/);assert.equal(result.code,undefined);
+});
+
 test('a second concurrent request cannot overwrite the first request’s model',async()=>{
  const h=harness();let release;const held=new Promise(resolve=>release=resolve);h.options.fetchImpl=async()=>{await held;return Response.json(h.state.body);};const request=createForecastRequester(h.options);
  const first=request(h.input),second=await request({...h.input,requestId:'second'});assert.equal(second.error.code,'REQUEST_BUSY');release();assert.equal((await first).ok,true);assert.equal(h.state.applies,1);

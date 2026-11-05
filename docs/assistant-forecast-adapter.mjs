@@ -190,10 +190,10 @@ export function mountAssistantForecastAdapter(options){
  const capture=event=>{const model=event.detail?.model;if(model?.query&&model.code)models.set(model.query.minute,model);};
  doc.addEventListener('sessionpath:forecast-export',capture);
  const request=createForecastRequester({...options,applySnapshot:args=>{models.delete(args.request.minute);return options.applySnapshot(args);},readForecast:async args=>{
-  const direct=options.readForecast?.(args);if(direct)return direct;
+  const direct=options.readForecast?.(args);if(direct&&direct.exportPending!==true)return direct;
   // NY’s existing renderer can await its canonical research reference. Listen
   // for its structured export instead of scraping text from the result panel.
-  const matching=()=>{const model=models.get(args.request.minute);return model?.query.date===args.packet.session_date&&samePrice(model?.query.price,args.snapshot.reference_price)&&samePrice(model?.query.avr,args.snapshot.avr)?model:null;};
+  const matching=()=>{const model=models.get(args.request.minute);return model?.exportPending!==true&&model?.query.date===args.packet.session_date&&samePrice(model?.query.price,args.snapshot.reference_price)&&samePrice(model?.query.avr,args.snapshot.avr)?model:null;};
   if(matching())return matching();
   return new Promise(resolve=>{let timeout;const check=()=>{const model=matching();if(model){clearTimeout(timeout);doc.removeEventListener('sessionpath:forecast-export',check);resolve(model);}};doc.addEventListener('sessionpath:forecast-export',check);timeout=setTimeout(()=>{doc.removeEventListener('sessionpath:forecast-export',check);resolve(null);},8000);check();});
  }});
