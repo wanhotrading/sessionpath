@@ -78,18 +78,42 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const win=doc.defaultView,element=(tag,className,text)=>{const el=doc.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set();
  const host=element('aside','sp-assistant');host.id='sessionpath-assistant';host.setAttribute('aria-label','SessionPath assistant');
- const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','SessionPath conversation');
+ const viewport=element('div','sp-chat-viewport');viewport.hidden=true;viewport.dataset.state='closed';
+ const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','SessionPath conversation');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');panel.inert=true;viewport.append(panel);
  const header=element('div','sp-chat-head'),brand=element('strong','','SessionPath');const subtitle=element('span','','Forecast assistant');const close=element('button','sp-chat-close','×');close.type='button';close.setAttribute('aria-label','Close conversation');header.append(brand,subtitle,close);
  const history=element('div','sp-chat-history');history.setAttribute('role','log');history.setAttribute('aria-label','Conversation');history.setAttribute('aria-live','polite');history.setAttribute('aria-relevant','additions');
  const examples=element('div','sp-chat-examples');for(const query of ['CL 03-05','NQ 05-0830','GC 08:30-16:00']){const button=element('button','',query);button.type='button';button.addEventListener('click',()=>{input.value=query;submit(query);});examples.append(button);}
  const status=element('p','sp-chat-status');status.setAttribute('role','status');
  panel.append(header,history,examples,status);
- const form=element('form','sp-chat-composer');form.noValidate=true;const toggle=element('button','sp-chat-mark','SP');toggle.type='button';toggle.setAttribute('aria-label','Open conversation');toggle.setAttribute('aria-controls',panel.id);toggle.setAttribute('aria-expanded','false');
+ const form=element('form','sp-chat-composer');form.noValidate=true;form.tabIndex=-1;const toggle=element('button','sp-chat-mark','SP');toggle.type='button';toggle.setAttribute('aria-label','Open conversation');toggle.setAttribute('aria-controls',panel.id);toggle.setAttribute('aria-expanded','false');
  const input=element('input','sp-chat-input');input.type='text';input.placeholder='Ask SessionPath · CL, 03–05 range';input.maxLength=600;input.setAttribute('aria-label','Ask SessionPath');input.autocomplete='off';
- const send=element('button','sp-chat-send','Send');send.type='submit';form.append(toggle,input,send);host.append(panel,form);doc.body.append(host);
+ const send=element('button','sp-chat-send','Send');send.type='submit';form.append(toggle,input,send);host.append(viewport,form);doc.body.append(host);
  const save=()=>{try{storage.setItem(STORAGE,JSON.stringify({messages:messages.slice(-10),pending,lastDate}));}catch{}};
- const open=()=>{panel.hidden=false;toggle.setAttribute('aria-expanded','true');};
- const collapse=()=>{panel.hidden=true;toggle.setAttribute('aria-expanded','false');toggle.focus();};
+ const reducedMotion=win.matchMedia?.('(prefers-reduced-motion: reduce)');let motionTimer=null;
+ const motionOff=()=>reducedMotion?.matches||doc.body.classList.contains('motion-paused');
+ function finishMotion(){
+  clearTimeout(motionTimer);motionTimer=null;
+  if(viewport.dataset.state==='closing'){viewport.dataset.state='closed';panel.hidden=true;viewport.hidden=true;}
+  else if(viewport.dataset.state==='opening')viewport.dataset.state='open';
+ }
+ const open=()=>{
+  if(destroyed||['open','opening'].includes(viewport.dataset.state))return;
+  clearTimeout(motionTimer);panel.hidden=false;viewport.hidden=false;panel.inert=false;panel.removeAttribute('inert');panel.setAttribute('aria-hidden','false');toggle.setAttribute('aria-expanded','true');
+  // Flush only the initial resting frame. Subsequent frames are handled by
+  // compositor transforms; no measurements or DOM updates run per frame.
+  if(viewport.dataset.state==='closed'&&!motionOff())panel.getBoundingClientRect();
+  viewport.dataset.state='opening';if(motionOff())finishMotion();else motionTimer=setTimeout(finishMotion,1000);
+ };
+ const collapse=()=>{
+  if(destroyed||['closed','closing'].includes(viewport.dataset.state))return;
+  clearTimeout(motionTimer);toggle.setAttribute('aria-expanded','false');panel.inert=true;panel.setAttribute('inert','');panel.setAttribute('aria-hidden','true');
+  // The composer remains in place. Return focus to the form without focusing
+  // the input (which would immediately open the conversation again).
+  form.focus({preventScroll:true});viewport.dataset.state='closing';if(motionOff())finishMotion();else motionTimer=setTimeout(finishMotion,1000);
+ };
+ const finishTransition=event=>{if(event.target===panel&&event.propertyName==='transform')finishMotion();};panel.addEventListener('transitionend',finishTransition);
+ const finishPausedMotion=()=>{if(motionOff())finishMotion();};reducedMotion?.addEventListener?.('change',finishPausedMotion);
+ const motionObserver=new win.MutationObserver(finishPausedMotion);motionObserver.observe(doc.body,{attributes:true,attributeFilter:['class']});
  const scroll=()=>{history.scrollTop=history.scrollHeight;};
  function bubble(role,text,{remember=true}={}){const item=element('div','sp-chat-message sp-chat-'+role);item.append(element('p','',text));history.append(item);if(remember){messages.push({role,text:text.slice(0,1200)});while(messages.length>10)messages.shift();save();}while(history.children.length>10)history.firstElementChild.remove();scroll();return item;}
  for(const message of messages)bubble(message.role,message.text,{remember:false});
@@ -146,8 +170,8 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    else bubble('assistant',intent.message||'Choose CL, NQ, ES or GC and one window: 03:00–05:00, 05:00–08:30 or 08:30–16:00 NY.');
   }catch(error){failure(timedOut?new Error('The assistant took too long. Please try again.'):error,query);}finally{if(!destroyed)setBusy(false);}
  }
- form.addEventListener('submit',event=>{event.preventDefault();submit();});toggle.addEventListener('click',()=>{open();input.focus();});input.addEventListener('focus',open);close.addEventListener('click',collapse);host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();collapse();}});
- function destroy(){destroyed=true;controller?.abort();for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',destroy);host.remove();}
+ form.addEventListener('submit',event=>{event.preventDefault();submit();});toggle.addEventListener('click',()=>{open();input.focus();});input.addEventListener('focus',open);input.addEventListener('pointerdown',open);input.addEventListener('input',open);close.addEventListener('click',collapse);host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();collapse();}});
+ function destroy(){destroyed=true;controller?.abort();clearTimeout(motionTimer);motionObserver.disconnect();reducedMotion?.removeEventListener?.('change',finishPausedMotion);for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',destroy);host.remove();}
  win.addEventListener('pagehide',destroy,{once:true});
  if(pending){const continuation=pending;pending=null;save();if(continuation.intent.market===instrument.id)submit(continuation.query,continuation.intent);}
  return {submit,destroy,element:host};
