@@ -44,3 +44,26 @@ test('Workers runtime authenticates, persists SQLite DO state across restart and
   assert.deepEqual(await (await mf.dispatchFetch('http://bridge/api/snapshots?market=CL',get)).json(),body);
  }finally{await mf.dispose();}
 });
+
+test('Workers runtime accepts real source corrections without replacing frozen checkpoints or faking freshness',async()=>{
+ const first=fixture({cutoffs:['03:00','05:00'],clock:'05:05'});
+ const source=(await readFile(new URL('../backend/worker.bundle.mjs',import.meta.url),'utf8')).replace('export default {fetch:createPersonalHandler()};',`let testNow=${first.now};const testHandler=createPersonalHandler({now:()=>testNow});export default {fetch(request,env){testNow=Number(request.headers.get('X-Test-Now'));return testHandler(request,env);}};`);
+ const mf=new Miniflare({modules:true,script:source,compatibilityDate:'2026-08-06',durableObjects:{PERSONAL_FEEDS:{className:'PersonalFeed',useSQLite:true}},bindings:{READ_TOKEN_HASH:hash(READ_TOKEN),WRITE_TOKEN_HASH:hash(WRITE_TOKEN),PUBLIC_AUTOFILL_ENABLED:'true'},log:new Log(LogLevel.ERROR)});
+ const send=(packet,now)=>mf.dispatchFetch('http://bridge/webhook',{method:'POST',headers:{'Content-Type':'application/json','X-Test-Now':String(now)},body:JSON.stringify(packet)});
+ const read=now=>mf.dispatchFetch('http://bridge/api/autofill?market=CL',{headers:{'X-Test-Now':String(now)}});
+ try{
+  assert.equal((await send(first.packet,first.now)).status,200);
+  const before=await (await read(first.now)).json();
+  const revised=structuredClone(first.packet);revised.observed_at='2026-11-03T10:10:00Z';revised.sent_at='2026-11-03T10:10:01Z';for(const s of revised.snapshots)s.asia_close-=.01;
+  const nextNow=Date.parse(revised.sent_at)+1000;
+  assert.equal((await send(revised,nextNow)).status,200);
+  const after=await (await read(nextNow)).json();
+  assert.equal(after.status,'ready');assert.equal(after.packet.observed_at,'2026-11-03T10:10:00.000Z');
+  assert.deepEqual(after.packet.snapshots,before.packet.snapshots);
+  assert.deepEqual(after.reconciliation.revisedCutoffs,['03:00','05:00']);
+  assert.equal(after.snapshotPolicy,'first-accepted-per-checkpoint');
+  assert.deepEqual(await (await send(revised,nextNow)).json(),{status:'duplicate'});
+  assert.equal((await (await read(nextNow+480001)).json()).status,'stale');
+ }finally{await mf.dispose();}
+});
+

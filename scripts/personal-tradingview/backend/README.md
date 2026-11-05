@@ -42,9 +42,21 @@ oldest historical date is pruned at the limit. No alarm or cron is used.
 parameters or an Authorization header. Its body includes the write token in
 `token` and the `sessionpath.personal.tradingview.v1` packet agreed with the Pine
 sender. The token is authenticated and stripped before validation/persistence.
-Success is `200 {status:"accepted"|"duplicate"|"ignored"}`. A changed frozen
-snapshot returns `409 IMMUTABLE_SNAPSHOT`. Source/receipt times are not refreshed
-for duplicate or older observations.
+Success is `200 {status:"accepted"|"duplicate"|"ignored"}`. A fresh authenticated
+heartbeat advances live source/receipt times even if the upstream alert has
+recomputed or omitted an already accepted checkpoint. The original checkpoint
+is retained; the revision does not overwrite model inputs or freeze transport.
+Duplicate or older observations never refresh source/receipt times.
+
+Read responses identify `snapshotPolicy: "first-accepted-per-checkpoint"` and
+include bounded `checkpointProvenance` and `reconciliation` metadata. Every new
+cutoff must first pass all existing incoming-packet checks. Previously accepted
+cutoffs keep their original values and hashes. Consequently the read aggregate
+may contain independently verified checkpoint versions after an upstream history
+correction; it is not represented as a single unrevised publisher packet.
+The 19:30 freeze profile and original values of each stored decision are retained.
+Historical prices are not silently revised. Legacy records identify their
+last known receipt rather than inventing an original first-received timestamp.
 
 `GET /api/snapshots?market=CL` (also NQ, ES, GC) requires
 `Authorization: Bearer <read token>`. It returns:
@@ -135,3 +147,4 @@ Primary implementation references:
 - https://developers.cloudflare.com/workers/runtime-apis/web-crypto/
 - https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/
 - https://developers.cloudflare.com/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/
+

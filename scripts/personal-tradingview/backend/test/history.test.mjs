@@ -24,12 +24,13 @@ test('dated public history survives next-session heartbeat and process reconstru
  assert.equal(body.packet.session_date,'2026-11-03');assert.equal(body.packet.snapshots.length,3);
  assert.equal((await (await s.handler(new Request('https://bridge.example/api/autofill?market=CL'),s.env)).json()).status,'waiting');
 });
-test('unchanged heartbeats preserve the original archived receipt and rejected revisions cannot change it',async()=>{
+test('unchanged heartbeats and preserved source revisions cannot change the original archived receipt',async()=>{
  const s=await setup();await s.handler(post(s.clock.packet),s.env);const initial=await (await s.handler(history(),s.env)).json();
  const newer=structuredClone(s.clock.packet);newer.observed_at='2026-11-03T13:40:00Z';newer.sent_at='2026-11-03T13:40:01Z';s.clock.now=Date.parse(newer.sent_at)+1000;
  assert.equal((await s.handler(post(newer),s.env)).status,200);assert.deepEqual(await (await s.handler(history(),s.env)).json(),initial);
  newer.observed_at='2026-11-03T13:45:00Z';newer.sent_at='2026-11-03T13:45:01Z';s.clock.now+=300000;newer.snapshots[0].reference_price=101;
- assert.equal((await s.handler(post(newer),s.env)).status,409);assert.deepEqual(await (await s.handler(history(),s.env)).json(),initial);
+ assert.equal((await s.handler(post(newer),s.env)).status,200);assert.deepEqual(await (await s.handler(history(),s.env)).json(),initial);
+ assert.equal((await s.stores.get('CL').getLatest()).observedMs,Date.parse(newer.observed_at));
 });
 test('legacy latest record is available and archived before rollover without a migration',async()=>{
  const s=await setup();await s.handler(post(s.clock.packet),s.env);const current=await s.storage.get('latest');
@@ -69,3 +70,4 @@ test('history retains a bounded chronological set and deletes only its own oldes
  for(const [i,date]of ['2026-11-02','2026-11-03','2026-11-04'].entries())await store.accept({packet:{session_date:date,snapshots:[{cutoff:'03:00'}]},snapshotHashes:{'03:00':date},observedMs:i,packetHash:date,receivedAt:date});
  assert.equal(await store.getHistory('2026-11-02'),null);assert.ok(await store.getHistory('2026-11-03'));assert.ok(await store.getHistory('2026-11-04'));assert.equal(await storage.get('unrelated'),'keep');
 });
+

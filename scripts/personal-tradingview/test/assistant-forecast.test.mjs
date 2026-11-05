@@ -51,6 +51,26 @@ test('stale, wrong-day, mismatched market and invalid AVR coverage packets never
  }
 });
 
+test('stopped CL and ES delivery reports the actual last confirmed bar without applying stale checkpoints',async()=>{
+ for(const market of ['CL','ES']){
+  const h=harness({market});h.state.body.status='stale';h.state.now+=105*60000;
+  h.state.body.packet.token='never-echo-this-private-value';const result=await h.request(h.input);
+  assert.equal(result.ok,false);assert.equal(result.error.code,'FEED_UNAVAILABLE');assert.equal(h.state.applies,0);assert.equal(result.code,undefined);
+  assert.match(result.error.message,new RegExp(market+' has no recent validated TradingView deliveries'));assert.match(result.error.message,/2026-11-03 08:35 NY \(105 min ago\)/);assert.match(result.error.message,/sender alert and webhook/);assert.match(result.error.message,/cannot restart upstream/);assert.doesNotMatch(result.error.message,/never-echo|token|Bearer|fresh, verified/);assert.ok(result.error.message.length<400);
+ }
+});
+
+test('profile and coverage failures retain a specific safe reason, not raw feed values',async()=>{
+ const profile=harness();profile.state.body.packet.avr_profile='private-untrusted-profile-value';const p=await profile.request(profile.input);assert.match(p.error.message,/different data profile/);assert.doesNotMatch(p.error.message,/private-untrusted/);assert.equal(profile.state.applies,0);
+ const coverage=harness();coverage.state.body.packet.snapshots[0].avr_count=9;const c=await coverage.request(coverage.input);assert.match(c.error.message,/timing or complete-session coverage checks/);assert.match(c.error.message,/Last confirmed bar/);assert.equal(coverage.state.applies,0);
+});
+
+test('a server-ready feed rejected by a mismatched browser clock gives clock guidance without weakening validation',async()=>{
+ for(const delta of [-120000,600000]){
+  const h=harness();h.state.now+=delta;const result=await h.request(h.input);assert.equal(result.ok,false);assert.equal(result.error.code,'FEED_UNAVAILABLE');assert.match(result.error.message,/server reports CL connected/);assert.match(result.error.message,/device.*automatic date\/time/);assert.equal(h.state.applies,0);
+ }
+});
+
 test('editing inputs during a fetch preserves the edit and discards the fetched result',async()=>{
  const h=harness();h.options.fetchImpl=async()=>{h.state.context='manual edit';return Response.json(h.state.body);};
  const result=await createForecastRequester(h.options)(h.input);assert.equal(result.error.code,'INPUTS_CHANGED');assert.equal(h.state.applies,0);
@@ -219,3 +239,4 @@ test('manual Replay ownership and edits stay protected even when a prepareLive c
  const changed=assistantReplayHarness();await changed.run({...changed.input,date:'2026-11-02'});changed.state.context='manual Replay date or inputs';const manual=await changed.run({...changed.input,date:null});assert.equal(manual.error.code,'REPLAY_ACTIVE');assert.equal(changed.state.prepares,0);
  const released=assistantReplayHarness();await released.run({...released.input,date:'2026-11-02'});released.run.resetHistoricalOwnership();const result=await released.run({...released.input,date:null});assert.equal(result.error.code,'REPLAY_ACTIVE');assert.equal(released.state.prepares,0);
 });
+

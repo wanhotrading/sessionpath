@@ -1,10 +1,48 @@
 export function decideFeedUpdate(current,incoming){
-  if(current&&incoming.packet.session_date===current.packet.session_date){
-    for(const [cutoff,hash] of Object.entries(current.snapshotHashes))if(incoming.snapshotHashes[cutoff]!==hash)return {status:'conflict',code:'IMMUTABLE_SNAPSHOT'};
-  }
-  if(current&&incoming.observedMs<=current.observedMs)return {status:incoming.packetHash===current.packetHash?'duplicate':'ignored'};
+  // A historical-feed correction must not stop a fresh transport heartbeat.
+  // Snapshot immutability is enforced by retaining first-accepted values below.
+  if(current&&incoming.observedMs<=current.observedMs)return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
   if(current&&incoming.packet.session_date<current.packet.session_date)return {status:'ignored'};
   return {status:'accepted'};
+}
+const frozenCutoffs=['03:00','05:00','08:30'];
+async function stateHash(value){
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));
+  return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+function initialProvenance(entry,cutoff,basis){
+  return {sourceObservedAt:entry.packet.observed_at,receivedAt:entry.receivedAt,sourcePacketHash:entry.reconciliation?.sourcePacketHash??entry.packetHash,snapshotHash:entry.snapshotHashes[cutoff],basis};
+}
+export async function reconcileFrozenCheckpoints(current,incoming){
+  const sameDay=current?.packet.session_date===incoming.packet.session_date;
+  const prior=new Map((sameDay?current.packet.snapshots:[]).map(snapshot=>[snapshot.cutoff,snapshot]));
+  const supplied=new Map(incoming.packet.snapshots.map(snapshot=>[snapshot.cutoff,snapshot]));
+  const snapshots=[],snapshotHashes={},checkpointProvenance={},retainedCutoffs=[],revisedCutoffs=[],missingCutoffs=[],addedCutoffs=[],changedFields={};
+  for(const cutoff of frozenCutoffs){
+    const original=prior.get(cutoff),candidate=supplied.get(cutoff);
+    if(original){
+      snapshots.push(original);snapshotHashes[cutoff]=current.snapshotHashes[cutoff];retainedCutoffs.push(cutoff);
+      checkpointProvenance[cutoff]=current.checkpointProvenance?.[cutoff]??initialProvenance(current,cutoff,'legacy-receipt');
+      if(!candidate)missingCutoffs.push(cutoff);
+      else if(incoming.snapshotHashes[cutoff]!==current.snapshotHashes[cutoff]){
+        revisedCutoffs.push(cutoff);
+        changedFields[cutoff]=Object.keys(original).filter(key=>JSON.stringify(original[key])!==JSON.stringify(candidate[key]));
+      }
+    }else if(candidate){
+      // The caller independently validated this fresh publisher packet before
+      // storage. The first verified value for a NEW decision is kept verbatim,
+      // including source corrections; never fabricate an older baseline into it.
+      snapshots.push(candidate);snapshotHashes[cutoff]=incoming.snapshotHashes[cutoff];addedCutoffs.push(cutoff);
+      checkpointProvenance[cutoff]=initialProvenance(incoming,cutoff,'first-received');
+    }
+  }
+  const packet={...incoming.packet,snapshots};
+  const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields};
+  // The composite can contain first-accepted checkpoints from different source
+  // revisions. Its own hash must describe the stored packet, not a rejected
+  // replacement; per-cutoff provenance identifies each authenticated source.
+  const packetHash=JSON.stringify(packet)===JSON.stringify(incoming.packet)?incoming.packetHash:await stateHash(packet);
+  return {...incoming,packet,packetHash,snapshotHashes,checkpointProvenance,reconciliation};
 }
 // SQLite-backed Durable Objects also expose the transactional KV storage API.
 // Keep frozen daily inputs separately from the live heartbeat. Neither record
@@ -33,11 +71,13 @@ export class PersonalFeedStore {
   async accept(incoming){return this.storage.transaction(async tx=>{
     const current=await tx.get('latest'),result=decideFeedUpdate(current,incoming);
     if(result.status==='accepted'){
+      const reconciled=await reconcileFrozenCheckpoints(current,incoming);
       // Upgrade old deployments lazily: save their last complete day before
       // the next session replaces it, even when the new packet is a heartbeat.
-      await this.archive(tx,current);await this.archive(tx,incoming);
-      await tx.put('latest',incoming);
+      await this.archive(tx,current);await this.archive(tx,reconciled);
+      await tx.put('latest',reconciled);
     }
     return result;
   });}
 }
+

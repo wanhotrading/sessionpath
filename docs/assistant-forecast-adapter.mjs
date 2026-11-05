@@ -17,6 +17,33 @@ const previousDate=date=>new Date(Date.parse(date+'T12:00:00Z')-86400000).toISOS
 export const ASSISTANT_HISTORY_URL=new URL('./assistant-historical-inputs.json',import.meta.url).href;
 export const EXPLICIT_AVR_PROFILE='explicit-prior10-0930-1600-frozen-before1930-v1';
 
+function liveFeedFailure(body,{market,now,reason}){
+ // Diagnostics contain only known validation text and formatted timestamps.
+ // Never echo the packet, server error body, profile value or any credential.
+ const observed=Date.parse(body?.packet?.observed_at),received=Date.parse(body?.receivedAt),sent=Date.parse(body?.packet?.sent_at);
+ let last='';
+ if(finite(observed)){
+  const clock=nyClock(observed),time=String(Math.floor(clock.minute/60)).padStart(2,'0')+':'+String(clock.minute%60).padStart(2,'0');
+  const age=Math.max(0,Math.floor((now-observed)/60000));
+  last=` Last confirmed bar: ${clock.date} ${time} NY${observed<=now?` (${age} min ago)`:''}.`;
+ }
+ if(body?.status==='stale')return `${market} has no recent validated TradingView deliveries.${last} Check that market’s sender alert and webhook connection; pressing Auto-fill cannot restart upstream delivery.`;
+ if(reason==='TradingView feed is stale or its timestamps are invalid.'&&body?.status==='ready'&&[observed,received,sent].some(time=>finite(time)&&(time>now+60000||now-time>480000)))return `The server reports ${market} connected, but its timestamps do not match this device’s freshness window.${last} Check your device’s automatic date/time settings and try again.`;
+ const safeReasons={
+  'The personal feed returned an unrecognized response.':`The ${market} feed returned an unrecognized format. Refresh SessionPath; if it persists, check the sender connection.`,
+  'TradingView feed is stale. Check that your alert is running.':`The ${market} sender has not supplied a usable live feed. Check its sender alert and webhook connection.`,
+  'No matching TradingView snapshot for today’s New York session.':`The feed does not match ${market} for ${nyClock(now).date} New York time. Check the market-specific sender alert.`,
+  'The TradingView sender uses a different data profile. Update the personal sender.':`The ${market} sender uses a different data profile. Update its personal sender and recreate the corresponding webhook alert.`,
+  'TradingView feed is stale or its timestamps are invalid.':`The ${market} feed failed timestamp verification. Check its sender alert and your device’s automatic clock.`,
+  'TradingView sent invalid checkpoint snapshots.':`The ${market} feed contains invalid checkpoint snapshots. Check its personal sender; existing inputs were kept.`,
+  'TradingView checkpoint timing or coverage could not be verified.':`The ${market} checkpoint failed timing or complete-session coverage checks. Check the sender’s coverage status; existing inputs were kept.`,
+  'TradingView checkpoint prices are incomplete or inconsistent.':`The ${market} checkpoint prices are incomplete or inconsistent. Check the sender’s coverage status; existing inputs were kept.`,
+  'TradingView AVR does not identify ten prior complete sessions.':`The ${market} AVR could not be verified against ten prior complete NY sessions. Check the sender’s coverage status; existing inputs were kept.`,
+  'TradingView AVR was not frozen at the overnight anchor.':`The ${market} AVR was not frozen at the 19:30 NY anchor. Update its personal sender; existing inputs were kept.`
+ };
+ return (safeReasons[reason]||`The ${market} live feed could not be verified. Check its sender alert; existing inputs were kept.`)+last;
+}
+
 export function validateForecastRequest(input,market,now=Date.now()){
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!['requestId','market','window','date'].includes(key)))throw failure('INVALID_REQUEST','Choose a market and one SessionPath window.');
  if(typeof input.requestId!=='string'||!/^[\w-]{1,80}$/.test(input.requestId))throw failure('INVALID_REQUEST','The forecast request is missing a valid request ID.');
@@ -153,7 +180,7 @@ export function createForecastRequester({market,feedURL,isReady=()=>true,isRepla
     const response=await fetchImpl(target,{credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
     if(!response.ok)throw failure('FEED_UNAVAILABLE','Failed to fetch the current TradingView feed.');
     const body=await response.json();receivedAt=body.receivedAt;
-    try{packet=validatePersonalRead(body,{market,now:now()});}catch{throw failure('FEED_UNAVAILABLE','A fresh, verified TradingView feed is unavailable. Try Auto-fill again.');}
+    try{packet=validatePersonalRead(body,{market,now:now()});}catch(error){throw failure('FEED_UNAVAILABLE',liveFeedFailure(body,{market,now:now(),reason:error.message}));}
     if(!packet)throw failure('CHECKPOINT_UNAVAILABLE','No complete TradingView checkpoint has arrived for today.');
     snapshot=packet.snapshots.find(s=>s.cutoff===request.cutoff);
     if(!snapshot){const clock=nyClock(now()),due=request.minute+5;throw failure('CHECKPOINT_UNAVAILABLE',clock.minute<due?`The ${request.cutoff} New York checkpoint is available after its first five-minute candle closes.`:`The ${request.cutoff} New York checkpoint has not arrived. Check the sender’s coverage.`);}
@@ -208,3 +235,4 @@ export function mountAssistantForecastAdapter(options){
  doc.defaultView?.addEventListener('pagehide',clear,{once:true});
  return {request,destroy:clear};
 }
+

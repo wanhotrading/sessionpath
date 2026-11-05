@@ -10,12 +10,19 @@ function hasValidHistoryQuery(url,current){
 }
 async function readHistory(market,date,env){
   const saved=await env.PERSONAL_FEEDS.getByName(market).getHistory(date);
-  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:saved?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation'};
+  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:saved?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(saved)};
+}
+// A source may revise historical candles when its alert runtime recalculates.
+// Reads retain the first verified version of EACH decision checkpoint. A later
+// checkpoint is verified on its own receipt, rather than being represented as
+// part of one unchanged upstream packet. These receipts contain no credentials.
+function checkpointMetadata(entry){
+  return {snapshotPolicy:'first-accepted-per-checkpoint',checkpointProvenance:entry?.checkpointProvenance??null,reconciliation:entry?.reconciliation??null};
 }
 async function readSnapshot(market,env,current){
   const latest=await env.PERSONAL_FEEDS.getByName(market).getLatest();
   const stale=latest&&(current-latest.observedMs>480000||current-Date.parse(latest.receivedAt)>480000||latest.packet.session_date!==targetSessionDate(current));
-  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:latest?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation'};
+  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:latest?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(latest)};
 }
 export async function sha256(value,cryptoImpl=globalThis.crypto){return Array.from(new Uint8Array(await cryptoImpl.subtle.digest('SHA-256',encoder.encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function authenticateToken(token,expectedHash,cryptoImpl=globalThis.crypto){
@@ -90,3 +97,4 @@ export function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto
     }
   };
 }
+
