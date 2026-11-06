@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Miniflare} from 'miniflare';
 import {RASTER_FIXTURES} from './chart-fixtures.mjs';
+import {OCT19_NQ_SHAPE_CASE} from '../qa/chart-shape-case.mjs';
 
 const scriptPath = fileURLToPath(new URL('../worker.bundle.mjs', import.meta.url));
 function runtime(persistence, extras = {}) {
@@ -76,5 +77,19 @@ test('real chart and text HTTP routes share one persistent quota and use actual 
     for (let i = 0; i < 3; i++) assert.equal((await chart()).status, 200);
     const blocked = await chart(); assert.equal(blocked.status, 429); assert.equal((await blocked.json()).error.code, 'FREE_USAGE_LIMIT');
     assert.equal(upstreamCalls, 5);
+  } finally {await mf.dispose();}
+});
+
+test('built Worker matches archive evidence without using an unfinished session or mismatched chart anchors', async () => {
+  let evidence={...OCT19_NQ_SHAPE_CASE,sessions:[]};
+  const mf=runtime(undefined,{bindings:{OPENROUTER_API_KEY:'dummy-runtime-key'},outboundService:async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({summary:'The chart shows NQ.',sequence:['Price rises from the overnight low.'],bbox:'The prior NY levels are printed.',sessionpath:'A forecast box is visible.',uncertainties:['The NY session is unfinished.'],shapeEvidence:evidence})}}]})});
+  const chart=()=>mf.dispatchFetch('https://assistant.test/api/chart',{method:'POST',headers:{'Content-Type':'application/json','CF-Connecting-IP':'192.0.2.18',Origin:'https://wanhotrading.github.io'},body:JSON.stringify({context:{market:'CL',window:'05:00-08:30',date:null},referenceVersion:'sessionpath-chart-v2',image:{dataUrl:RASTER_FIXTURES.jpeg}})});
+  try {
+    const found=await chart();assert.equal(found.status,200);
+    const reading=await found.json();assert.equal(reading.chartObservation.market,'NQ');
+    assert.deepEqual(reading.shapeTags.map(row=>[row.session,row.tag,row.status]),[['NTA','UP_FINISH','archive'],['ASIA','UP_FINISH','archive'],['LONDON','NARROW','archive'],['NY',null,'in_progress']]);
+    assert.equal(Object.hasOwn(reading,'shapeEvidence'),false);
+    evidence={...evidence,open1930:evidence.open1930+.25};
+    const wrong=await (await chart()).json();assert.ok(wrong.shapeTags.every(row=>row.tag===null));
   } finally {await mf.dispose();}
 });

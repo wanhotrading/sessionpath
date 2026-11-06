@@ -113,7 +113,10 @@ intentionally a public assistant with a strict shared free-use budget.
 ```
 
 `message` is optional or may be blank; its default is “Describe the visible price
-movement so far.” Other fields are exact and `context.date` is explicitly nullable.
+movement so far.” A current client may opt in with
+`referenceVersion: "sessionpath-chart-v2"`. Clients that omit it still receive
+the `sessionpath-chart-v1` response marker. Other request fields are exact and
+`context.date` is explicitly nullable.
 Only base64 JPEG/PNG/WebP data URLs are accepted. The HTTP body is capped at
 2 MiB, the data URL at 1.5 MiB, image headers at 4096 pixels per edge and 12 MP.
 GIF, SVG, remote image URLs, mismatched MIME signatures, corrupt/truncated headers
@@ -133,7 +136,7 @@ provider receives the upload, so its own data terms still apply.
 The shared reference in `docs/chart-reading-reference.mjs` is inlined into the
 Worker during build and also supplies the user-copyable comparison prompt.
 
-The exact success response is:
+The base success response is:
 
 ```json
 {"ok":true,"schema":"sessionpath.assistant.chart.v1","action":"describe_chart","market":"CL","window":"03:00-05:00","date":null,"model":"nvidia/nemotron-3.5-super-vl:free","referenceVersion":"sessionpath-chart-v1","analysis":{"summary":"...","sequence":["..."],"bbox":"...","sessionpath":"...","uncertainties":["..."]}}
@@ -143,13 +146,33 @@ Analysis fields are plain descriptive text: summary at most 800 characters,
 sequence one to eight observations of at most 400 each, BBOX and SessionPath
 descriptions at most 600 each, and uncertainties one to eight items of at most
 300 each. Total text is capped at 6000 characters. Strict output validation
-rejects additional fields, explicit numerical probability claims, URLs, markup,
+rejects unsupported fields, explicit numerical probability claims, URLs, markup,
 indicator-code strings and common trade-instruction patterns. Exact legible
 percentage annotations such as AVR usage may be described as visible evidence;
 they are not converted into a new live probability or forecast. Blank,
 cropped or unreadable charts must identify uncertainty instead of fabricating
 candles, levels or the unseen next outcome. Context metadata is a user label,
 not independent proof of the chart's symbol, date or timezone.
+
+The model also extracts structured `shapeEvidence`, with market, exact ticker,
+New York trading date, last completed New York candle close, interval, prior
+NY high/low, 19:30 open, and any legible completed-session evidence. The Worker
+validates this evidence and computes the historical archive's shape rules itself:
+the narrow threshold comes first, then extrema order and final close position.
+Missing extrema order cannot become `ORDER_UNRESOLVED`. The success response
+can include separate `chartObservation` and `shapeTags` fields. The latter
+contains ordered `{session, tag, status, reason}` rows for NTA, ASIA, LONDON and
+NY. Screenshot-only labels are `provisional`; rows that do not establish a tag
+are `unverified` or `in_progress`, with a null `tag`. A displayed session
+outcome is never an instruction to update a frozen forecast or apply a filter.
+
+An `archive` result requires an exact match on the chart symbol, New York trading
+date, prior NY BBOX bounds and 19:30 opening price. It reads completed-session
+labels from the existing dated contract research or the compact supplemental
+NQ1! index, restricted to windows that ended by the screenshot cutoff. Missing
+or mismatched anchors never select a different day or contract. To reproduce
+the supplemental index, run `node build-chart-shape-archive.mjs <NQ1!-5m.csv>`
+against the verified native export. No raw candles are bundled.
 
 ## Deployment
 

@@ -1,4 +1,4 @@
-import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs';
+import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=assistant-shapes-20261105';
 
 const MARKETS=['CL','NQ','ES','GC'];
 const WINDOWS=['03:00-05:00','05:00-08:30','08:30-16:00'];
@@ -64,8 +64,13 @@ export async function normalizeChartImage(file,{document:doc=globalThis.document
 export function validateChartReading(body,context){
  const text=(value,max)=>plain(value,max)&&value.trim().length>0,list=(value,max)=>Array.isArray(value)&&value.length>=1&&value.length<=8&&value.every(item=>text(item,max));
  if(body?.ok!==true||body.schema!=='sessionpath.assistant.chart.v1'||body.action!=='describe_chart'||body.market!==context.market||body.window!==context.window||(body.date??null)!==(context.date??null)||!text(body.model,160)||body.referenceVersion!==CHART_REFERENCE_VERSION)return false;
+ if(body.shapeTags!==undefined&&(!Array.isArray(body.shapeTags)||body.shapeTags.length>4||new Set(body.shapeTags.map(row=>row?.session)).size!==body.shapeTags.length||!body.shapeTags.every(row=>Object.hasOwn(chartShapeSessions,row?.session)&&Object.hasOwn(chartShapeStatuses,row.status)&&((row.status==='archive'||row.status==='provisional')?Object.hasOwn(chartShapeNames,row.tag):row.tag===null)&&text(row.reason,350))))return false;
  const a=body.analysis;return a&&text(a.summary,800)&&list(a.sequence,400)&&text(a.bbox,600)&&text(a.sessionpath,600)&&list(a.uncertainties,300)&&[a.summary,...a.sequence,a.bbox,a.sessionpath,...a.uncertainties].reduce((total,value)=>total+value.length,0)<=6000;
 }
+
+const chartShapeSessions=Object.freeze({NTA:'NTA · NY to Asia',ASIA:'Asia',LONDON:'London',NY:'New York'});
+const chartShapeNames=Object.freeze({DOWN_FINISH:'Down finish',DOWN_THEN_BOUNCE:'Down then bounce',DROP_RECOVERY:'Trend down, then recover',UP_FINISH:'Up finish',UP_THEN_PULLBACK:'Up then pullback',RALLY_FADE:'Trend up, then fade',NARROW:'Narrow range',ORDER_UNRESOLVED:'Order unresolved'});
+const chartShapeStatuses=Object.freeze({archive:'Archive match',provisional:'Screenshot only',unverified:'Unverified',in_progress:'Not complete'});
 
 export function chartComparisonPrompt(question,context){return `${CHART_COMPARISON_PROMPT}\n\nReference version: ${CHART_REFERENCE_VERSION}\nUser question: ${question}\nSelected context (not verified from the screenshot): ${JSON.stringify(context)}\nAttach the same screenshot in GPT before comparing the descriptions. Do not treat the selected context as verified chart metadata.`;}
 
@@ -185,6 +190,14 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   item.append(element('p','sp-chat-note','Experimental AI reading · verify prices and completed-close times against the chart.'));
   const a=body.analysis;item.append(element('p','sp-chat-chart-summary',a.summary));const sequence=element('ol','sp-chat-sequence');for(const step of a.sequence)sequence.append(element('li','',step));item.append(sequence);
   for(const [label,text]of [['BBOX',a.bbox],['SessionPath',a.sessionpath]]){const detail=element('p','sp-chat-chart-detail');detail.append(element('strong','',label+' · '),doc.createTextNode(text));item.append(detail);}
+  if(body.shapeTags?.length){
+   const panel=element('div','sp-chat-shapes');panel.append(element('strong','sp-chat-uncertainty-title','SessionPath shape tags'));
+   const obs=body.chartObservation;
+   if(MARKETS.includes(obs?.market)&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u.test(obs.cutoff)&&obs.timezone==='America/New_York')panel.append(element('p','sp-chat-note',`Chart read as ${obs.market} · ${obs.cutoff.replace('T',' ')} NY completed-close cutoff.`));
+   if(MARKETS.includes(obs?.market)&&obs.market!==context.market)panel.append(element('p','sp-chat-note',`The chart reads as ${obs.market}; the selected page market is ${context.market}.`));
+   const list=element('ul','sp-chat-shape-list');for(const row of body.shapeTags){const li=element('li','sp-chat-shape');const value=chartShapeNames[row.tag]||chartShapeStatuses[row.status];li.append(element('strong','',`${chartShapeSessions[row.session]} · ${value}`));if(row.tag)li.append(element('span','sp-chat-shape-source',`${chartShapeStatuses[row.status]} · ${row.session}:${row.tag}`));li.append(element('small','',row.reason));list.append(li);}
+   panel.append(list,element('p','sp-chat-note','Chart reading only. No filters were changed.'));item.append(panel);
+  }
   item.append(element('strong','sp-chat-uncertainty-title','What cannot be confirmed'));const uncertainty=element('ul','sp-chat-uncertainties');for(const text of a.uncertainties)uncertainty.append(element('li','',text));item.append(uncertainty,element('p','sp-chat-note',`${body.model} · ${body.referenceVersion}. Visual description; no forecast code is calculated from the image.`));
   const copy=element('button','sp-chat-comparison-copy','Copy comparison prompt'),feedback=element('span','sp-chat-copy-feedback','Copied!');copy.type='button';feedback.hidden=true;feedback.setAttribute('role','status');let timer,fallback;
   copy.addEventListener('click',async()=>{const prompt=chartComparisonPrompt(query,context);try{await win.navigator.clipboard.writeText(prompt);clearTimeout(timer);copyTimers.delete(timer);feedback.hidden=false;feedback.classList.remove('sp-chat-faded');timer=setTimeout(()=>{feedback.classList.add('sp-chat-faded');copyTimers.delete(timer);},2000);copyTimers.add(timer);}catch{if(!fallback){fallback=element('textarea','sp-chat-code');fallback.readOnly=true;fallback.value=prompt;fallback.setAttribute('aria-label','Comparison prompt to copy');item.append(fallback);}fallback.focus();fallback.select();}});item.append(copy,feedback);scroll();
@@ -226,7 +239,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   try{
    if(chart){
     const context=contextNow(),timeout=setTimeout(()=>{timedOut=true;controller.abort();},45000);let response;
-    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:query,context,image:{dataUrl:chart.dataUrl}}),signal});}finally{clearTimeout(timeout);}
+    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:query,context,referenceVersion:CHART_REFERENCE_VERSION,image:{dataUrl:chart.dataUrl}}),signal});}finally{clearTimeout(timeout);}
     if(signal.aborted||destroyed)throw abortError();let body;try{body=await response.json();}catch{throw new Error('The chart reader returned an unreadable response. Please try again.');}
     if(!response.ok||body.ok!==true)throw new Error(plain(body?.error?.message,400)?body.error.message:response.status===429?'Free chart-reading limit reached. Please try again later.':'The free chart reader is temporarily unavailable. Please try again.');
     if(!validateChartReading(body,context))throw new Error('The chart reading was incomplete. Please refresh and try again.');

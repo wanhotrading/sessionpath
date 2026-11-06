@@ -1,11 +1,21 @@
 import {MARKETS, WINDOWS, validDate} from './intent.mjs';
 import {CHART_REFERENCE_VERSION, CHART_READING_SYSTEM} from '../../docs/chart-reading-reference.mjs';
+import {resolveChartShapeArchive} from './chart-shape-archive.mjs';
 
 export const CHART_MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 export const CHART_MAX_DATA_URL_LENGTH = 1.5 * 1024 * 1024;
 export const CHART_TIMEOUT_MS = 40_000;
 export const CHART_MAX_OUTPUT_TOKENS = 1600;
 export const CHART_TEXT_LIMITS = Object.freeze({summary: 800, sequence: 400, bbox: 600, sessionpath: 600, uncertainties: 300, total: 6000, items: 8});
+const CHART_LEGACY_REFERENCE_VERSION = 'sessionpath-chart-v1';
+const CHART_SHAPE_SESSIONS = Object.freeze(['NTA', 'ASIA', 'LONDON', 'NY']);
+const CHART_SHAPE_END = Object.freeze({NTA: -270, ASIA: 120, LONDON: 510, NY: 960});
+const CHART_SHAPE_ORDER = Object.freeze(['high_first', 'low_first', 'same_bar']);
+const CHART_SHAPE_KEYS = Object.freeze(['market', 'ticker', 'date', 'cutoff', 'timezone', 'intervalMinutes', 'priorNyHigh', 'priorNyLow', 'open1930', 'sessions']);
+const CHART_SHAPE_SESSION_KEYS = Object.freeze(['session', 'high', 'low', 'close', 'order', 'complete']);
+const CHART_TICKER = /^(?:(?:CME_MINI|COMEX|NYMEX|CME):)?(M?(?:CL|NQ|ES|GC))(?:[12]!|[FGHJKMNQUVXZ]\d{1,4})$/u;
+const CHART_CUTOFF = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):([0-5]\d)$/u;
+const chartNyClock = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
 export class ChartInputError extends Error {
   constructor(code, message, status = 400) {super(message); this.code = code; this.status = status;}
 }
@@ -91,23 +101,44 @@ export function validateChartImage(dataUrl) {
 }
 
 export function validateChartRequest(value, {now = Date.now()} = {}) {
-  if (!chartKeys(value, ['context', 'image'], ['message']) || !chartKeys(value.context, ['market', 'window', 'date'])
+  if (!chartKeys(value, ['context', 'image'], ['message', 'referenceVersion']) || !chartKeys(value.context, ['market', 'window', 'date'])
     || !MARKETS.includes(value.context.market) || !WINDOWS.includes(value.context.window)
     || !(value.context.date === null || validDate(value.context.date, {now})) || !chartKeys(value.image, ['dataUrl'])
+    || (value.referenceVersion !== undefined && value.referenceVersion !== CHART_REFERENCE_VERSION)
     || (value.message !== undefined && (typeof value.message !== 'string' || value.message.length > 600 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.message)))) {
     throw new ChartInputError('INVALID_CHART_REQUEST', 'Choose a supported market, window and valid date, then attach one screenshot.');
   }
-  return {message: value.message?.trim() || 'Describe the visible price movement so far.', context: {...value.context}, image: validateChartImage(value.image.dataUrl)};
+  return {message: value.message?.trim() || 'Describe the visible price movement so far.', context: {...value.context}, image: validateChartImage(value.image.dataUrl), referenceVersion: value.referenceVersion ?? CHART_LEGACY_REFERENCE_VERSION};
 }
 
 const chartString = maxLength => ({type: 'string', minLength: 1, maxLength});
+const chartNullableEnum = (type, choices) => ({type: [type, 'null'], enum: [...choices, null]});
+const chartNullablePrice = {type: ['number', 'null']};
+const CHART_SHAPE_SCHEMA = {
+  type: 'object', required: [...CHART_SHAPE_KEYS,'captureNy'], additionalProperties: false,
+  properties: {
+    market: chartNullableEnum('string', MARKETS), ticker: {type: ['string', 'null'], maxLength: 32},
+    date: {type: ['string', 'null'], maxLength: 10}, cutoff: {type: ['string', 'null'], maxLength: 16},
+    captureNy: {type: ['string','null'], maxLength: 16},
+    timezone: chartNullableEnum('string', ['America/New_York']), intervalMinutes: chartNullableEnum('integer', [5]),
+    priorNyHigh: chartNullablePrice, priorNyLow: chartNullablePrice, open1930: chartNullablePrice,
+    sessions: {type: 'array', maxItems: 4, items: {
+      type: 'object', required: CHART_SHAPE_SESSION_KEYS, additionalProperties: false,
+      properties: {
+        session: {type: 'string', enum: CHART_SHAPE_SESSIONS}, high: chartNullablePrice, low: chartNullablePrice, close: chartNullablePrice,
+        order: chartNullableEnum('string', CHART_SHAPE_ORDER), complete: {type: 'boolean'},
+      },
+    }},
+  },
+};
 export const CHART_ANALYSIS_SCHEMA = Object.freeze({
   type: 'object', properties: {
+    shapeEvidence: CHART_SHAPE_SCHEMA,
     summary: chartString(CHART_TEXT_LIMITS.summary),
     sequence: {type: 'array', minItems: 1, maxItems: CHART_TEXT_LIMITS.items, items: chartString(CHART_TEXT_LIMITS.sequence)},
     bbox: chartString(CHART_TEXT_LIMITS.bbox), sessionpath: chartString(CHART_TEXT_LIMITS.sessionpath),
     uncertainties: {type: 'array', minItems: 1, maxItems: CHART_TEXT_LIMITS.items, items: chartString(CHART_TEXT_LIMITS.uncertainties)},
-  }, required: ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], additionalProperties: false,
+  }, required: ['shapeEvidence', 'summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], additionalProperties: false,
 });
 function chartPlainText(value, limit) {
   if (typeof value !== 'string' || !value.trim() || value.length > limit) return false;
@@ -119,7 +150,7 @@ function chartPlainText(value, limit) {
   return true;
 }
 export function validateChartAnalysis(value) {
-  if (!chartKeys(value, ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'])) return null;
+  if (!chartKeys(value, ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], ['shapeEvidence'])) return null;
   if (!chartPlainText(value.summary, CHART_TEXT_LIMITS.summary) || !chartPlainText(value.bbox, CHART_TEXT_LIMITS.bbox) || !chartPlainText(value.sessionpath, CHART_TEXT_LIMITS.sessionpath)) return null;
   for (const key of ['sequence', 'uncertainties']) {
     if (!Array.isArray(value[key]) || value[key].length < 1 || value[key].length > CHART_TEXT_LIMITS.items || !value[key].every(item => chartPlainText(item, CHART_TEXT_LIMITS[key]))) return null;
@@ -129,7 +160,81 @@ export function validateChartAnalysis(value) {
   return {summary: value.summary.trim(), sequence: value.sequence.map(text => text.trim()), bbox: value.bbox.trim(), sessionpath: value.sessionpath.trim(), uncertainties: value.uncertainties.map(text => text.trim())};
 }
 
-export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint}) {
+function chartCutoffMinute(date, cutoff) {
+  const match = typeof cutoff === 'string' && CHART_CUTOFF.exec(cutoff);
+  if (!date || !match || !validDate(match[1], {allowFuture: true}) || Number(match[3]) % 5 !== 0) return null;
+  const days = (Date.parse(`${match[1]}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000;
+  return days === -1 || days === 0 ? days * 1440 + Number(match[2]) * 60 + Number(match[3]) : null;
+}
+
+const chartPriceOrNull = value => value === null || Number.isFinite(value);
+export function validateChartShapeEvidence(value, {now = Date.now()} = {}) {
+  if (!chartKeys(value, CHART_SHAPE_KEYS, ['captureNy'])
+    || !(value.market === null || MARKETS.includes(value.market))
+    || !(value.ticker === null || (typeof value.ticker === 'string' && value.ticker.length <= 32 && CHART_TICKER.test(value.ticker)))
+    || !(value.date === null || validDate(value.date, {allowFuture: true}))
+    || !(value.cutoff === null || (typeof value.cutoff === 'string' && CHART_CUTOFF.test(value.cutoff)))
+    || !(value.captureNy == null || (typeof value.captureNy === 'string' && CHART_CUTOFF.test(value.captureNy) && validDate(value.captureNy.slice(0,10), {allowFuture:true})))
+    || !(value.timezone === null || value.timezone === 'America/New_York')
+    || !(value.intervalMinutes === null || value.intervalMinutes === 5)
+    || ![value.priorNyHigh, value.priorNyLow, value.open1930].every(chartPriceOrNull)
+    || !Array.isArray(value.sessions) || value.sessions.length > 4) return null;
+  const seen = new Set();
+  for (const row of value.sessions) {
+    if (!chartKeys(row, CHART_SHAPE_SESSION_KEYS) || !CHART_SHAPE_SESSIONS.includes(row.session) || seen.has(row.session)
+      || ![row.high, row.low, row.close].every(chartPriceOrNull) || !(row.order === null || CHART_SHAPE_ORDER.includes(row.order))
+      || typeof row.complete !== 'boolean') return null;
+    seen.add(row.session);
+  }
+  const nowParts = Object.fromEntries(chartNyClock.formatToParts(now).map(({type, value}) => [type, value]));
+  const nyNow = `${nowParts.year}-${nowParts.month}-${nowParts.day}T${nowParts.hour}:${nowParts.minute}`;
+  const cutoff = value.timezone === 'America/New_York' && value.cutoff !== null && value.cutoff <= nyNow && (value.captureNy == null || value.cutoff <= value.captureNy) && chartCutoffMinute(value.date, value.cutoff) !== null ? value.cutoff : null;
+  const date = cutoff !== null || value.date <= nyNow.slice(0, 10) ? value.date : null;
+  const tickerMarket = value.ticker?.match(CHART_TICKER)?.[1].replace(/^M/u, '');
+  return {...value, market: tickerMarket ?? value.market, date, cutoff};
+}
+
+// Keep the exact narrow-first precedence, order and close thresholds used in
+// the archived CL and NQ shape exporters. Missing order is not same-bar order.
+export function classifySessionShape({high, low, close, order, bboxWidth}) {
+  if (![high, low, close].every(Number.isFinite) || low > high || close < low || close > high) return null;
+  const range = high - low;
+  if (!Number.isFinite(range)) return null;
+  if (Number.isFinite(bboxWidth) && bboxWidth > 0 && range < .18 * bboxWidth) return 'NARROW';
+  if (range === 0 || order === 'same_bar') return 'ORDER_UNRESOLVED';
+  if (order !== 'high_first' && order !== 'low_first') return null;
+  const position = (close - low) / range;
+  return order === 'high_first'
+    ? position <= .25 ? 'DOWN_FINISH' : position >= .70 ? 'DROP_RECOVERY' : 'DOWN_THEN_BOUNCE'
+    : position <= .30 ? 'RALLY_FADE' : position >= .75 ? 'UP_FINISH' : 'UP_THEN_PULLBACK';
+}
+
+export function classifyChartShapeEvidence(value, options) {
+  const evidence = validateChartShapeEvidence(value, options);
+  if (!evidence) return null;
+  const {market, ticker, date, cutoff, timezone, intervalMinutes, priorNyHigh, priorNyLow, sessions} = evidence;
+  const cutoffMinute = chartCutoffMinute(date, cutoff);
+  const bboxWidth = priorNyHigh !== null && priorNyLow !== null ? priorNyHigh - priorNyLow : null;
+  const chartObservation = {market, ticker, date, cutoff, timezone, intervalMinutes};
+  const shapeTags = CHART_SHAPE_SESSIONS.map(session => {
+    const unverified = reason => ({session, tag: null, status: 'unverified', reason});
+    if (cutoffMinute !== null && cutoffMinute < CHART_SHAPE_END[session]) {
+      return {session, tag: null, status: 'in_progress', reason: 'The session had not ended at the last completed candle.'};
+    }
+    if (!market || !date || cutoffMinute === null || intervalMinutes !== 5) {
+      return unverified('The market, five-minute timeframe or New York cutoff could not be established.');
+    }
+    const row = sessions.find(candidate => candidate.session === session);
+    if (!row?.complete) return unverified('The entire completed session is not established in the image.');
+    if (!Number.isFinite(bboxWidth) || bboxWidth <= 0) return unverified('The prior NY BBOX width is not established for the Narrow range check.');
+    const tag = classifySessionShape({...row, bboxWidth});
+    if (tag === null) return unverified('The exact session extremes, final close or order are missing or inconsistent.');
+    return {session, tag, status: 'provisional', reason: 'Rule-based result from values read from the screenshot; verify against completed candles.'};
+  });
+  return {chartObservation, shapeTags};
+}
+
+export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, now = Date.now()}) {
   if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The free chart interpreter is not available yet.', origin);
   const ip = input.clientAddress;
   if (!ip || ip.length > 64) return errorReply(503, 'CLIENT_ADDRESS_UNAVAILABLE', 'The chart interpreter could not verify this connection.', origin);
@@ -141,8 +246,8 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
   try {
     const upstream = await fetcher(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://wanhotrading.github.io/sessionpath/', 'X-OpenRouter-Title': 'SessionPath Chart Reader'}, signal: controller.signal,
       body: JSON.stringify({model, messages: [
-        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested analysis JSON schema, using the same five outputs as the shared comparison instructions. Keep every field concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established and use uncertainties instead of inventing events.`},
-        {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message, context: input.context})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
+        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs and structured shapeEvidence. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null evidence and an empty sessions list instead of inventing events.`},
+        {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
       ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0, stream: false, reasoning: {enabled: false}, provider: {require_parameters: true}, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
     });
     if (!upstream.ok) {
@@ -158,9 +263,11 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
     const data = JSON.parse(await boundedText(upstream.body, 24_576));
     if (data.choices?.length === 1 && data.choices[0]?.finish_reason === 'length') return errorReply(503, 'FREE_MODEL_OUTPUT_LIMIT', 'The free chart interpreter reached its output limit. Try a simpler screenshot.', origin);
     if (!Array.isArray(data.choices) || data.choices.length !== 1 || data.choices[0]?.finish_reason !== 'stop' || typeof data.choices[0]?.message?.content !== 'string') throw new Error('Invalid result');
-    const analysis = validateChartAnalysis(JSON.parse(data.choices[0].message.content));
+    const modelAnalysis = JSON.parse(data.choices[0].message.content);
+    const analysis = validateChartAnalysis(modelAnalysis);
     if (!analysis) throw new Error('Invalid analysis');
-    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: CHART_REFERENCE_VERSION, analysis}, 200, origin);
+    const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, {now}), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, {now}));
+    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape}, 200, origin);
   } catch {
     return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The free chart interpreter timed out. No automatic retry was made.' : 'The free chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
   } finally {clearTimeout(timer);}

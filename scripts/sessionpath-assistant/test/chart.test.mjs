@@ -43,7 +43,7 @@ test('reject URLs, SVG/GIF, invalid base64, MIME mismatch, truncated headers and
 
 test('chart input has strict context and image shape and rejects future dates, model overrides and long prompts', async () => {
   const s = setup();
-  for (const body of [chartBody({model: 'paid/model'}), chartBody({message: 'a'.repeat(601)}), chartBody({image: {dataUrl: RASTER_FIXTURES.jpeg, url: 'https://example.test'}}), chartBody({context: {...context, date: '2027-01-01'}}), chartBody({context: {...context, date: '2026-02-30'}}), chartBody({context: {market: 'CL', window: '03:00-05:00'}})]) {
+  for (const body of [chartBody({model: 'paid/model'}), chartBody({referenceVersion: 'unsupported-reference'}), chartBody({message: 'a'.repeat(601)}), chartBody({image: {dataUrl: RASTER_FIXTURES.jpeg, url: 'https://example.test'}}), chartBody({context: {...context, date: '2027-01-01'}}), chartBody({context: {...context, date: '2026-02-30'}}), chartBody({context: {market: 'CL', window: '03:00-05:00'}})]) {
     const response = await s.handler(chartPost(body), s.env); assert.equal(response.status, 400); assert.equal((await response.json()).error.code, 'INVALID_CHART_REQUEST');
   }
   assert.equal(s.count(), 0);
@@ -65,17 +65,25 @@ test('chart HTTP/dataURL limits are bounded independently of the small text chat
 test('chart uses official multipart image_url format and same pinned free model, secret and shared quota', async () => {
   let calledUrl, sent;
   const s = setup(async (url, init) => {calledUrl = url; sent = JSON.parse(init.body); return visionResponse(analysis);});
-  const response = await s.handler(chartPost(), s.env); assert.equal(response.status, 200);
+  const response = await s.handler(chartPost(chartBody({referenceVersion: CHART_REFERENCE_VERSION})), s.env); assert.equal(response.status, 200);
   const body = await response.json();
   assert.deepEqual(body, {ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...context, model: FREE_MODEL, referenceVersion: CHART_REFERENCE_VERSION, analysis});
   assert.equal(calledUrl, OPENROUTER_URL); assert.equal(sent.model, 'nvidia/nemotron-3.5-super-vl:free');
   assert.equal(sent.max_tokens, 1600); assert.deepEqual(sent.reasoning, {enabled: false}); assert.equal(sent.provider.require_parameters, true); assert.equal(sent.response_format.json_schema.strict, true);
   assert.ok(sent.messages[0].content.startsWith(CHART_READING_SYSTEM)); assert.ok(!sent.messages[0].content.includes('Omit all percentages'));
   assert.equal(sent.messages[1].content[0].type, 'text'); assert.match(sent.messages[1].content[0].text, /Describe the visible price movement so far/u);
+  assert.equal(Object.hasOwn(JSON.parse(sent.messages[1].content[0].text),'context'),false);
   assert.deepEqual(sent.messages[1].content[1], {type: 'image_url', image_url: {url: RASTER_FIXTURES.jpeg}});
   assert.equal(s.count(), 1);
   for (const field of ['models', 'plugins', 'tools']) assert.equal(sent[field], undefined);
   assert.ok(!JSON.stringify(body).includes(s.env.OPENROUTER_API_KEY)); assert.ok(!JSON.stringify(body).includes('data:image'));
+});
+
+test('previously opened chart tabs without reference version still receive the v1 response contract', async () => {
+  const s = setup();
+  const response = await s.handler(chartPost(), s.env); assert.equal(response.status, 200);
+  const result = await response.json(); assert.equal(result.referenceVersion, 'sessionpath-chart-v1');
+  assert.deepEqual(result.analysis, analysis);
 });
 
 test('unreadable screenshot returns explicit uncertainty instead of invented chart observations', async () => {

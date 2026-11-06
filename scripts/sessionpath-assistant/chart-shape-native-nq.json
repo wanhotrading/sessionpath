@@ -1,0 +1,209 @@
+{
+  "NQ|NQ1!|2026-10-02": [
+    30883.5,
+    30529.25,
+    30838.75,
+    "UP_FINISH",
+    "UP_THEN_PULLBACK",
+    "UP_THEN_PULLBACK",
+    "DOWN_THEN_BOUNCE"
+  ],
+  "NQ|NQ1!|2026-10-05": [
+    31282.5,
+    30988,
+    31156.5,
+    "UP_FINISH",
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "UP_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-06": [
+    31371,
+    31044.25,
+    31356.25,
+    "UP_THEN_PULLBACK",
+    "DOWN_THEN_BOUNCE",
+    "UP_FINISH",
+    "RALLY_FADE"
+  ],
+  "NQ|NQ1!|2026-10-07": [
+    31616.5,
+    31457.75,
+    31502.75,
+    "UP_THEN_PULLBACK",
+    "DOWN_THEN_BOUNCE",
+    "DOWN_FINISH",
+    "UP_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-08": [
+    31422.25,
+    31143,
+    31447.25,
+    "UP_FINISH",
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "DOWN_THEN_BOUNCE"
+  ],
+  "NQ|NQ1!|2026-10-09": [
+    31369.75,
+    30792,
+    31002.25,
+    "NARROW",
+    "UP_FINISH",
+    "NARROW",
+    "DOWN_THEN_BOUNCE"
+  ],
+  "NQ|NQ1!|2026-10-12": [
+    31180,
+    30991,
+    31259,
+    "UP_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE"
+  ],
+  "NQ|NQ1!|2026-10-13": [
+    31048.75,
+    30844.25,
+    30840.5,
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "UP_THEN_PULLBACK",
+    "UP_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-14": [
+    30814.75,
+    30591.25,
+    30762.75,
+    "DOWN_FINISH",
+    "RALLY_FADE",
+    "DROP_RECOVERY",
+    "DOWN_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-15": [
+    30660.75,
+    30078,
+    29953.25,
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "DOWN_THEN_BOUNCE",
+    "UP_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-16": [
+    30196.75,
+    29622.5,
+    30017.5,
+    "DOWN_FINISH",
+    "UP_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "DOWN_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-19": [
+    30045.75,
+    29268.75,
+    29612.25,
+    "UP_FINISH",
+    "UP_FINISH",
+    "NARROW",
+    "RALLY_FADE"
+  ],
+  "NQ|NQ1!|2026-10-20": [
+    29983.5,
+    29653.75,
+    29758.5,
+    "UP_THEN_PULLBACK",
+    "RALLY_FADE",
+    "DOWN_FINISH",
+    "UP_THEN_PULLBACK"
+  ],
+  "NQ|NQ1!|2026-10-21": [
+    29903.5,
+    29391.75,
+    29869.75,
+    "UP_THEN_PULLBACK",
+    "DOWN_FINISH",
+    "DROP_RECOVERY",
+    "UP_THEN_PULLBACK"
+  ],
+  "NQ|NQ1!|2026-10-22": [
+    30113,
+    29771,
+    29789.25,
+    "DOWN_FINISH",
+    "DOWN_FINISH",
+    "DROP_RECOVERY",
+    "DOWN_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-23": [
+    29594.75,
+    29033,
+    29077.25,
+    "DOWN_FINISH",
+    "UP_THEN_PULLBACK",
+    "DOWN_FINISH",
+    "UP_THEN_PULLBACK"
+  ],
+  "NQ|NQ1!|2026-10-26": [
+    29326,
+    28987,
+    29139.5,
+    "RALLY_FADE",
+    "DOWN_THEN_BOUNCE",
+    "UP_FINISH",
+    "UP_THEN_PULLBACK"
+  ],
+  "NQ|NQ1!|2026-10-27": [
+    29572,
+    29165.25,
+    29497.5,
+    "DROP_RECOVERY",
+    "DOWN_THEN_BOUNCE",
+    "UP_FINISH",
+    "UP_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-28": [
+    29881.25,
+    29494.5,
+    29837,
+    "UP_FINISH",
+    "UP_THEN_PULLBACK",
+    "DOWN_THEN_BOUNCE",
+    "UP_FINISH"
+  ],
+  "NQ|NQ1!|2026-10-29": [
+    30009,
+    29767.25,
+    29660,
+    "DOWN_FINISH",
+    "DROP_RECOVERY",
+    "UP_THEN_PULLBACK",
+    "UP_THEN_PULLBACK"
+  ],
+  "NQ|NQ1!|2026-10-30": [
+    29677,
+    29405,
+    29086,
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE",
+    "DOWN_FINISH",
+    "DOWN_THEN_BOUNCE"
+  ],
+  "NQ|NQ1!|2026-11-02": [
+    28860.5,
+    28232.75,
+    28697,
+    "UP_FINISH",
+    "UP_THEN_PULLBACK",
+    "DOWN_FINISH",
+    "DOWN_FINISH"
+  ],
+  "NQ|NQ1!|2026-11-03": [
+    28891.25,
+    28101.75,
+    28233.75,
+    "UP_THEN_PULLBACK",
+    "DOWN_FINISH",
+    null,
+    null
+  ]
+}
