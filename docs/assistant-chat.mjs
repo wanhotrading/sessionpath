@@ -1,4 +1,5 @@
 import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=assistant-shapes-20261105';
+import {makeChartSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
 
 const MARKETS=['CL','NQ','ES','GC'];
 const WINDOWS=['03:00-05:00','05:00-08:30','08:30-16:00'];
@@ -187,18 +188,29 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  function failure(error,query,{chart=false}={}){if(error?.name==='AbortError'||destroyed)return;bubble('assistant',plain(error?.message,400)?error.message:'Failed to fetch. Please try again.',{remember:!chart});const retry=element('button','sp-chat-retry','Try again'),retryAttachmentVersion=attachmentVersion;retry.type='button';retry.addEventListener('click',()=>{if(chart&&(!attachment||attachmentVersion!==retryAttachmentVersion)){open();status.textContent='Attach the original screenshot again, or press Send to read the current one.';return;}submit(query);});history.lastElementChild.append(retry);scroll();}
  function renderChart(body,query,context){
   const item=bubble('assistant','Chart reading',{remember:false});item.classList.add('sp-chat-chart-reading');item.append(element('p','sp-chat-note',`Selected context: ${context.market} · ${context.window} NY · ${context.date??'live / today'}. This selection does not verify the screenshot’s market, date or timeframe.`));
-  item.append(element('p','sp-chat-note','Experimental AI reading · verify prices and completed-close times against the chart.'));
-  const a=body.analysis;item.append(element('p','sp-chat-chart-summary',a.summary));const sequence=element('ol','sp-chat-sequence');for(const step of a.sequence)sequence.append(element('li','',step));item.append(sequence);
-  for(const [label,text]of [['BBOX',a.bbox],['SessionPath',a.sessionpath]]){const detail=element('p','sp-chat-chart-detail');detail.append(element('strong','',label+' · '),doc.createTextNode(text));item.append(detail);}
+  const pathCode=makeChartSessionPathCode(body),asksForPath=/\bpath[\s-]+code\b/iu.test(query);
   if(body.shapeTags?.length){
    const panel=element('div','sp-chat-shapes');panel.append(element('strong','sp-chat-uncertainty-title','SessionPath shape tags'));
    const obs=body.chartObservation;
    if(MARKETS.includes(obs?.market)&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u.test(obs.cutoff)&&obs.timezone==='America/New_York')panel.append(element('p','sp-chat-note',`Chart read as ${obs.market} · ${obs.cutoff.replace('T',' ')} NY completed-close cutoff.`));
    if(MARKETS.includes(obs?.market)&&obs.market!==context.market)panel.append(element('p','sp-chat-note',`The chart reads as ${obs.market}; the selected page market is ${context.market}.`));
    const list=element('ul','sp-chat-shape-list');for(const row of body.shapeTags){const li=element('li','sp-chat-shape');const value=chartShapeNames[row.tag]||chartShapeStatuses[row.status];li.append(element('strong','',`${chartShapeSessions[row.session]} · ${value}`));if(row.tag)li.append(element('span','sp-chat-shape-source',`${chartShapeStatuses[row.status]} · ${row.session}:${row.tag}`));li.append(element('small','',row.reason));list.append(li);}
-   panel.append(list,element('p','sp-chat-note','Chart reading only. No filters were changed.'));item.append(panel);
-  }
-  item.append(element('strong','sp-chat-uncertainty-title','What cannot be confirmed'));const uncertainty=element('ul','sp-chat-uncertainties');for(const text of a.uncertainties)uncertainty.append(element('li','',text));item.append(uncertainty,element('p','sp-chat-note',`${body.model} · ${body.referenceVersion}. Visual description; no forecast code is calculated from the image.`));
+   panel.append(list);
+   if(pathCode){
+    const label=element('label','sp-chat-code-label','Session paths code'),code=element('textarea','sp-chat-code');code.readOnly=true;code.value=pathCode;code.rows=2;code.setAttribute('aria-label','Session paths code');label.append(code);
+    const actions=element('div','sp-chat-path-actions'),copy=element('button','sp-chat-copy','Copy path code'),apply=element('button','sp-chat-copy','Apply to Session paths'),feedback=element('p','sp-chat-note');copy.type=apply.type='button';feedback.setAttribute('role','status');
+    copy.addEventListener('click',async()=>{try{await win.navigator.clipboard.writeText(pathCode);feedback.textContent='Path code copied.';}catch{code.focus();code.select();feedback.textContent='The code is selected for copying.';}});
+    apply.addEventListener('click',()=>{const detail={code:pathCode,result:null};doc.dispatchEvent(new win.CustomEvent('sessionpath:apply-path-code',{detail}));feedback.textContent=detail.result?.message||'Open the matching SessionPath planner to apply this code.';if(detail.result?.ok){collapse();doc.getElementById('sessions-section')?.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:motionOff()?'instant':'smooth'});}});
+    actions.append(copy,apply);panel.append(label,actions,feedback);
+   }else if(asksForPath){panel.append(element('p','sp-chat-note','A path code needs archive matches for NTA, Asia and London. Use a five-minute chart after 08:30 NY and include its market, trading date, completed-close time, prior NY high/low and 19:30 open if the labels are hard to read.'));}
+   item.append(panel);
+  }else if(asksForPath){item.append(element('p','sp-chat-note','No verified path code is available for this screenshot.'));}
+  const visual=pathCode?element('details','sp-chat-visual-reading'):item;
+  if(pathCode){visual.append(element('summary','','Experimental visual reading'));item.append(visual);}
+  visual.append(element('p','sp-chat-note','Experimental AI reading · verify prices and completed-close times against the chart.'));
+  const a=body.analysis;visual.append(element('p','sp-chat-chart-summary',a.summary));const sequence=element('ol','sp-chat-sequence');for(const step of a.sequence)sequence.append(element('li','',step));visual.append(sequence);
+  for(const [label,text]of [['BBOX',a.bbox],['SessionPath',a.sessionpath]]){const detail=element('p','sp-chat-chart-detail');detail.append(element('strong','',label+' · '),doc.createTextNode(text));visual.append(detail);}
+  visual.append(element('strong','sp-chat-uncertainty-title','What cannot be confirmed'));const uncertainty=element('ul','sp-chat-uncertainties');for(const text of a.uncertainties)uncertainty.append(element('li','',text));visual.append(uncertainty,element('p','sp-chat-note',`${body.model} · ${body.referenceVersion}. No TradingView forecast code is calculated from the image.`));
   const copy=element('button','sp-chat-comparison-copy','Copy comparison prompt'),feedback=element('span','sp-chat-copy-feedback','Copied!');copy.type='button';feedback.hidden=true;feedback.setAttribute('role','status');let timer,fallback;
   copy.addEventListener('click',async()=>{const prompt=chartComparisonPrompt(query,context);try{await win.navigator.clipboard.writeText(prompt);clearTimeout(timer);copyTimers.delete(timer);feedback.hidden=false;feedback.classList.remove('sp-chat-faded');timer=setTimeout(()=>{feedback.classList.add('sp-chat-faded');copyTimers.delete(timer);},2000);copyTimers.add(timer);}catch{if(!fallback){fallback=element('textarea','sp-chat-code');fallback.readOnly=true;fallback.value=prompt;fallback.setAttribute('aria-label','Comparison prompt to copy');item.append(fallback);}fallback.focus();fallback.select();}});item.append(copy,feedback);scroll();
  }

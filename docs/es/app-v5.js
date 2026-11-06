@@ -17,12 +17,13 @@ import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=tab
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
+import {parseSessionPathCode} from '../session-path-code.mjs?v=session-path-code-20261106';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(v)?v.toFixed(2):'—',pct=v=>Number.isFinite(v)?`${Math.round(v*100)}%`:'—',pt=v=>Number.isFinite(v)?`${v.toFixed(2)} pt`:'Add AVR';
 setupWorkspace();mountInstrumentSelector();setupDeviceView();
 const windows={'1930-0500':[-270,300],'1930-0830':[-270,510]};
 const fields=['open1930','ud-units','window','asof','trading-date','price','avr','printed','range-high','range-low','range-position','prior-high','prior-low','location','up','down','behavior','tag-mode','sample-size','year'];
-const state={sessionChoices:{},box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};
+const state={sessionChoices:{},sessionChoiceDate:null,sessionPathCutoff:null,box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};
 mountScreenshotReview(state);
 mountForecastContext();mountBBoxReturn();
 const returnDetails=document.createElement('details');returnDetails.id='bbox-return-details';returnDetails.className='session-note bbox-return-details';returnDetails.innerHTML='<summary>Closed outside BBOX? Check % of return</summary>';
@@ -87,17 +88,18 @@ function saveCheckpoint(){let q;try{syncInputs();q=readQuery();}catch(e){$('form
  const inputs=Object.fromEntries(fields.map(id=>[id,$(id).value]));const {observations,...condition}=q;const key=`${q.date}:${q.minute}`;
  const estimate=q.price!=null&&q.avr>0?boxEstimate(state.days,state.timeline,q,q.endMinute):null;
  const forecast=estimate?{version:'v8 actual-open',generatedAt:new Date().toISOString(),code:makeForecastCode(estimate,q),upPoints:estimate.upPoints,downPoints:estimate.downPoints,medianUp:estimate.upMedianPoints,medianDown:estimate.downMedianPoints,endMinute:estimate.endMinute,n:estimate.n,matchingDates:estimate.dates,observations:q.observations}:null;
+ syncSessionPathDate();
  const checkpoint={key,date:q.date,minute:q.minute,inputs,tags:[...state.selected],sessionChoices:{...state.sessionChoices},condition,forecast};
  state.checkpoints=state.checkpoints.filter(c=>c.key!==key);state.checkpoints.push(checkpoint);state.checkpoints=state.checkpoints.slice(-5000);
  try{localStorage.setItem(storageKey,JSON.stringify(state.checkpoints));toast(`Saved ${clockLabel(q.minute)} checkpoint on this browser.`);}catch{toast('Checkpoint saved for this page only; browser storage is unavailable.');}
  renderCheckpoints();analyze();
 }
-function loadCheckpoint(key){const c=state.checkpoints.find(c=>c.key===key);if(!c)return;$('open1930').value='';for(const [id,value] of Object.entries(c.inputs))if($(id))$(id).value=value;state.selected=new Set(c.tags);state.sessionChoices={...(c.sessionChoices||{})};state.library=false;$('asof').value=c.minute===300?'05:00':'03:00';$('trading-date').value=c.date;$('replay-date').value=c.date;$('replay-toggle').checked=c.date!==new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});syncDate();syncInputs();renderCheckpoints();analyze();document.getElementById('conditions').scrollIntoView({behavior:'smooth'});}
+function loadCheckpoint(key){const c=state.checkpoints.find(c=>c.key===key);if(!c)return;$('open1930').value='';for(const [id,value] of Object.entries(c.inputs))if($(id))$(id).value=value;state.selected=new Set(c.tags);state.library=false;$('asof').value=c.minute===300?'05:00':'03:00';$('trading-date').value=c.date;$('replay-date').value=c.date;$('replay-toggle').checked=c.date!==new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});syncDate();resetSessionPath();state.sessionChoices={...(c.sessionChoices||{})};syncInputs();renderCheckpoints();analyze();document.getElementById('conditions').scrollIntoView({behavior:'smooth'});}
 
 function applyReplaySnapshot(data,{includeBehavior=false}={}){
- state.library=false;state.selected.clear();state.sessionChoices={};$('sequence-explore').checked=false;$('use-checkpoints').checked=false;
+ state.library=false;state.selected.clear();$('use-checkpoints').checked=false;
  for(const id of ['price','avr','open1930','range-high','range-low','prior-high','prior-low','printed','up','down','range-position','location','behavior'])$(id).value='';
- $('replay-toggle').checked=true;$('replay-date').value=data.date;syncDate();
+ $('replay-toggle').checked=true;$('replay-date').value=data.date;syncDate();resetSessionPath();
  $('ud-units').value='points';$('year').value='';
  for(const id of ['ny-range-high','ny-range-low','ny-printed','ny-strength-three','ny-strength-five'])if($(id))$(id).value='';
  if(data.minute===510){$('ny-price').value=data.price;$('ny-avr').value=data.avr;$('ny-range-high').value=data.rangeHigh;$('ny-range-low').value=data.rangeLow;}
@@ -172,7 +174,7 @@ for(const id of fields.filter(id=>!['window','notes','ud-units'].includes(id)))$
 for(const id of ['price','avr','range-high','range-low','prior-high','prior-low','open1930'])$(id).addEventListener('input',syncInputs);
 $('use-checkpoints').addEventListener('change',analyze);$('save-checkpoint').addEventListener('click',saveCheckpoint);$('checkpoints').addEventListener('click',e=>{const remove=e.target.closest('[data-delete-checkpoint]');if(remove){state.checkpoints=state.checkpoints.filter(c=>c.key!==remove.dataset.deleteCheckpoint);try{localStorage.setItem(storageKey,JSON.stringify(state.checkpoints));}catch{}renderCheckpoints();analyze();return;}const b=e.target.closest('[data-checkpoint]');if(b)loadCheckpoint(b.dataset.checkpoint);});
 $('tag-search').addEventListener('input',renderTags);$('tag-options').addEventListener('change',e=>{const box=e.target.closest('[data-tag]');if(!box)return;box.checked?state.selected.add(box.dataset.tag):state.selected.delete(box.dataset.tag);analyze();});$('selected-tags').addEventListener('click',e=>{const b=e.target.closest('[data-remove]');if(b){state.selected.delete(b.dataset.remove);analyze();}});$('clear-tags').addEventListener('click',()=>{state.selected.clear();analyze();});
-$('mode-btn').addEventListener('click',()=>{state.library=!state.library;analyze();});$('reset-btn').addEventListener('click',()=>{$('scenario-form').reset();$('trading-date').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});state.selected.clear();state.sessionChoices={};$('sequence-explore').checked=false;state.library=false;$('use-checkpoints').checked=false;analyze();});
+$('mode-btn').addEventListener('click',()=>{state.library=!state.library;analyze();});$('reset-btn').addEventListener('click',()=>{$('scenario-form').reset();$('trading-date').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});state.selected.clear();resetSessionPath();state.library=false;$('use-checkpoints').checked=false;analyze();});
 $('gallery-size').addEventListener('change',()=>{state.page=0;renderGallery();});$('gallery-prev').addEventListener('click',()=>{state.page--;renderGallery();});$('gallery-next').addEventListener('click',()=>{state.page++;renderGallery();});$('gallery').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)showViewer(Number(b.dataset.view));});
 $('viewer-prev').addEventListener('click',()=>{if(state.viewer>0)showViewer(state.viewer-1);});$('viewer-next').addEventListener('click',()=>{if(state.viewer<state.matches.length-1)showViewer(state.viewer+1);});$('viewer-zoom').addEventListener('click',()=>{const zoom=$('viewer-image-area').classList.toggle('zoom');$('viewer-zoom').textContent=zoom?'Fit chart':'Actual size';});$('chart-dialog').addEventListener('keydown',e=>{if(e.key==='ArrowRight'&&state.viewer<state.matches.length-1){e.preventDefault();showViewer(state.viewer+1);}if(e.key==='ArrowLeft'&&state.viewer>0){e.preventDefault();showViewer(state.viewer-1);}});
 document.querySelectorAll('.close-dialog').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));$('method-btn').addEventListener('click',method);$('forecast').addEventListener('click',e=>{if(e.target.closest('.explain'))method();});
@@ -183,11 +185,46 @@ function migrateCheckpoints(){
  const convert=id=>{const m=/^GAP_FILLED_(\d\d):(\d\d)$/.exec(id);return m?`GAP_30_${Math.floor((+m[1]*60 + +m[2])/30)*30}`:id;};
  state.checkpoints=state.checkpoints.map(c=>{const tags=[...new Set(c.tags.map(convert))].filter(t=>allowed.has(t));return {...c,tags,inputs:{...c.inputs,'ud-units':c.inputs['ud-units']||'percent',window:c.condition.endMinute<=300?'1930-0500':'1930-0830'},condition:{...c.condition,tags,observations:[]}};});
 }
+function resetSessionPath(){
+ state.sessionChoices={};
+ state.sessionChoiceDate=$('trading-date').value;
+ state.sessionPathCutoff=null;
+ $('sequence-explore').checked=false;
+ $('session-path-code-form').reset();
+ $('session-path-code-status').textContent='';
+}
+function syncSessionPathDate(){
+ const date=$('trading-date').value;
+ if(state.sessionChoiceDate!==null&&state.sessionChoiceDate!==date)resetSessionPath();
+ state.sessionChoiceDate=date;
+ return date;
+}
+function applySessionPathCode(text){
+ const code=parseSessionPathCode(text);
+ if(!code)return {ok:false,message:'Enter a valid SessionPath path code.'};
+ if(code.market!==instrument.id)return {ok:false,message:`Switch to ${code.market} to apply this path code.`};
+ if(code.date!==$('trading-date').value)return {ok:false,message:`Choose ${code.date} in Replay to apply this path code.`};
+ if(!state.ready)return {ok:false,message:'Session Paths is loading. Try again in a moment.'};
+ const {nta,asia,london}=code.choices;
+ state.sessionChoices={NTA:nta,ASIA:asia,LONDON:london};
+ state.sessionChoiceDate=code.date;
+ state.sessionPathCutoff=code.cutoff;
+ $('sequence-explore').checked=false;
+ $('session-path-code-status').textContent='';
+ renderSessions();
+ return {ok:true,message:`Applied NTA, Asia and London outcomes through ${code.cutoff} ET.`};
+}
 function renderSessions(){
+ const date=syncSessionPathDate();
  if(!state.ready)return;
- const minute=clockMinute($('asof').value),explore=$('sequence-explore').checked;
+ const cutoff=state.sessionPathCutoff,explore=$('sequence-explore').checked;
+ // The imported cutoff is on the trading date, even at 19:30 or later.
+ const minute=cutoff?Number(cutoff.slice(0,2))*60+Number(cutoff.slice(3)):clockMinute($('asof').value);
+ const observation=$('session-path-code-observation');
+ observation.hidden=!cutoff;
+ observation.textContent=cutoff?`Path code observation · ${cutoff} ET`:'';
  for(const s of sessions)if(!explore&&s.end>minute)delete state.sessionChoices[s.id];
- const results=sessionProbabilities(state.days.filter(d=>d.date<$('trading-date').value),state.sessionChoices,$('year').value);
+ const results=sessionProbabilities(state.days.filter(d=>d.date<date),state.sessionChoices,$('year').value);
  $('session-cards').innerHTML=results.map((r,i)=>{const s=r.session,locked=!explore&&s.end>minute,chosen=state.sessionChoices[s.id]||'',conditions=r.conditions.map(p=>`${p.id}: ${shapeName(p.value)}`).join(' + ');
   return `<article class="session-card"><div class="session-time">${esc(s.time)} ET</div><h3>${esc(s.name)}</h3><p class="session-denominator">${r.n.toLocaleString()} complete cases${r.n<20?' · small sample':''}</p><p class="session-conditioning">${conditions?`Given ${esc(conditions)}`:'Unconditional baseline'}${explore&&r.conditions.some(p=>sessions.find(s=>s.id===p.id).end>minute)?' · hypothetical':''}</p><div class="probability-bars">${r.bins.map(b=>{const definition=state.shapeDictionary.find(t=>t.id===`${s.id}:${b.id}`)?.definition||shapeName(b.id);return `<div class="probability-row ${chosen===b.id?'observed':''}" title="${esc(definition)}"><div><span>${esc(b.label)}</span><b>${b.p==null?'—':(b.p*100).toFixed(1)+'%'}</b></div><div class="probability-track" role="img" aria-label="${esc(b.label)}: ${b.count} of ${r.n} cases"><span style="width:${(b.p||0)*100}%"></span></div><small>${b.count} / ${r.n}</small></div>`;}).join('')}</div>${i<sessions.length-1?`<label class="observed-select">${explore?'Assume this outcome':'Observed outcome'}<select data-session="${s.id}" aria-label="${s.id} observed outcome" ${locked?'disabled':''}><option value="">Not selected</option>${shapes.map(([id,label])=>`<option value="${id}" ${chosen===id?'selected':''}>${label}</option>`).join('')}</select></label><p class="session-select-note">${locked?`Available after ${clockLabel(s.end)}. Use hypothetical mode to explore.`:'Selecting an outcome updates the sessions to the right.'}</p>`:'<p class="session-select-note">Final session in the sequence.</p>'}</article>`;
  }).join('');
@@ -207,8 +244,19 @@ function renderBox(){
  if(ready){state.pine=state.pineTemplate?makeChartPine(state.pineTemplate,b,q):null;$('forecast-code').value=makeForecastCode(b,q);document.dispatchEvent(new CustomEvent('sessionpath:forecast-export',{detail:{code:$('forecast-code').value}}));}else $('forecast-code').value='';$('copy-forecast-code').disabled=!ready;$('pine-source').value=state.pine||'';
 }
 $('session-cards').addEventListener('change',e=>{const select=e.target.closest('[data-session]');if(!select)return;const i=sessions.findIndex(s=>s.id===select.dataset.session);state.sessionChoices[select.dataset.session]=select.value;for(const s of sessions.slice(i+1))delete state.sessionChoices[s.id];renderSessions();});
-$('clear-sequence').addEventListener('click',()=>{state.sessionChoices={};renderSessions();});
+$('clear-sequence').addEventListener('click',()=>{resetSessionPath();renderSessions();});
 $('sequence-explore').addEventListener('change',renderSessions);
+$('session-path-code-form').addEventListener('submit',event=>{
+ event.preventDefault();
+ const field=event.currentTarget.elements.namedItem('pathCode');
+ const result=applySessionPathCode(field.value);
+ $('session-path-code-status').textContent=result.message;
+ if(result.ok)field.value='';
+});
+document.addEventListener('sessionpath:apply-path-code',event=>{
+ const detail=event.detail;
+ if(detail&&typeof detail==='object')detail.result=applySessionPathCode(detail.code);
+});
 $('box-horizon').addEventListener('change',renderBox);
 $('copy-forecast-code').addEventListener('click',async()=>{const field=$('forecast-code');if(!field.value)return;try{await navigator.clipboard.writeText(field.value);flashCopyStatus($('pine-status'),'Code copied!');}catch{field.focus();field.select();flashCopyStatus($('pine-status'),'Code selected. Press Ctrl+C.',0);}});
 $('download-pine').addEventListener('click',()=>{if(!state.pine)return;const url=URL.createObjectURL(new Blob([state.pine],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`SessionPath-${instrument.id}-${state.query.date}-${clockLabel(state.query.minute).replace(':','')}.pine`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('pine-status').textContent='Indicator exported for these inputs.';});

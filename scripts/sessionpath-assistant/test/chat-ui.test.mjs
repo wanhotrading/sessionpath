@@ -113,3 +113,14 @@ test('chart output shows provenance for archive, provisional and incomplete shap
  await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));await h.ui.submit('Read the shape tags.');
  const panel=h.doc.querySelector('.sp-chat-shapes');assert.ok(panel);assert.match(panel.textContent,/NQ · 2026-10-19 10:45 NY/);assert.match(panel.textContent,/Archive match · NTA:UP_FINISH/);assert.match(panel.textContent,/Screenshot only · ASIA:UP_FINISH/);assert.match(panel.textContent,/London · Unverified/);assert.match(panel.textContent,/New York · Not complete/);
 });
+
+test('a verified chart code can be copied and applies only when explicitly requested',async t=>{
+ const code='SPPATH1|NQ|2026-10-19|10:45|UP_FINISH|UP_FINISH|NARROW';
+ const h=harness(t,{market:'NQ',reducedMotion:true,fetcher:async(_url,options)=>Response.json(chartReading(JSON.parse(options.body).context,{chartObservation:{market:'NQ',ticker:'NQ1!',date:'2026-10-19',cutoff:'2026-10-19T10:45',timezone:'America/New_York',intervalMinutes:5},shapeTags:[{session:'NTA',tag:'UP_FINISH',status:'archive',reason:'Matched.'},{session:'ASIA',tag:'UP_FINISH',status:'archive',reason:'Matched.'},{session:'LONDON',tag:'NARROW',status:'archive',reason:'Matched.'}]}))});
+ let attempts=0;h.doc.addEventListener('sessionpath:apply-path-code',event=>{assert.equal(event.detail.code,code);event.detail.result=++attempts===1?{ok:false,message:'Select the matching date.'}:{ok:true,message:'Applied.'};});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));await h.ui.submit('Give me the path code.');
+ assert.equal(attempts,0);assert.equal(h.doc.querySelector('[aria-label="Session paths code"]').value,code);assert.equal(h.doc.querySelector('.sp-chat-visual-reading').open,false);
+ const [copy,apply]=h.doc.querySelectorAll('.sp-chat-path-actions button');copy.click();await tick();assert.deepEqual(h.state.clipboard,[code]);
+ apply.click();assert.match(h.doc.querySelector('.sp-chat-path-actions+p').textContent,/matching date/);assert.equal(h.doc.querySelector('.sp-chat-panel').hidden,false);
+ apply.click();assert.equal(attempts,2);assert.equal(h.doc.querySelector('.sp-chat-panel').hidden,true);assert.equal(h.state.requests.length,0);
+});
