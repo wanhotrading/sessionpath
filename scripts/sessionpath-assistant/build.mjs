@@ -1,7 +1,7 @@
 import {readFile, writeFile} from 'node:fs/promises';
 import {buildChartShapeArchive} from './build-chart-shape-archive.mjs';
 const parts = [];
-for (const file of ['../../docs/chart-reading-reference.mjs', 'intent.mjs', 'quota.mjs', 'chart-shape-archive.mjs', 'chart-vision.mjs', 'router.mjs', 'worker.mjs']) {
+for (const file of ['../../docs/chart-day-review-knowledge.mjs', '../../docs/chart-reading-reference.mjs', 'intent.mjs', 'quota.mjs', 'chart-shape-archive.mjs', 'chart-vision.mjs', 'router.mjs', 'worker.mjs']) {
   let source = await readFile(new URL(file, import.meta.url), 'utf8');
   if (file === 'chart-shape-archive.mjs') {
     const archive = await buildChartShapeArchive();

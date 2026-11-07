@@ -1,4 +1,4 @@
-import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=chart-history-20261107';
+import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=day-review-20261107b';
 import {makeChartSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
 
 const MARKETS=['CL','NQ','ES','GC'];

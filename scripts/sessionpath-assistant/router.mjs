@@ -1,5 +1,7 @@
 import {validateRequest, validateIntent, parseExactForecast, resolveMessageDate, nyToday, renderIntent, INTENT_SCHEMA} from './intent.mjs';
 import {CHART_MAX_REQUEST_BYTES, CHART_TIMEOUT_MS, ChartInputError, validateChartRequest, handleChartAnalysis} from './chart-vision.mjs';
+import {CHART_REFERENCE_VERSION} from '../../docs/chart-reading-reference.mjs';
+import {DAY_REVIEW_KNOWLEDGE} from '../../docs/chart-day-review-knowledge.mjs';
 
 export const ASSISTANT_ORIGIN = 'https://wanhotrading.github.io';
 // Verified against the official model catalog: zero prompt/completion pricing,
@@ -115,7 +117,7 @@ export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TI
     if (origin && origin !== ASSISTANT_ORIGIN) return errorReply(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed.', origin);
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') {
-      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, freeModelsOnly: true}, 200, origin);
+      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, freeModelsOnly: true, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
     }
     const chartRoute = url.pathname === '/api/chart';
     if (url.pathname !== '/api/chat' && !chartRoute) return errorReply(404, 'NOT_FOUND', 'Not found.', origin);

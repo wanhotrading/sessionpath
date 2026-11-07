@@ -112,7 +112,7 @@ export function validateChartRequest(value, {now = Date.now()} = {}) {
   if (!chartKeys(value, ['context', 'image'], ['message', 'referenceVersion', 'observation']) || !chartKeys(value.context, ['market', 'window', 'date'])
     || !MARKETS.includes(value.context.market) || !WINDOWS.includes(value.context.window)
     || !(value.context.date === null || validDate(value.context.date, {now})) || !chartKeys(value.image, ['dataUrl'])
-    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
+    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v5', 'sessionpath-chart-v4', 'sessionpath-chart-v3', 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
     || (value.observation !== undefined && !validHistoricalObservation(value.observation, now))
     || (value.message !== undefined && (typeof value.message !== 'string' || value.message.length > 600 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.message)))) {
     throw new ChartInputError('INVALID_CHART_REQUEST', 'Choose a supported market, window and valid date, then attach one screenshot.');
