@@ -100,15 +100,24 @@ export function validateChartImage(dataUrl) {
   return {dataUrl, mime: match[1], width, height};
 }
 
+function validHistoricalObservation(value, now) {
+  const parts = Object.fromEntries(chartNyClock.formatToParts(now).map(({type, value}) => [type, value]));
+  const nyNow = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  return chartKeys(value, ['mode', 'date', 'cutoff']) && value.mode === 'historical' && validDate(value.date, {now})
+    && (value.cutoff === null || (typeof value.cutoff === 'string' && CHART_CUTOFF.test(value.cutoff)
+      && value.cutoff.slice(0,10) === value.date && value.cutoff <= nyNow && chartCutoffMinute(value.date, value.cutoff) !== null));
+}
+
 export function validateChartRequest(value, {now = Date.now()} = {}) {
-  if (!chartKeys(value, ['context', 'image'], ['message', 'referenceVersion']) || !chartKeys(value.context, ['market', 'window', 'date'])
+  if (!chartKeys(value, ['context', 'image'], ['message', 'referenceVersion', 'observation']) || !chartKeys(value.context, ['market', 'window', 'date'])
     || !MARKETS.includes(value.context.market) || !WINDOWS.includes(value.context.window)
     || !(value.context.date === null || validDate(value.context.date, {now})) || !chartKeys(value.image, ['dataUrl'])
-    || (value.referenceVersion !== undefined && value.referenceVersion !== CHART_REFERENCE_VERSION)
+    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
+    || (value.observation !== undefined && !validHistoricalObservation(value.observation, now))
     || (value.message !== undefined && (typeof value.message !== 'string' || value.message.length > 600 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.message)))) {
     throw new ChartInputError('INVALID_CHART_REQUEST', 'Choose a supported market, window and valid date, then attach one screenshot.');
   }
-  return {message: value.message?.trim() || 'Describe the visible price movement so far.', context: {...value.context}, image: validateChartImage(value.image.dataUrl), referenceVersion: value.referenceVersion ?? CHART_LEGACY_REFERENCE_VERSION};
+  return {message: value.message?.trim() || 'Describe the visible price movement so far.', context: {...value.context}, image: validateChartImage(value.image.dataUrl), referenceVersion: value.referenceVersion ?? CHART_LEGACY_REFERENCE_VERSION, ...(value.observation ? {observation: {...value.observation}} : {})};
 }
 
 const chartString = maxLength => ({type: 'string', minLength: 1, maxLength});
@@ -168,7 +177,7 @@ function chartCutoffMinute(date, cutoff) {
 }
 
 const chartPriceOrNull = value => value === null || Number.isFinite(value);
-export function validateChartShapeEvidence(value, {now = Date.now()} = {}) {
+export function validateChartShapeEvidence(value, {now = Date.now(), observation} = {}) {
   if (!chartKeys(value, CHART_SHAPE_KEYS, ['captureNy'])
     || !(value.market === null || MARKETS.includes(value.market))
     || !(value.ticker === null || (typeof value.ticker === 'string' && value.ticker.length <= 32 && CHART_TICKER.test(value.ticker)))
@@ -188,8 +197,9 @@ export function validateChartShapeEvidence(value, {now = Date.now()} = {}) {
   }
   const nowParts = Object.fromEntries(chartNyClock.formatToParts(now).map(({type, value}) => [type, value]));
   const nyNow = `${nowParts.year}-${nowParts.month}-${nowParts.day}T${nowParts.hour}:${nowParts.minute}`;
-  const cutoff = value.timezone === 'America/New_York' && value.cutoff !== null && value.cutoff <= nyNow && (value.captureNy == null || value.cutoff <= value.captureNy) && chartCutoffMinute(value.date, value.cutoff) !== null ? value.cutoff : null;
-  const date = cutoff !== null || value.date <= nyNow.slice(0, 10) ? value.date : null;
+  const matchesObservation = !observation || (validHistoricalObservation(observation, now) && value.date === observation.date);
+  const cutoff = matchesObservation && value.timezone === 'America/New_York' && value.cutoff !== null && value.cutoff <= nyNow && (value.captureNy == null || value.cutoff <= value.captureNy) && chartCutoffMinute(value.date, value.cutoff) !== null && (!observation?.cutoff || value.cutoff <= observation.cutoff) ? value.cutoff : null;
+  const date = matchesObservation && (cutoff !== null || value.date <= nyNow.slice(0, 10)) ? value.date : null;
   const tickerMarket = value.ticker?.match(CHART_TICKER)?.[1].replace(/^M/u, '');
   return {...value, market: tickerMarket ?? value.market, date, cutoff};
 }
@@ -247,7 +257,7 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
     const upstream = await fetcher(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://wanhotrading.github.io/sessionpath/', 'X-OpenRouter-Title': 'SessionPath Chart Reader'}, signal: controller.signal,
       body: JSON.stringify({model, messages: [
         {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs and structured shapeEvidence. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null evidence and an empty sessions list instead of inventing events.`},
-        {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
+        {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message, ...(input.observation ? {observation: input.observation} : {})})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
       ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0, stream: false, reasoning: {enabled: false}, provider: {require_parameters: true}, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
     });
     if (!upstream.ok) {
@@ -266,8 +276,9 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
     const modelAnalysis = JSON.parse(data.choices[0].message.content);
     const analysis = validateChartAnalysis(modelAnalysis);
     if (!analysis) throw new Error('Invalid analysis');
-    const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, {now}), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, {now}));
-    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape}, 200, origin);
+    const shapeOptions = {now, observation: input.observation};
+    const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions));
+    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
   } catch {
     return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The free chart interpreter timed out. No automatic retry was made.' : 'The free chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
   } finally {clearTimeout(timer);}

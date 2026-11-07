@@ -124,3 +124,68 @@ test('a verified chart code can be copied and applies only when explicitly reque
  apply.click();assert.match(h.doc.querySelector('.sp-chat-path-actions+p').textContent,/matching date/);assert.equal(h.doc.querySelector('.sp-chat-panel').hidden,false);
  apply.click();assert.equal(attempts,2);assert.equal(h.doc.querySelector('.sp-chat-panel').hidden,true);assert.equal(h.state.requests.length,0);
 });
+
+function historicalControls(h){
+ return {toggle:h.doc.querySelector('.sp-chat-historical-toggle input'),fields:h.doc.querySelector('.sp-chat-historical-fields'),date:h.doc.querySelector('.sp-chat-chart-date'),close:h.doc.querySelector('.sp-chat-chart-close')};
+}
+
+test('historical screenshot controls default to the visible Replay date and reset with the attachment',async t=>{
+ const h=harness(t),replay=h.doc.createElement('input'),replayDate=h.doc.createElement('input');
+ replay.id='replay-toggle';replay.type='checkbox';replay.checked=true;replayDate.id='replay-date';replayDate.type='date';replayDate.value='2026-10-15';h.doc.body.append(replay,replayDate);
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
+ const controls=historicalControls(h);assert.equal(controls.toggle.checked,false);assert.equal(controls.fields.hidden,true);assert.equal(controls.date.required,false);assert.equal(controls.date.value,'');assert.equal(controls.date.max,'2026-11-04');assert.equal(controls.close.step,'300');
+ controls.toggle.click();assert.equal(controls.fields.hidden,false);assert.equal(controls.date.required,true);assert.equal(controls.date.value,'2026-10-15');controls.close.value='08:45';
+ h.ui.clearAttachment();assert.equal(controls.toggle.checked,false);assert.equal(controls.fields.hidden,true);assert.equal(controls.date.required,false);assert.equal(controls.date.value,'');assert.equal(controls.close.value,'');
+ replay.checked=false;await h.ui.attachImage(new h.dom.window.File(['image'],'second.png',{type:'image/png'}));controls.toggle.click();assert.equal(controls.date.value,'');assert.equal(h.state.calls.length,0);assert.equal(h.dom.window.sessionStorage.getItem(KEY),null);
+});
+
+test('historical screenshot observation stays separate from planner context, renders its date, and stays out of history storage',async t=>{
+ const h=harness(t,{fetcher:async(url,options)=>{
+  const request=JSON.parse(options.body);
+  return Response.json(url.endsWith('/api/chat')?intent({date:'2026-11-02'}):chartReading(request.context,{observationContext:request.observation}));
+ }});
+ await h.ui.submit('CL 03-05 on 2nd Nov');await h.ui.attachImage(new h.dom.window.File(['image'],'old-chart.png',{type:'image/png'}));
+ const controls=historicalControls(h);controls.toggle.click();controls.date.value='2026-10-15';controls.close.value='08:45';await h.ui.submit('Describe the historical chart');
+ const request=JSON.parse(h.state.calls[1].options.body),observation={mode:'historical',date:'2026-10-15',cutoff:'2026-10-15T08:45'};
+ assert.deepEqual(request.context,{market:'CL',window:'03:00-05:00',date:'2026-11-02'});assert.deepEqual(request.observation,observation);assert.equal(request.image.dataUrl,imageData);
+ const note=h.doc.querySelector('.sp-chat-chart-reading>.sp-chat-note').textContent;assert.match(note,/Historical screenshot · chart date 2026-10-15 · NY/);assert.match(note,/last completed close 08:45/);assert.match(note,/Selected context: CL · 03:00-05:00 NY · 2026-11-02/);assert.doesNotMatch(note,/live \/ today/);
+ assert.doesNotMatch(h.dom.window.sessionStorage.getItem(KEY)||'',/2026-10-15|08:45|old-chart|base64|historical chart/);
+ h.doc.querySelector('.sp-chat-comparison-copy').click();await tick();assert.match(h.state.clipboard[0],/Historical chart observation supplied by the user/);assert.match(h.state.clipboard[0],/2026-10-15T08:45/);
+ assert.equal(controls.toggle.checked,false);assert.equal(controls.date.value,'');assert.equal(controls.close.value,'');
+});
+
+test('historical chart time is optional and ordinary screenshot requests keep their original payload',async t=>{
+ const h=harness(t,{fetcher:async(_url,options)=>{const request=JSON.parse(options.body);return Response.json(chartReading(request.context,request.observation?{observationContext:request.observation}:{}));}});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));const controls=historicalControls(h);controls.toggle.click();controls.date.value='2026-10-15';await h.ui.submit('Read this');
+ assert.deepEqual(JSON.parse(h.state.calls[0].options.body).observation,{mode:'historical',date:'2026-10-15',cutoff:null});
+ const note=h.doc.querySelector('.sp-chat-chart-reading>.sp-chat-note').textContent;assert.match(note,/chart date 2026-10-15 · NY/);assert.doesNotMatch(note,/live \/ today|last completed close/);
+ await h.ui.attachImage(new h.dom.window.File(['image'],'second.png',{type:'image/png'}));await h.ui.submit('Read this');
+ assert.deepEqual(JSON.parse(h.state.calls[1].options.body),{message:'Read this',context:{market:'CL',window:'03:00-05:00',date:null},referenceVersion:CHART_REFERENCE_VERSION,image:{dataUrl:imageData}});
+});
+
+test('invalid historical chart dates and off-grid close times stop before fetch while retaining the image and question',async t=>{
+ const h=harness(t,{now:()=>Date.parse('2026-11-05T02:00:00Z')});await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));const controls=historicalControls(h);controls.toggle.click();h.doc.querySelector('.sp-chat-input').value='Keep this question';
+ for(const [date,close,message]of [['','','Choose the chart trading date'],['2026-02-30','','Choose the chart trading date'],['2026-11-05','','cannot be after today in New York'],['2026-10-15','08:43','five-minute completed-close time'],['2026-10-15','08:45:30','five-minute completed-close time']]){
+  controls.date.value=date;controls.close.value=close;await h.ui.submit();assert.equal(h.state.calls.length,0);assert.ok(h.doc.querySelector('.sp-chat-status').textContent.includes(message));assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);assert.equal(h.doc.querySelector('.sp-chat-input').value,'Keep this question');assert.equal(h.state.revoked.length,0);
+ }
+ assert.equal(h.doc.querySelector('.sp-chat-history').children.length,0);assert.equal(h.dom.window.sessionStorage.getItem(KEY),null);
+});
+
+test('a historical screenshot response must echo the exact observation before the attachment is cleared',async t=>{
+ let attempts=0;const h=harness(t,{fetcher:async(_url,options)=>{const request=JSON.parse(options.body);return Response.json(chartReading(request.context,++attempts===1?{}:{observationContext:request.observation}));}});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));const controls=historicalControls(h);controls.toggle.click();controls.date.value='2026-10-15';controls.close.value='08:45';await h.ui.submit('Read this old chart');
+ assert.equal(h.doc.querySelector('.sp-chat-chart-reading'),null);assert.match(h.ui.element.textContent,/chart reading was incomplete/);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);assert.equal(controls.toggle.checked,true);assert.equal(controls.date.value,'2026-10-15');assert.equal(controls.close.value,'08:45');
+ await h.ui.submit();assert.ok(h.doc.querySelector('.sp-chat-chart-reading'));assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);
+ const context={market:'CL',window:'03:00-05:00',date:null},observation={mode:'historical',date:'2026-10-15',cutoff:'2026-10-15T08:45'};
+ assert.equal(validateChartReading(chartReading(context,{observationContext:observation}),context,observation),true);
+ for(const observationContext of [{...observation,date:'2026-10-16'},{...observation,cutoff:null},{...observation,extra:true},null])assert.equal(validateChartReading(chartReading(context,{observationContext}),context,observation),false);
+ assert.equal(validateChartReading(chartReading(context,{observationContext:observation}),context),false);
+});
+
+test('historical controls are locked during upload and reset on a successful replacement only',async t=>{
+ let fail=false,release;const h=harness(t,{prepareImage:async()=>{if(fail)throw new Error('Invalid image.');return {dataUrl:imageData,width:800,height:400};},fetcher:async(_url,options)=>{await new Promise(resolve=>release=resolve);const request=JSON.parse(options.body);return Response.json(chartReading(request.context,{observationContext:request.observation}));}});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));const controls=historicalControls(h);controls.toggle.click();controls.date.value='2026-10-15';controls.close.value='08:45';fail=true;
+ await h.ui.attachImage(new h.dom.window.File(['bad'],'bad.png',{type:'image/png'}));assert.equal(controls.toggle.checked,true);assert.equal(controls.date.value,'2026-10-15');assert.equal(controls.close.value,'08:45');fail=false;
+ await h.ui.attachImage(new h.dom.window.File(['new'],'new.png',{type:'image/png'}));assert.equal(controls.toggle.checked,false);assert.equal(controls.date.value,'');assert.equal(controls.close.value,'');controls.toggle.click();controls.date.value='2026-10-15';
+ const sending=h.ui.submit('Read this');for(const field of [controls.toggle,controls.date,controls.close])assert.equal(field.disabled,true);release();await sending;for(const field of [controls.toggle,controls.date,controls.close])assert.equal(field.disabled,false);
+});
