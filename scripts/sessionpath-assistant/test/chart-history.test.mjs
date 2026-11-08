@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAssistantHandler} from '../router.mjs';
-import {validateChartRequest, validateChartShapeEvidence, classifyChartShapeEvidence} from '../chart-vision.mjs';
+import {CHART_MODEL, validateChartRequest, validateChartShapeEvidence, classifyChartShapeEvidence} from '../chart-vision.mjs';
 import {CHART_REFERENCE_VERSION} from '../../../docs/chart-reading-reference.mjs';
 import {RASTER_FIXTURES} from './chart-fixtures.mjs';
 
@@ -54,7 +54,7 @@ function harness(modelEvidence = evidence) {
     fetcher: async (_url, init) => {
       state.upstreamCalls++;
       state.sent = JSON.parse(init.body);
-      return Response.json({choices: [{
+      return Response.json({model: CHART_MODEL, choices: [{
         finish_reason: 'stop', message: {content: JSON.stringify({...analysis, shapeEvidence: modelEvidence})},
       }]});
     },

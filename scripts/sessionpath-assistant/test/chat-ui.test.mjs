@@ -86,7 +86,7 @@ test('reduced motion and the existing Pause animation setting finish the lifecyc
 });
 
 test('attaching only prepares a local preview; remove and replacement revoke object URLs without uploading',async t=>{
- const h=harness(t),file=new h.dom.window.File(['image'],'chart.png',{type:'image/png'});assert.equal(await h.ui.attachImage(file),true);assert.equal(h.state.calls.length,0);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);assert.match(h.doc.querySelector('.sp-chat-image-disclosure').textContent,/OpenRouter\/NVIDIA/);assert.equal(h.doc.querySelector('.sp-chat-filename').textContent,'chart.png');await h.ui.attachImage(new h.dom.window.File(['other'],'other.webp',{type:'image/webp'}));assert.deepEqual(h.state.revoked,['blob:chart-0']);h.doc.querySelector('.sp-chat-remove-image').click();assert.deepEqual(h.state.revoked,['blob:chart-0','blob:chart-1']);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);assert.equal(h.doc.querySelector('.sp-chat-preview').hasAttribute('src'),false);assert.equal(h.state.calls.length,0);
+ const h=harness(t),file=new h.dom.window.File(['image'],'chart.png',{type:'image/png'});assert.equal(await h.ui.attachImage(file),true);assert.equal(h.state.calls.length,0);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);assert.match(h.doc.querySelector('.sp-chat-image-disclosure').textContent,/OpenRouter\/xAI/);assert.equal(h.doc.querySelector('.sp-chat-filename').textContent,'chart.png');await h.ui.attachImage(new h.dom.window.File(['other'],'other.webp',{type:'image/webp'}));assert.deepEqual(h.state.revoked,['blob:chart-0']);h.doc.querySelector('.sp-chat-remove-image').click();assert.deepEqual(h.state.revoked,['blob:chart-0','blob:chart-1']);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);assert.equal(h.doc.querySelector('.sp-chat-preview').hasAttribute('src'),false);assert.equal(h.state.calls.length,0);
 });
 test('sending an attached image uses only the selected normalized image and renders a separate safe reading',async t=>{
  const h=harness(t,{fetcher:async(url,options)=>Response.json(chartReading(JSON.parse(options.body).context,{analysis:{summary:'<img src=x onerror=evil()> visibly declines.',sequence:['Down, then up.'],bbox:'Not clear.',sessionpath:'A box is visible.',uncertainties:['Date not readable.']}}))});await h.ui.attachImage(new h.dom.window.File(['image'],'private-chart.png',{type:'image/png'}));await h.ui.submit('');assert.match(h.state.calls[0].url,/\/api\/chart$/);const request=JSON.parse(h.state.calls[0].options.body);assert.deepEqual(request,{message:'Describe the visible price movement so far.',context:{market:'CL',window:'03:00-05:00',date:null},referenceVersion:CHART_REFERENCE_VERSION,image:{dataUrl:imageData}});assert.equal(h.state.calls[0].options.credentials,'omit');assert.equal(h.state.requests.length,0);assert.ok(h.doc.querySelector('.sp-chat-chart-reading'));assert.equal(h.doc.querySelector('.sp-chat-history img'),null);assert.match(h.ui.element.textContent,/This selection does not verify/);assert.equal(h.doc.querySelector('.sp-chat-code'),null);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);assert.deepEqual(h.state.revoked,['blob:chart-0']);assert.doesNotMatch(h.dom.window.sessionStorage.getItem(KEY)||'',/image\/jpeg|base64|private-chart|visibly declines/);
@@ -188,4 +188,85 @@ test('historical controls are locked during upload and reset on a successful rep
  await h.ui.attachImage(new h.dom.window.File(['bad'],'bad.png',{type:'image/png'}));assert.equal(controls.toggle.checked,true);assert.equal(controls.date.value,'2026-10-15');assert.equal(controls.close.value,'08:45');fail=false;
  await h.ui.attachImage(new h.dom.window.File(['new'],'new.png',{type:'image/png'}));assert.equal(controls.toggle.checked,false);assert.equal(controls.date.value,'');assert.equal(controls.close.value,'');controls.toggle.click();controls.date.value='2026-10-15';
  const sending=h.ui.submit('Read this');for(const field of [controls.toggle,controls.date,controls.close])assert.equal(field.disabled,true);release();await sending;for(const field of [controls.toggle,controls.date,controls.close])assert.equal(field.disabled,false);
+});
+
+test('a valid screenshot reply after three minutes is not aborted before the server deadline',async t=>{
+ let release,signal;
+ const h=harness(t,{fetcher:(_url,options)=>{signal=options.signal;return new Promise(resolve=>release=resolve);}});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
+ t.mock.timers.enable({apis:['setTimeout']});
+ const pending=h.ui.submit('Describe the completed session.');
+ for(let i=0;i<4;i++)await Promise.resolve();
+ assert.ok(signal);
+ t.mock.timers.tick(180000);
+ assert.equal(signal.aborted,false);
+ release(Response.json(chartReading({market:'CL',window:'03:00-05:00',date:null},{model:'x-ai/grok-4.7'})));
+ await pending;
+ assert.match(h.ui.element.textContent,/x-ai\/grok-4\.7/);
+ assert.ok(h.doc.querySelector('.sp-chat-chart-reading'));
+});
+
+test('the chart timeout remains active after SSE headers while the final result is pending',async t=>{
+ let signal;
+ const h=harness(t,{fetcher:(_url,options)=>{signal=options.signal;return Promise.resolve(new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(': connected\n\n'));}}),{headers:{'Content-Type':'text/event-stream'}}));}});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
+ t.mock.timers.enable({apis:['setTimeout']});
+ const pending=h.ui.submit('Describe this screenshot.');
+ for(let i=0;i<8;i++)await Promise.resolve();
+ assert.ok(signal);assert.equal(signal.aborted,false);
+ t.mock.timers.tick(195001);
+ await pending;
+ assert.equal(signal.aborted,true);assert.equal(h.state.calls.length,1);
+ assert.match(h.ui.element.textContent,/chart reader took too long/);
+ assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);
+});
+
+test('a streamed chart response renders the validated reading and requests SSE explicitly',async t=>{
+ const encoder=new TextEncoder();
+ const h=harness(t,{fetcher:async(_url,options)=>{
+  const request=JSON.parse(options.body),reply=chartReading(request.context,{model:'x-ai/grok-4.7'});
+  const data='event: result\ndata: '+JSON.stringify(reply)+'\n\n',middle=Math.floor(data.length/2);
+  return new Response(new ReadableStream({start(controller){
+   for(const chunk of [': working\r\n\r\n',data.slice(0,middle),data.slice(middle)])controller.enqueue(encoder.encode(chunk));controller.close();
+  }}),{headers:{'Content-Type':'text/event-stream; charset=utf-8'}});
+ }});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
+ await h.ui.submit('Read the visible movement.');
+ assert.equal(h.state.calls.length,1);
+ assert.equal(h.state.calls[0].options.headers.Accept,'text/event-stream');
+ assert.equal(h.state.requests.length,0);
+ assert.ok(h.doc.querySelector('.sp-chat-chart-reading'));
+ assert.match(h.ui.element.textContent,/Price declined before recovering/);
+ assert.match(h.ui.element.textContent,/x-ai\/grok-4\.7/);
+ assert.doesNotMatch(h.ui.element.textContent,/event: result|: working/);
+ assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);
+});
+
+test('a streamed provider error preserves the attachment and exposes the fixed server message',async t=>{
+ const message='This chart-reading account has reached its request limit.';
+ const h=harness(t,{fetcher:async()=>new Response('event: result\ndata: '+JSON.stringify({ok:false,error:{code:'CHART_USAGE_LIMIT',message}})+'\n\n',{headers:{'Content-Type':'text/event-stream'}})});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
+ await h.ui.submit('Describe this chart.');
+ assert.equal(h.state.calls.length,1);
+ assert.equal(h.doc.querySelector('.sp-chat-chart-reading'),null);
+ assert.ok(h.ui.element.textContent.includes(message));
+ assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);
+ assert.equal(h.doc.querySelector('.sp-chat-input').value,'Describe this chart.');
+ assert.equal(h.state.revoked.length,0);
+ assert.ok(h.doc.querySelector('.sp-chat-retry'));
+ await tick();assert.equal(h.state.calls.length,1);
+});
+
+test('a chart stream ending without a result keeps the screenshot and never retries automatically',async t=>{
+ const h=harness(t,{fetcher:async()=>new Response(': still working\n\n',{headers:{'Content-Type':'text/event-stream'}})});
+ await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
+ await h.ui.submit('Read this screenshot.');
+ assert.equal(h.state.calls.length,1);
+ assert.equal(h.doc.querySelector('.sp-chat-chart-reading'),null);
+ assert.match(h.ui.element.textContent,/ended before returning a result/);
+ assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);
+ assert.equal(h.doc.querySelector('.sp-chat-input').value,'Read this screenshot.');
+ assert.equal(h.state.revoked.length,0);
+ await tick();assert.equal(h.state.calls.length,1);
+ assert.equal(h.doc.querySelector('.sp-chat-send').disabled,false);
 });

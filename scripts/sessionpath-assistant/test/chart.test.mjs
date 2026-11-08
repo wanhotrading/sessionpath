@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAssistantHandler, FREE_MODEL, OPENROUTER_URL} from '../router.mjs';
-import {validateChartImage, validateChartRequest, validateChartAnalysis, CHART_MAX_DATA_URL_LENGTH, CHART_MAX_REQUEST_BYTES} from '../chart-vision.mjs';
+import {validateChartImage, validateChartRequest, validateChartAnalysis, CHART_MAX_DATA_URL_LENGTH, CHART_MAX_REQUEST_BYTES, CHART_MODEL, CHART_MAX_OUTPUT_TOKENS, CHART_TIMEOUT_MS, CHART_PROVIDER} from '../chart-vision.mjs';
 import {CHART_REFERENCE_VERSION, CHART_READING_SYSTEM} from '../../../docs/chart-reading-reference.mjs';
 import {RASTER_FIXTURES} from './chart-fixtures.mjs';
 
@@ -10,7 +10,7 @@ const context = {market: 'CL', window: '03:00-05:00', date: null};
 const analysis = {summary: 'The visible candles initially rise, then retrace into the earlier range.', sequence: ['Price rises toward the visible upper area.', 'The latest visible candles retrace.'], bbox: 'The BBOX boundaries are not legible enough to identify a completed-close return.', sessionpath: 'A green and red region is visible, but its full labels and endpoint are unclear.', uncertainties: ['The chart timezone and latest candle completion status are not established.']};
 const chartBody = (extras = {}) => ({message: '', context, image: {dataUrl: RASTER_FIXTURES.jpeg}, ...extras});
 function chartPost(body = chartBody(), headers = {}) {return new Request('https://assistant.test/api/chart', {method: 'POST', headers: {'Content-Type': 'application/json', Origin: 'https://wanhotrading.github.io', 'CF-Connecting-IP': '192.0.2.8', ...headers}, body: JSON.stringify(body)});}
-const visionResponse = value => Response.json({choices: [{finish_reason: 'stop', message: {content: JSON.stringify(value)}}]});
+const visionResponse = value => Response.json({model: CHART_MODEL, choices: [{finish_reason: 'stop', message: {content: JSON.stringify(value)}}]});
 function setup(fetcher = async () => visionResponse(analysis), overrides = {}) {
   let count = 0;
   const env = {OPENROUTER_API_KEY: 'dummy-not-real-secret', ASSISTANT_QUOTA: {getByName(name) {assert.equal(name, 'global-free-ai-v1'); return {reserve: async ({ip}) => {assert.equal(ip, '192.0.2.8'); count++; return {allowed: true};}};}}};
@@ -62,14 +62,14 @@ test('chart HTTP/dataURL limits are bounded independently of the small text chat
   assert.equal(s.count(), 1);
 });
 
-test('chart uses official multipart image_url format and same pinned free model, secret and shared quota', async () => {
+test('chart uses official multipart image_url format and pinned Grok image model, secret and unchanged shared quota', async () => {
   let calledUrl, sent;
   const s = setup(async (url, init) => {calledUrl = url; sent = JSON.parse(init.body); return visionResponse(analysis);});
   const response = await s.handler(chartPost(chartBody({referenceVersion: CHART_REFERENCE_VERSION})), s.env); assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body, {ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...context, model: FREE_MODEL, referenceVersion: CHART_REFERENCE_VERSION, analysis});
-  assert.equal(calledUrl, OPENROUTER_URL); assert.equal(sent.model, 'nvidia/nemotron-3.5-super-vl:free');
-  assert.equal(sent.max_tokens, 1600); assert.deepEqual(sent.reasoning, {enabled: false}); assert.equal(sent.provider.require_parameters, true); assert.equal(sent.response_format.json_schema.strict, true);
+  assert.deepEqual(body, {ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...context, model: CHART_MODEL, referenceVersion: CHART_REFERENCE_VERSION, analysis});
+  assert.equal(calledUrl, OPENROUTER_URL); assert.equal(sent.model, CHART_MODEL); assert.equal(FREE_MODEL, 'nvidia/nemotron-3.5-super-vl:free');
+  assert.equal(sent.max_tokens, CHART_MAX_OUTPUT_TOKENS); assert.deepEqual(sent.reasoning, {effort: 'low', exclude: true}); assert.deepEqual(sent.provider, CHART_PROVIDER); assert.equal(sent.temperature, .7); assert.equal(sent.top_p, .95); assert.equal(CHART_TIMEOUT_MS, 180000); assert.equal(sent.response_format.json_schema.strict, true);
   assert.ok(sent.messages[0].content.startsWith(CHART_READING_SYSTEM)); assert.ok(!sent.messages[0].content.includes('Omit all percentages'));
   assert.equal(sent.messages[1].content[0].type, 'text'); assert.match(sent.messages[1].content[0].text, /Describe the visible price movement so far/u);
   assert.equal(Object.hasOwn(JSON.parse(sent.messages[1].content[0].text),'context'),false);
@@ -127,7 +127,7 @@ test('chart fixed errors, timeout and output limits never expose provider text o
   }
   const timeout = setup(async (_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(new Error('private-timeout-detail')))), {chartTimeoutMs: 10});
   const timed = await timeout.handler(chartPost(), timeout.env); assert.equal((await timed.json()).error.code, 'FREE_MODEL_TIMEOUT');
-  for (const provider of [Response.json({choices: [{finish_reason: 'length', message: {content: null}}]}), new Response('x'.repeat(24577))]) {
+  for (const provider of [Response.json({choices: [{finish_reason: 'length', message: {content: null}}]}), new Response('x'.repeat(65537))]) {
     const s = setup(async () => provider); const response = await s.handler(chartPost(), s.env); assert.equal(response.status, 503); assert.equal(s.count(), 1);
   }
 });

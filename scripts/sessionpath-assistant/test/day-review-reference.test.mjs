@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DAY_REVIEW_KNOWLEDGE, DAY_REVIEW_READING_GUIDE} from '../../../docs/chart-day-review-knowledge.mjs';
 import {CHART_REFERENCE_VERSION, CHART_READING_SYSTEM, CHART_COMPARISON_PROMPT, ACTIVE_DAY_REVIEW_GUIDE} from '../../../docs/chart-reading-reference.mjs';
-import {classifyChartShapeEvidence, validateChartRequest} from '../chart-vision.mjs';
+import {CHART_MODEL, classifyChartShapeEvidence, validateChartRequest} from '../chart-vision.mjs';
 import {createAssistantHandler, FREE_MODEL} from '../router.mjs';
 import {RASTER_FIXTURES} from './chart-fixtures.mjs';
 
@@ -101,7 +101,7 @@ test('legacy v3 callers receive the sourced framework without unrelated example 
   let sent;
   const handler = createAssistantHandler({now: () => NOW, fetcher: async (_url, init) => {
     sent = JSON.parse(init.body);
-    return Response.json({choices: [{finish_reason: 'stop', message: {content: JSON.stringify(analysis)}}]});
+    return Response.json({model: CHART_MODEL, choices: [{finish_reason: 'stop', message: {content: JSON.stringify(analysis)}}]});
   }});
   const request = new Request('https://assistant.test/api/chart', {
     method: 'POST', headers: {'Content-Type': 'application/json', Origin: 'https://wanhotrading.github.io', 'CF-Connecting-IP': '192.0.2.8'},
@@ -115,7 +115,7 @@ test('legacy v3 callers receive the sourced framework without unrelated example 
   const result = await response.json();
   assert.equal(result.referenceVersion, 'sessionpath-chart-v3');
   assert.deepEqual(result.analysis, analysis);
-  assert.equal(sent.model, FREE_MODEL);
+  assert.equal(sent.model, CHART_MODEL);
   assert.equal(FREE_MODEL, 'nvidia/nemotron-3.5-super-vl:free');
   const system = sent.messages[0].content;
   assert.ok(system.includes(ACTIVE_DAY_REVIEW_GUIDE));
@@ -135,7 +135,7 @@ test('health reports the actual public knowledge metadata without a provider cal
   const body = await response.json();
   assert.equal(body.chartReferenceVersion, 'sessionpath-chart-v6');
   assert.equal(body.model, 'nvidia/nemotron-3.5-super-vl:free');
-  assert.equal(body.freeModelsOnly, true);
+  assert.equal(body.freeModelsOnly, false); assert.equal(body.chartModel, CHART_MODEL); assert.equal(body.intentModel, FREE_MODEL);
   assert.deepEqual(body.chartKnowledge, {
     schema: 'sessionpath.day-review.knowledge.v1', source: DAY_REVIEW_KNOWLEDGE.source.url,
     readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: 34,

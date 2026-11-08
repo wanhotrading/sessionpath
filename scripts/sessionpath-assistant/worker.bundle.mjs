@@ -751,8 +751,13 @@ function resolveChartShapeArchive(evidence, observation) {
 
 const CHART_MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const CHART_MAX_DATA_URL_LENGTH = 1.5 * 1024 * 1024;
-const CHART_TIMEOUT_MS = 40_000;
-const CHART_MAX_OUTPUT_TOKENS = 1600;
+const CHART_MODEL = 'x-ai/grok-4.7';
+const CHART_TIMEOUT_MS = 180_000;
+const CHART_MAX_OUTPUT_TOKENS = 6000;
+// Pricing caps constrain routing; actual reasoning charges still count toward
+// the account/key budget. The output-token setting is not a dollar ceiling.
+const CHART_PROVIDER = Object.freeze({only: Object.freeze(['xai']), allow_fallbacks: false, require_parameters: true, max_price: Object.freeze({prompt: 2, completion: 6, image: 0, request: 0})});
+const CHART_RESPONSE_MAX_BYTES = 65_536;
 const CHART_TEXT_LIMITS = Object.freeze({summary: 800, sequence: 400, bbox: 600, sessionpath: 600, uncertainties: 300, total: 6000, items: 8});
 const CHART_LEGACY_REFERENCE_VERSION = 'sessionpath-chart-v1';
 const CHART_SHAPE_SESSIONS = Object.freeze(['NTA', 'ASIA', 'LONDON', 'NY']);
@@ -991,34 +996,50 @@ function classifyChartShapeEvidence(value, options) {
   return {chartObservation, shapeTags};
 }
 
-async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, now = Date.now()}) {
-  if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The free chart interpreter is not available yet.', origin);
+async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, signal, now = Date.now()}) {
+  if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
   const ip = input.clientAddress;
   if (!ip || ip.length > 64) return errorReply(503, 'CLIENT_ADDRESS_UNAVAILABLE', 'The chart interpreter could not verify this connection.', origin);
   let quota;
   try {quota = await env.ASSISTANT_QUOTA.getByName('global-free-ai-v1').reserve({ip});}
-  catch {return errorReply(503, 'QUOTA_UNAVAILABLE', 'The free chart interpreter is temporarily unavailable.', origin);}
-  if (!quota?.allowed) return errorReply(429, 'FREE_USAGE_LIMIT', 'The shared free AI request limit has been reached. Try again later.', origin, {'Retry-After': String(Math.max(1, Math.min(86_400, Number(quota?.retryAfter) || 60)))});
+  catch {return errorReply(503, 'QUOTA_UNAVAILABLE', 'The chart interpreter is temporarily unavailable.', origin);}
+  if (!quota?.allowed) return errorReply(429, 'FREE_USAGE_LIMIT', 'The shared AI request limit has been reached. Try again later.', origin, {'Retry-After': String(Math.max(1, Math.min(86_400, Number(quota?.retryAfter) || 60)))});
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abortParent = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener('abort', abortParent, {once: true});
   try {
+    if (controller.signal.aborted) throw new DOMException('The chart request was cancelled.', 'AbortError');
     const upstream = await fetcher(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://wanhotrading.github.io/sessionpath/', 'X-OpenRouter-Title': 'SessionPath Chart Reader'}, signal: controller.signal,
       body: JSON.stringify({model, messages: [
         {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs and structured shapeEvidence. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null evidence and an empty sessions list instead of inventing events.`},
         {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message, ...(input.observation ? {observation: input.observation} : {})})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
-      ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0, stream: false, reasoning: {enabled: false}, provider: {require_parameters: true}, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
+      ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0.7, top_p: 0.95, stream: false, reasoning: {effort: 'low', exclude: true}, provider: CHART_PROVIDER, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
     });
     if (!upstream.ok) {
-      if (upstream.status === 400 || upstream.status === 422) {let diagnosis = classifyRejectedUpstream(''); try {diagnosis = classifyRejectedUpstream(await boundedText(upstream.body, 8192));} catch {} return errorReply(503, diagnosis.code, diagnosis.message, origin);}
+      if (upstream.status === 400 || upstream.status === 422) {
+        // The shared classifier is also used by the free intent parser. Keep
+        // its safe codes, but do not return free-model claims for paid images.
+        let diagnosis = classifyRejectedUpstream(''); try {diagnosis = classifyRejectedUpstream(await boundedText(upstream.body, 8192));} catch {}
+        const chartMessages = {
+          AI_CREDIT_RESTRICTED: 'OpenRouter rejected the chart request because of an account or key-budget restriction.',
+          FREE_MODEL_REASONING_UNSUPPORTED: 'The chart provider rejected the reasoning settings. No automatic retry was made.',
+          FREE_MODEL_SCHEMA_UNSUPPORTED: 'The chart provider rejected the structured-output settings. No automatic retry was made.',
+          FREE_MODEL_REQUEST_REJECTED: 'The chart provider rejected this request configuration. No automatic retry was made.',
+        };
+        return errorReply(503, diagnosis.code, chartMessages[diagnosis.code] || chartMessages.FREE_MODEL_REQUEST_REJECTED, origin);
+      }
       await upstream.body?.cancel();
       if (upstream.status === 401) return errorReply(503, 'AI_KEY_REJECTED', 'OpenRouter rejected the server API key.', origin);
-      if (upstream.status === 402) return errorReply(503, 'AI_CREDIT_RESTRICTED', 'OpenRouter blocked this request because of an account or key credit restriction. No paid model was used.', origin);
+      if (upstream.status === 402) return errorReply(503, 'AI_CREDIT_RESTRICTED', 'OpenRouter blocked this chart request because of an account or key credit restriction.', origin);
       if (upstream.status === 403) return errorReply(503, 'AI_ACCESS_RESTRICTED', 'OpenRouter denied access for this server key or account.', origin);
-      if (upstream.status === 429) return errorReply(429, 'FREE_MODEL_BUSY', 'Free chart-reading capacity is busy. Try again later.', origin, {'Retry-After': '60'});
-      return errorReply(503, 'FREE_MODEL_UNAVAILABLE', 'The free chart interpreter is temporarily unavailable. No paid model was used.', origin);
+      if (upstream.status === 429) return errorReply(429, 'FREE_MODEL_BUSY', 'Chart-reading capacity is busy. Try again later.', origin, {'Retry-After': '60'});
+      return errorReply(503, 'FREE_MODEL_UNAVAILABLE', 'The chart interpreter is temporarily unavailable. No automatic retry was made.', origin);
     }
-    if (Number(upstream.headers.get('Content-Length')) > 24_576) {await upstream.body?.cancel(); throw new Error('Response too large');}
-    const data = JSON.parse(await boundedText(upstream.body, 24_576));
-    if (data.choices?.length === 1 && data.choices[0]?.finish_reason === 'length') return errorReply(503, 'FREE_MODEL_OUTPUT_LIMIT', 'The free chart interpreter reached its output limit. Try a simpler screenshot.', origin);
+    if (Number(upstream.headers.get('Content-Length')) > CHART_RESPONSE_MAX_BYTES) {await upstream.body?.cancel(); throw new Error('Response too large');}
+    const data = JSON.parse(await boundedText(upstream.body, CHART_RESPONSE_MAX_BYTES));
+    if (data.model !== model) throw new Error('Unexpected chart model');
+    if (data.choices?.length === 1 && data.choices[0]?.finish_reason === 'length') return errorReply(503, 'FREE_MODEL_OUTPUT_LIMIT', 'The chart interpreter reached its output limit. Try a simpler screenshot.', origin);
     if (!Array.isArray(data.choices) || data.choices.length !== 1 || data.choices[0]?.finish_reason !== 'stop' || typeof data.choices[0]?.message?.content !== 'string') throw new Error('Invalid result');
     const modelAnalysis = JSON.parse(data.choices[0].message.content);
     const analysis = validateChartAnalysis(modelAnalysis);
@@ -1027,8 +1048,62 @@ async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEO
     const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions));
     return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
   } catch {
-    return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The free chart interpreter timed out. No automatic retry was made.' : 'The free chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
-  } finally {clearTimeout(timer);}
+    return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The chart interpreter timed out. No automatic retry was made.' : 'The chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
+  } finally {clearTimeout(timer); signal?.removeEventListener('abort', abortParent);}
+}
+
+// chart-stream.mjs
+const CHART_HEARTBEAT_MS = 10_000;
+
+// Transport only: the model still returns one bounded descriptive JSON result.
+// Comments prevent idle intermediary timeouts without retrying the paid request.
+function chartEventResponse(run, {headers, boundedText, signal, heartbeatMs = CHART_HEARTBEAT_MS} = {}) {
+  const encoder = new TextEncoder(), upstreamAbort = new AbortController();
+  let closed = false, heartbeat, streamController;
+  const cleanup = cancelled => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    signal?.removeEventListener('abort', abortClient);
+    if (cancelled) upstreamAbort.abort();
+  };
+  const abortClient = () => {
+    if (closed) return;
+    cleanup(true);
+    try {streamController?.error(new DOMException('The chart request was cancelled.', 'AbortError'));} catch {}
+  };
+  const stream = new ReadableStream({
+    async start(controller) {
+      streamController = controller;
+      if (signal?.aborted) {abortClient(); return;}
+      signal?.addEventListener('abort', abortClient, {once: true});
+      controller.enqueue(encoder.encode(': connected\n\n'));
+      heartbeat = setInterval(() => {
+        if (closed) return;
+        try {controller.enqueue(encoder.encode(': heartbeat\n\n'));}
+        catch {cleanup(true);}
+      }, heartbeatMs);
+      let payload;
+      try {
+        const response = await run(upstreamAbort.signal);
+        payload = JSON.parse(await boundedText(response.body, 65_536));
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.ok !== 'boolean') throw new Error('Invalid chart result');
+      } catch {
+        payload = {ok: false, error: {code: 'CHART_STREAM_FAILED', message: 'The chart reader could not complete this request. No automatic retry was made.'}};
+      }
+      if (closed) return;
+      try {controller.enqueue(encoder.encode('event: result\ndata: ' + JSON.stringify(payload) + '\n\n'));}
+      catch {cleanup(true); return;}
+      cleanup(false);
+      controller.close();
+    },
+    cancel() {cleanup(true);},
+  });
+  return new Response(stream, {status: 200, headers: {...headers, 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'}});
+}
+
+function wantsChartEvents(request) {
+  return (request.headers.get('Accept') ?? '').split(',').some(part => part.split(';')[0].trim().toLowerCase() === 'text/event-stream' && !/;\s*q=0(?:\.0*)?(?:\s*;|\s*$)/i.test(part));
 }
 
 // router.mjs
@@ -1147,7 +1222,7 @@ function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TIMEOUT_M
     if (origin && origin !== ASSISTANT_ORIGIN) return errorReply(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed.', origin);
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') {
-      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, freeModelsOnly: true, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
+      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, intentModel: FREE_MODEL, chartModel: CHART_MODEL, freeModelsOnly: false, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
     }
     const chartRoute = url.pathname === '/api/chart';
     if (url.pathname !== '/api/chat' && !chartRoute) return errorReply(404, 'NOT_FOUND', 'Not found.', origin);
@@ -1174,7 +1249,12 @@ function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TIMEOUT_M
       return errorReply(400, 'INVALID_REQUEST', 'Enter a short message and a supported market and window.', origin);
     }
     if (!input) return errorReply(400, 'INVALID_REQUEST', 'Enter a short message and a supported market and window.', origin);
-    if (chartRoute) return handleChartAnalysis({...input, clientAddress: request.headers.get('CF-Connecting-IP')}, env, {fetcher, timeoutMs: chartTimeoutMs, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model: FREE_MODEL, endpoint: OPENROUTER_URL});
+    if (chartRoute) {
+      const runChart = signal => handleChartAnalysis({...input, clientAddress: request.headers.get('CF-Connecting-IP')}, env, {fetcher, timeoutMs: chartTimeoutMs, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model: CHART_MODEL, endpoint: OPENROUTER_URL, signal});
+      return wantsChartEvents(request)
+        ? chartEventResponse(runChart, {headers: headers(origin), boundedText, signal: request.signal})
+        : runChart(request.signal);
+    }
     const dated = resolveMessageDate(input.message, {now: requestNow, date: input.context.date});
     if (!['none', 'valid'].includes(dated.status)) {
       return reply(renderIntent({action: 'clarify', market: input.context.market, window: input.context.window, concept: null, date: null}, 'rules', {dateStatus: dated.status}), 200, origin);

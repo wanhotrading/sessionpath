@@ -1,5 +1,6 @@
 import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=day-review-20261107b';
 import {makeChartSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
+import {readChartResponse} from './chart-event-stream.mjs?v=grok-stream-20261108';
 
 const MARKETS=['CL','NQ','ES','GC'];
 const WINDOWS=['03:00-05:00','05:00-08:30','08:30-16:00'];
@@ -139,7 +140,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const history=element('div','sp-chat-history');history.setAttribute('role','log');history.setAttribute('aria-label','Conversation');history.setAttribute('aria-live','polite');history.setAttribute('aria-relevant','additions');
  const examples=element('div','sp-chat-examples');for(const query of ['CL 03-05','NQ 05-0830','GC 08:30-16:00']){const button=element('button','',query);button.type='button';button.addEventListener('click',()=>{input.value=query;submit(query);});examples.append(button);}
  const status=element('p','sp-chat-status');status.setAttribute('role','status');
- const attachmentBox=element('section','sp-chat-attachment');attachmentBox.hidden=true;attachmentBox.setAttribute('aria-label','Screenshot to send');const preview=element('img','sp-chat-preview');preview.alt='Selected chart screenshot';const attachmentInfo=element('div','sp-chat-attachment-info'),attachmentName=element('span','sp-chat-filename'),attachmentSize=element('small','sp-chat-image-size');attachmentInfo.append(attachmentName,attachmentSize);const removeAttachment=element('button','sp-chat-remove-image','×');removeAttachment.type='button';removeAttachment.setAttribute('aria-label','Remove screenshot');const disclosure=element('p','sp-chat-image-disclosure','Send shares this image with OpenRouter/NVIDIA. Crop out account details.');
+ const attachmentBox=element('section','sp-chat-attachment');attachmentBox.hidden=true;attachmentBox.setAttribute('aria-label','Screenshot to send');const preview=element('img','sp-chat-preview');preview.alt='Selected chart screenshot';const attachmentInfo=element('div','sp-chat-attachment-info'),attachmentName=element('span','sp-chat-filename'),attachmentSize=element('small','sp-chat-image-size');attachmentInfo.append(attachmentName,attachmentSize);const removeAttachment=element('button','sp-chat-remove-image','×');removeAttachment.type='button';removeAttachment.setAttribute('aria-label','Remove screenshot');const disclosure=element('p','sp-chat-image-disclosure','Send shares this image with OpenRouter/xAI. Crop out account details.');
  const historicalLabel=element('label','sp-chat-historical-toggle'),historical=element('input');historical.type='checkbox';historicalLabel.append(historical,doc.createTextNode('Historical / replay screenshot'));
  const observationFields=element('div','sp-chat-historical-fields');observationFields.hidden=true;
  const chartDateLabel=element('label','','Chart trading date · NY'),chartDate=element('input','sp-chat-chart-date');chartDate.type='date';chartDate.max=nyDate(now());chartDateLabel.append(chartDate);
@@ -271,10 +272,10 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   query=query.trim();controller?.abort();controller=new AbortController();const signal=controller.signal;let timedOut=false;open();setBusy(true,chart?'Reading your screenshot…':'Understanding your request…');if(!resumedIntent)bubble('user',query,{remember:!chart});input.value='';
   try{
    if(chart){
-    const context=contextNow(),timeout=setTimeout(()=>{timedOut=true;controller.abort();},45000);let response;
-    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:query,context,referenceVersion:CHART_REFERENCE_VERSION,image:{dataUrl:chart.dataUrl},...(observation?{observation}:{})}),signal});}finally{clearTimeout(timeout);}
-    if(signal.aborted||destroyed)throw abortError();let body;try{body=await response.json();}catch{throw new Error('The chart reader returned an unreadable response. Please try again.');}
-    if(!response.ok||body.ok!==true)throw new Error(plain(body?.error?.message,400)?body.error.message:response.status===429?'Free chart-reading limit reached. Please try again later.':'The free chart reader is temporarily unavailable. Please try again.');
+    const context=contextNow(),timeout=setTimeout(()=>{timedOut=true;controller.abort();},195000);let response,body;
+    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:JSON.stringify({message:query,context,referenceVersion:CHART_REFERENCE_VERSION,image:{dataUrl:chart.dataUrl},...(observation?{observation}:{})}),signal});if(signal.aborted||destroyed)throw abortError();body=await readChartResponse(response,{signal});}finally{clearTimeout(timeout);}
+    if(signal.aborted||destroyed)throw abortError();
+    if(!response.ok||body.ok!==true)throw new Error(plain(body?.error?.message,400)?body.error.message:response.status===429?'Chart-reading limit reached. Please try again later.':'The chart reader is temporarily unavailable. Please try again.');
     if(!validateChartReading(body,context,observation))throw new Error('The chart reading was incomplete. Please refresh and try again.');
     renderChart(body,query,context);clearAttachment();return;
    }

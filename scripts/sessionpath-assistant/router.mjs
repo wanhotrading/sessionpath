@@ -1,5 +1,6 @@
 import {validateRequest, validateIntent, parseExactForecast, resolveMessageDate, nyToday, renderIntent, INTENT_SCHEMA} from './intent.mjs';
-import {CHART_MAX_REQUEST_BYTES, CHART_TIMEOUT_MS, ChartInputError, validateChartRequest, handleChartAnalysis} from './chart-vision.mjs';
+import {CHART_MAX_REQUEST_BYTES, CHART_TIMEOUT_MS, CHART_MODEL, ChartInputError, validateChartRequest, handleChartAnalysis} from './chart-vision.mjs';
+import {chartEventResponse, wantsChartEvents} from './chart-stream.mjs';
 import {CHART_REFERENCE_VERSION} from '../../docs/chart-reading-reference.mjs';
 import {DAY_REVIEW_KNOWLEDGE} from '../../docs/chart-day-review-knowledge.mjs';
 
@@ -117,7 +118,7 @@ export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TI
     if (origin && origin !== ASSISTANT_ORIGIN) return errorReply(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed.', origin);
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') {
-      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, freeModelsOnly: true, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
+      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, intentModel: FREE_MODEL, chartModel: CHART_MODEL, freeModelsOnly: false, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
     }
     const chartRoute = url.pathname === '/api/chart';
     if (url.pathname !== '/api/chat' && !chartRoute) return errorReply(404, 'NOT_FOUND', 'Not found.', origin);
@@ -144,7 +145,12 @@ export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TI
       return errorReply(400, 'INVALID_REQUEST', 'Enter a short message and a supported market and window.', origin);
     }
     if (!input) return errorReply(400, 'INVALID_REQUEST', 'Enter a short message and a supported market and window.', origin);
-    if (chartRoute) return handleChartAnalysis({...input, clientAddress: request.headers.get('CF-Connecting-IP')}, env, {fetcher, timeoutMs: chartTimeoutMs, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model: FREE_MODEL, endpoint: OPENROUTER_URL});
+    if (chartRoute) {
+      const runChart = signal => handleChartAnalysis({...input, clientAddress: request.headers.get('CF-Connecting-IP')}, env, {fetcher, timeoutMs: chartTimeoutMs, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model: CHART_MODEL, endpoint: OPENROUTER_URL, signal});
+      return wantsChartEvents(request)
+        ? chartEventResponse(runChart, {headers: headers(origin), boundedText, signal: request.signal})
+        : runChart(request.signal);
+    }
     const dated = resolveMessageDate(input.message, {now: requestNow, date: input.context.date});
     if (!['none', 'valid'].includes(dated.status)) {
       return reply(renderIntent({action: 'clarify', market: input.context.market, window: input.context.window, concept: null, date: null}, 'rules', {dateStatus: dated.status}), 200, origin);
