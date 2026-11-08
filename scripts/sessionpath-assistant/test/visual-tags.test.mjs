@@ -128,7 +128,7 @@ test('handler adds four visual rows for old outputs and preserves valid prose an
   const exact = {...shapeEvidence, sessions: [{session: 'LONDON', high: 116, low: 110, close: 111, order: 'high_first', complete: true}]};
   for (const visual of [undefined, [{...proposal('LONDON'), status: 'archive'}]]) {
     const handler = createAssistantHandler({now: () => NOW, fetcher: async () => Response.json({model: CHART_MODEL, choices: [{finish_reason: 'stop', message: {content: JSON.stringify({...prose, shapeEvidence: exact, ...(visual === undefined ? {} : {visualTags: visual})})}}]})});
-    const response = await handler(new Request('https://assistant.test/api/chart', {method: 'POST', headers: {'Content-Type': 'application/json', Origin: 'https://wanhotrading.github.io', 'CF-Connecting-IP': '192.0.2.8'}, body: JSON.stringify({context: {market: 'CL', window: '03:00-05:00', date: null}, image: {dataUrl: RASTER_FIXTURES.png}, observation})}), {OPENROUTER_API_KEY: 'dummy-test-key', ASSISTANT_QUOTA: {getByName: () => ({reserve: async () => ({allowed: true})})}});
+    const response = await handler(new Request('https://assistant.test/api/chart', {method: 'POST', headers: {'Content-Type': 'application/json', Origin: 'https://wanhotrading.github.io', 'CF-Connecting-IP': '192.0.2.8'}, body: JSON.stringify({context: {market: 'CL', window: '03:00-05:00', date: null}, image: {dataUrl: RASTER_FIXTURES.png}, observation})}), {OPENROUTER_API_KEY: 'dummy-test-key'});
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.deepEqual(body.analysis, prose); assert.equal(validateVisualTags(body.visualTags), true);

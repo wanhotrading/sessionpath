@@ -72,7 +72,7 @@ test('historical observation is optional and carries a separate exact chart date
   assert.equal(Object.hasOwn(validateChartRequest(chartBody(), {now: NOW}), 'observation'), false);
 });
 
-test('malformed or future historical observations fail before quota reservation or upstream calls', async () => {
+test('malformed or future historical observations fail before upstream calls', async () => {
   const invalid = [
     null, '2026-10-30', {...observation, mode: 'live'},
     {mode: 'historical', date: observation.date}, {...observation, extra: true},
@@ -160,7 +160,7 @@ test('handler forwards and echoes explicit historical context without converting
   assert.equal(result.chartObservation.date, evidence.date);
   assert.equal(result.chartObservation.cutoff, evidence.cutoff);
   assert.deepEqual(JSON.parse(h.state.sent.messages[1].content[0].text), {request: input.message, observation});
-  assert.equal(h.state.quotaCalls, 1);
+  assert.equal(h.state.quotaCalls, 0);
   assert.equal(h.state.upstreamCalls, 1);
 });
 

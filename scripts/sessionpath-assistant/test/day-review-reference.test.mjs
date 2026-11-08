@@ -109,7 +109,6 @@ test('legacy v3 callers receive the sourced framework without unrelated example 
   });
   const response = await handler(request, {
     OPENROUTER_API_KEY: 'dummy-test-key',
-    ASSISTANT_QUOTA: {getByName: () => ({reserve: async () => ({allowed: true})})},
   });
   assert.equal(response.status, 200);
   const result = await response.json();

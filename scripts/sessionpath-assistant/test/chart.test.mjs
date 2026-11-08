@@ -12,9 +12,9 @@ const chartBody = (extras = {}) => ({message: '', context, image: {dataUrl: RAST
 function chartPost(body = chartBody(), headers = {}) {return new Request('https://assistant.test/api/chart', {method: 'POST', headers: {'Content-Type': 'application/json', Origin: 'https://wanhotrading.github.io', 'CF-Connecting-IP': '192.0.2.8', ...headers}, body: JSON.stringify(body)});}
 const visionResponse = value => Response.json({model: CHART_MODEL, choices: [{finish_reason: 'stop', message: {content: JSON.stringify(value)}}]});
 function setup(fetcher = async () => visionResponse(analysis), overrides = {}) {
-  let count = 0;
+  let count = 0, upstreamCalls = 0;
   const env = {OPENROUTER_API_KEY: 'dummy-not-real-secret', ASSISTANT_QUOTA: {getByName(name) {assert.equal(name, 'global-free-ai-v1'); return {reserve: async ({ip}) => {assert.equal(ip, '192.0.2.8'); count++; return {allowed: true};}};}}};
-  return {env, handler: createAssistantHandler({fetcher, now: () => NOW, ...overrides}), count: () => count};
+  return {env, handler: createAssistantHandler({fetcher: (...args) => {upstreamCalls++; return fetcher(...args);}, now: () => NOW, ...overrides}), count: () => count, upstreamCalls: () => upstreamCalls};
 }
 function asDataUrl(bytes, mime = 'image/png') {return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;}
 
@@ -39,6 +39,7 @@ test('reject URLs, SVG/GIF, invalid base64, MIME mismatch, truncated headers and
     assert.match((await response.json()).error.code, /^(?:INVALID_CHART_IMAGE|CHART_IMAGE_DIMENSIONS)$/u);
   }
   assert.equal(s.count(), 0);
+  assert.equal(s.upstreamCalls(), 0);
 });
 
 test('chart input has strict context and image shape and rejects future dates, model overrides and long prompts', async () => {
@@ -47,6 +48,7 @@ test('chart input has strict context and image shape and rejects future dates, m
     const response = await s.handler(chartPost(body), s.env); assert.equal(response.status, 400); assert.equal((await response.json()).error.code, 'INVALID_CHART_REQUEST');
   }
   assert.equal(s.count(), 0);
+  assert.equal(s.upstreamCalls(), 0);
 });
 
 test('chart HTTP/dataURL limits are bounded independently of the small text chat limit', async () => {
@@ -59,10 +61,11 @@ test('chart HTTP/dataURL limits are bounded independently of the small text chat
   const paddedJpeg = asDataUrl(Buffer.concat([bytes.subarray(0, 2), comment, bytes.subarray(2)]), 'image/jpeg');
   assert.ok(paddedJpeg.length > 3072);
   response = await s.handler(chartPost(chartBody({image: {dataUrl: paddedJpeg}})), s.env); assert.equal(response.status, 200);
-  assert.equal(s.count(), 1);
+  assert.equal(s.count(), 0);
+  assert.equal(s.upstreamCalls(), 1);
 });
 
-test('chart uses official multipart image_url format and pinned Grok image model, secret and unchanged shared quota', async () => {
+test('chart uses official multipart image_url format and pinned Grok image model and secret without reserving quota', async () => {
   let calledUrl, sent;
   const s = setup(async (url, init) => {calledUrl = url; sent = JSON.parse(init.body); return visionResponse(analysis);});
   const response = await s.handler(chartPost(chartBody({referenceVersion: CHART_REFERENCE_VERSION})), s.env); assert.equal(response.status, 200);
@@ -76,7 +79,8 @@ test('chart uses official multipart image_url format and pinned Grok image model
   assert.equal(sent.messages[1].content[0].type, 'text'); assert.match(sent.messages[1].content[0].text, /Describe the visible price movement so far/u);
   assert.equal(Object.hasOwn(JSON.parse(sent.messages[1].content[0].text),'context'),false);
   assert.deepEqual(sent.messages[1].content[1], {type: 'image_url', image_url: {url: RASTER_FIXTURES.jpeg}});
-  assert.equal(s.count(), 1);
+  assert.equal(s.count(), 0);
+  assert.equal(s.upstreamCalls(), 1);
   for (const field of ['models', 'plugins', 'tools']) assert.equal(sent[field], undefined);
   assert.ok(!JSON.stringify(body).includes(s.env.OPENROUTER_API_KEY)); assert.ok(!JSON.stringify(body).includes('data:image'));
 });
@@ -112,25 +116,25 @@ test('legible percentage annotations remain descriptive evidence without becomin
   assert.equal(response.status, 200); assert.equal((await response.json()).analysis.sessionpath, visible.sessionpath);
 });
 
-test('chart quota and missing credentials fail before upstream and never fall back to text forecasts', async () => {
-  let calls = 0;
-  const s = setup(async () => {calls++; throw new Error('Should not call');});
-  assert.equal((await s.handler(chartPost(), {})).status, 503);
-  const noIp = chartPost(); noIp.headers.delete('CF-Connecting-IP'); assert.equal((await s.handler(noIp, s.env)).status, 503);
-  s.env.ASSISTANT_QUOTA = {getByName: () => ({reserve: async () => ({allowed: false, retryAfter: 90})})};
-  const response = await s.handler(chartPost(), s.env); assert.equal(response.status, 429); assert.equal(response.headers.get('Retry-After'), '90'); assert.equal(calls, 0);
+test('chart missing credentials fail before upstream and never fall back to text forecasts', async () => {
+  const s = setup(async () => {throw new Error('Should not call');});
+  const response = await s.handler(chartPost(), {});
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, 'AI_NOT_CONFIGURED');
+  assert.equal(s.upstreamCalls(), 0);
+  assert.equal(s.count(), 0);
 });
 
 test('chart fixed errors, timeout and output limits never expose provider text or retry', async () => {
   for (const [status, code] of [[400, 'FREE_MODEL_REASONING_UNSUPPORTED'], [401, 'AI_KEY_REJECTED'], [402, 'AI_CREDIT_RESTRICTED'], [403, 'AI_ACCESS_RESTRICTED'], [429, 'FREE_MODEL_BUSY'], [503, 'FREE_MODEL_UNAVAILABLE']]) {
     let calls = 0;
     const s = setup(async () => {calls++; return Response.json({error: {message: 'Unsupported reasoning. private-provider-detail'}}, {status});});
-    const response = await s.handler(chartPost(), s.env); const body = await response.json(); assert.equal(body.error.code, code); assert.ok(!JSON.stringify(body).includes('private-provider-detail')); assert.equal(calls, 1); assert.equal(s.count(), 1);
+    const response = await s.handler(chartPost(), s.env); const body = await response.json(); assert.equal(body.error.code, code); assert.ok(!JSON.stringify(body).includes('private-provider-detail')); assert.equal(calls, 1); assert.equal(s.upstreamCalls(), 1); assert.equal(s.count(), 0);
   }
   const timeout = setup(async (_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(new Error('private-timeout-detail')))), {chartTimeoutMs: 10});
   const timed = await timeout.handler(chartPost(), timeout.env); assert.equal((await timed.json()).error.code, 'FREE_MODEL_TIMEOUT');
   for (const provider of [Response.json({choices: [{finish_reason: 'length', message: {content: null}}]}), new Response('x'.repeat(65537))]) {
-    const s = setup(async () => provider); const response = await s.handler(chartPost(), s.env); assert.equal(response.status, 503); assert.equal(s.count(), 1);
+    const s = setup(async () => provider); const response = await s.handler(chartPost(), s.env); assert.equal(response.status, 503); assert.equal(s.upstreamCalls(), 1); assert.equal(s.count(), 0);
   }
 });
 

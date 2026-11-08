@@ -48,7 +48,7 @@ test('close and Escape roll down before hiding, keep the composer and remove the
 });
 test('loading gates adapter requests and service errors never produce an export code',async t=>{
  const h=harness(t,{loading:true});await h.ui.submit('CL 03-05');assert.equal(h.state.requests.length,0);assert.match(h.ui.element.textContent,/still loading/);assert.equal(h.doc.querySelector('textarea'),null);
- const e=harness(t,{fetcher:async()=>Response.json({ok:false,error:{code:'RATE_LIMITED',message:'Daily usage limit reached.'}},{status:429})});await e.ui.submit('CL 03-05');assert.match(e.ui.element.textContent,/Daily usage limit/);assert.equal(e.state.requests.length,0);
+ const e=harness(t,{fetcher:async()=>Response.json({ok:false,error:{code:'FREE_MODEL_BUSY',message:'AI provider capacity is busy. Try again later.'}},{status:429})});await e.ui.submit('CL 03-05');assert.match(e.ui.element.textContent,/provider capacity is busy/);assert.equal(e.state.requests.length,0);
 });
 
 test('canonical requested dates reach the adapter and appear with the resolved year and historical label',async t=>{
@@ -93,7 +93,7 @@ test('sending an attached image uses only the selected normalized image and rend
  h.doc.querySelector('.sp-chat-comparison-copy').click();await tick();assert.ok(h.state.clipboard[0].includes(CHART_COMPARISON_PROMPT));assert.match(h.state.clipboard[0],/Attach the same screenshot in GPT/);assert.doesNotMatch(h.state.clipboard[0],/data:image|base64/);
 });
 test('failed chart requests keep the selected image and require an explicit retry',async t=>{
- let calls=0;const h=harness(t,{fetcher:async(url,options)=>++calls===1?Response.json({ok:false,error:{code:'RATE_LIMITED',message:'Free chart-reading limit reached.'}},{status:429}):Response.json(chartReading(JSON.parse(options.body).context))});await h.ui.attachImage(new h.dom.window.File(['image'],'chart.jpg',{type:'image/jpeg'}));await h.ui.submit('Describe this chart');assert.equal(calls,1);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);assert.equal(h.doc.querySelector('.sp-chat-input').value,'Describe this chart');assert.equal(h.state.revoked.length,0);assert.match(h.ui.element.textContent,/Free chart-reading limit/);await tick();assert.equal(calls,1);await h.ui.submit();assert.equal(calls,2);assert.deepEqual(JSON.parse(h.state.calls[0].options.body).image,JSON.parse(h.state.calls[1].options.body).image);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);
+ let calls=0;const h=harness(t,{fetcher:async(url,options)=>++calls===1?Response.json({ok:false,error:{code:'FREE_MODEL_BUSY',message:'Chart-reading provider capacity is busy. Try again later.'}},{status:429}):Response.json(chartReading(JSON.parse(options.body).context))});await h.ui.attachImage(new h.dom.window.File(['image'],'chart.jpg',{type:'image/jpeg'}));await h.ui.submit('Describe this chart');assert.equal(calls,1);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,false);assert.equal(h.doc.querySelector('.sp-chat-input').value,'Describe this chart');assert.equal(h.state.revoked.length,0);assert.match(h.ui.element.textContent,/provider capacity is busy/);await tick();assert.equal(calls,1);await h.ui.submit();assert.equal(calls,2);assert.deepEqual(JSON.parse(h.state.calls[0].options.body).image,JSON.parse(h.state.calls[1].options.body).image);assert.equal(h.doc.querySelector('.sp-chat-attachment').hidden,true);
 });
 test('image paste and drop stay local, and failed image validation cannot discard a valid attachment',async t=>{
  let fail=false;const h=harness(t,{prepareImage:async()=>{if(fail)throw new Error('Choose a PNG, JPEG or WebP screenshot.');return {dataUrl:imageData,width:800,height:400};}}),file=new h.dom.window.File(['image'],'pasted.png',{type:'image/png'});const paste=new h.dom.window.Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(paste,'clipboardData',{value:{items:[{kind:'file',type:'image/png',getAsFile:()=>file}]}});h.ui.element.dispatchEvent(paste);await tick();assert.equal(paste.defaultPrevented,true);assert.equal(h.state.calls.length,0);assert.equal(h.doc.querySelector('.sp-chat-filename').textContent,'pasted.png');fail=true;const drop=new h.dom.window.Event('drop',{bubbles:true,cancelable:true});Object.defineProperty(drop,'dataTransfer',{value:{files:[file]}});h.ui.element.dispatchEvent(drop);await tick();assert.equal(h.doc.querySelector('.sp-chat-filename').textContent,'pasted.png');assert.match(h.doc.querySelector('.sp-chat-status').textContent,/Choose a PNG/);assert.equal(h.state.revoked.length,0);assert.equal(h.state.calls.length,0);
@@ -243,8 +243,8 @@ test('a streamed chart response renders the validated reading and requests SSE e
 });
 
 test('a streamed provider error preserves the attachment and exposes the fixed server message',async t=>{
- const message='This chart-reading account has reached its request limit.';
- const h=harness(t,{fetcher:async()=>new Response('event: result\ndata: '+JSON.stringify({ok:false,error:{code:'CHART_USAGE_LIMIT',message}})+'\n\n',{headers:{'Content-Type':'text/event-stream'}})});
+ const message='The chart-reading provider is busy. Try again later.';
+ const h=harness(t,{fetcher:async()=>new Response('event: result\ndata: '+JSON.stringify({ok:false,error:{code:'FREE_MODEL_BUSY',message}})+'\n\n',{headers:{'Content-Type':'text/event-stream'}})});
  await h.ui.attachImage(new h.dom.window.File(['image'],'chart.png',{type:'image/png'}));
  await h.ui.submit('Describe this chart.');
  assert.equal(h.state.calls.length,1);

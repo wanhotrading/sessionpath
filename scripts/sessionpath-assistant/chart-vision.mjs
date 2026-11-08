@@ -315,13 +315,9 @@ export function normalizeChartVisualTags(rows, {shapeEvidence, observation, now 
 }
 
 export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, signal, now = Date.now()}) {
-  if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
-  const ip = input.clientAddress;
-  if (!ip || ip.length > 64) return errorReply(503, 'CLIENT_ADDRESS_UNAVAILABLE', 'The chart interpreter could not verify this connection.', origin);
-  let quota;
-  try {quota = await env.ASSISTANT_QUOTA.getByName('global-free-ai-v1').reserve({ip});}
-  catch {return errorReply(503, 'QUOTA_UNAVAILABLE', 'The chart interpreter is temporarily unavailable.', origin);}
-  if (!quota?.allowed) return errorReply(429, 'FREE_USAGE_LIMIT', 'The shared AI request limit has been reached. Try again later.', origin, {'Retry-After': String(Math.max(1, Math.min(86_400, Number(quota?.retryAfter) || 60)))});
+  if (!env.OPENROUTER_API_KEY) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
+  // Visual reads share the existing key spending cap, without an additional
+  // SessionPath daily, client or short-window request-count quota.
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
   const abortParent = () => controller.abort();
   if (signal?.aborted) controller.abort();

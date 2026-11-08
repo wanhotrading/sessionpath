@@ -1109,13 +1109,9 @@ function normalizeChartVisualTags(rows, {shapeEvidence, observation, now = Date.
 }
 
 async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, signal, now = Date.now()}) {
-  if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
-  const ip = input.clientAddress;
-  if (!ip || ip.length > 64) return errorReply(503, 'CLIENT_ADDRESS_UNAVAILABLE', 'The chart interpreter could not verify this connection.', origin);
-  let quota;
-  try {quota = await env.ASSISTANT_QUOTA.getByName('global-free-ai-v1').reserve({ip});}
-  catch {return errorReply(503, 'QUOTA_UNAVAILABLE', 'The chart interpreter is temporarily unavailable.', origin);}
-  if (!quota?.allowed) return errorReply(429, 'FREE_USAGE_LIMIT', 'The shared AI request limit has been reached. Try again later.', origin, {'Retry-After': String(Math.max(1, Math.min(86_400, Number(quota?.retryAfter) || 60)))});
+  if (!env.OPENROUTER_API_KEY) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
+  // Visual reads share the existing key spending cap, without an additional
+  // SessionPath daily, client or short-window request-count quota.
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
   const abortParent = () => controller.abort();
   if (signal?.aborted) controller.abort();
@@ -1335,7 +1331,7 @@ function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TIMEOUT_M
     if (origin && origin !== ASSISTANT_ORIGIN) return errorReply(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed.', origin);
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') {
-      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, intentModel: FREE_MODEL, chartModel: CHART_MODEL, freeModelsOnly: false, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
+      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, intentModel: FREE_MODEL, chartModel: CHART_MODEL, freeModelsOnly: false, appRequestCountLimits: false, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
     }
     const chartRoute = url.pathname === '/api/chart';
     if (url.pathname !== '/api/chat' && !chartRoute) return errorReply(404, 'NOT_FOUND', 'Not found.', origin);
@@ -1377,15 +1373,9 @@ function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TIMEOUT_M
     }
     const exact = parseExactForecast(input.message, {now: requestNow, date: input.context.date});
     if (exact) return reply(renderIntent(exact, 'rules'), 200, origin);
-    if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The free AI interpreter is not available yet. Try a direct command such as CL 03-05.', origin);
-    const ip = request.headers.get('CF-Connecting-IP');
-    if (!ip || ip.length > 64) return errorReply(503, 'CLIENT_ADDRESS_UNAVAILABLE', 'The AI interpreter could not verify this connection.', origin);
-    let quota;
-    try { quota = await env.ASSISTANT_QUOTA.getByName('global-free-ai-v1').reserve({ip}); }
-    catch { return errorReply(503, 'QUOTA_UNAVAILABLE', 'The free AI interpreter is temporarily unavailable.', origin); }
-    if (!quota?.allowed) {
-      return errorReply(429, 'FREE_USAGE_LIMIT', 'The free AI request limit has been reached. Try a direct command such as CL 03-05, or return later.', origin, {'Retry-After': String(Math.max(1, Math.min(86_400, Number(quota?.retryAfter) || 60)))});
-    }
+    if (!env.OPENROUTER_API_KEY) return errorReply(503, 'AI_NOT_CONFIGURED', 'The free AI interpreter is not available yet. Try a direct command such as CL 03-05.', origin);
+    // SessionPath has no request-count quota. OpenRouter still enforces the
+    // separately configured key spending cap and its own provider limits.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
