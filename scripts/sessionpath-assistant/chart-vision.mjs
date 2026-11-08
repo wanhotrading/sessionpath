@@ -1,6 +1,7 @@
 import {MARKETS, WINDOWS, validDate} from './intent.mjs';
 import {CHART_REFERENCE_VERSION, CHART_READING_SYSTEM} from '../../docs/chart-reading-reference.mjs';
 import {resolveChartShapeArchive} from './chart-shape-archive.mjs';
+import {CHART_VISUAL_SESSIONS, CHART_VISUAL_TAG_CODES, CHART_VISUAL_CONFIDENCES, CHART_VISUAL_TEXT_LIMITS, chartVisualPlainText} from '../../docs/chart-visual-contract.mjs';
 
 export const CHART_MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 export const CHART_MAX_DATA_URL_LENGTH = 1.5 * 1024 * 1024;
@@ -117,7 +118,7 @@ export function validateChartRequest(value, {now = Date.now()} = {}) {
   if (!chartKeys(value, ['context', 'image'], ['message', 'referenceVersion', 'observation']) || !chartKeys(value.context, ['market', 'window', 'date'])
     || !MARKETS.includes(value.context.market) || !WINDOWS.includes(value.context.window)
     || !(value.context.date === null || validDate(value.context.date, {now})) || !chartKeys(value.image, ['dataUrl'])
-    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v5', 'sessionpath-chart-v4', 'sessionpath-chart-v3', 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
+    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v6', 'sessionpath-chart-v5', 'sessionpath-chart-v4', 'sessionpath-chart-v3', 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
     || (value.observation !== undefined && !validHistoricalObservation(value.observation, now))
     || (value.message !== undefined && (typeof value.message !== 'string' || value.message.length > 600 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.message)))) {
     throw new ChartInputError('INVALID_CHART_REQUEST', 'Choose a supported market, window and valid date, then attach one screenshot.');
@@ -128,6 +129,19 @@ export function validateChartRequest(value, {now = Date.now()} = {}) {
 const chartString = maxLength => ({type: 'string', minLength: 1, maxLength});
 const chartNullableEnum = (type, choices) => ({type: [type, 'null'], enum: [...choices, null]});
 const chartNullablePrice = {type: ['number', 'null']};
+const CHART_VISUAL_MODEL_KEYS = Object.freeze(['session', 'tag', 'confidence', 'evidence', 'uncertainty', 'complete']);
+const CHART_VISUAL_SCHEMA = {
+  type: 'array', minItems: 4, maxItems: 4, items: {
+    type: 'object', required: CHART_VISUAL_MODEL_KEYS, additionalProperties: false,
+    properties: {
+      session: {type: 'string', enum: CHART_VISUAL_SESSIONS},
+      tag: chartNullableEnum('string', CHART_VISUAL_TAG_CODES),
+      confidence: {type: 'string', enum: CHART_VISUAL_CONFIDENCES},
+      evidence: {type: 'string', maxLength: CHART_VISUAL_TEXT_LIMITS.evidence},
+      uncertainty: {type: 'string', maxLength: CHART_VISUAL_TEXT_LIMITS.uncertainty}, complete: {type: 'boolean'},
+    },
+  },
+};
 const CHART_SHAPE_SCHEMA = {
   type: 'object', required: [...CHART_SHAPE_KEYS,'captureNy'], additionalProperties: false,
   properties: {
@@ -148,11 +162,12 @@ const CHART_SHAPE_SCHEMA = {
 export const CHART_ANALYSIS_SCHEMA = Object.freeze({
   type: 'object', properties: {
     shapeEvidence: CHART_SHAPE_SCHEMA,
+    visualTags: CHART_VISUAL_SCHEMA,
     summary: chartString(CHART_TEXT_LIMITS.summary),
     sequence: {type: 'array', minItems: 1, maxItems: CHART_TEXT_LIMITS.items, items: chartString(CHART_TEXT_LIMITS.sequence)},
     bbox: chartString(CHART_TEXT_LIMITS.bbox), sessionpath: chartString(CHART_TEXT_LIMITS.sessionpath),
     uncertainties: {type: 'array', minItems: 1, maxItems: CHART_TEXT_LIMITS.items, items: chartString(CHART_TEXT_LIMITS.uncertainties)},
-  }, required: ['shapeEvidence', 'summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], additionalProperties: false,
+  }, required: ['shapeEvidence', 'visualTags', 'summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], additionalProperties: false,
 });
 function chartPlainText(value, limit) {
   if (typeof value !== 'string' || !value.trim() || value.length > limit) return false;
@@ -164,7 +179,7 @@ function chartPlainText(value, limit) {
   return true;
 }
 export function validateChartAnalysis(value) {
-  if (!chartKeys(value, ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], ['shapeEvidence'])) return null;
+  if (!chartKeys(value, ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], ['shapeEvidence', 'visualTags'])) return null;
   if (!chartPlainText(value.summary, CHART_TEXT_LIMITS.summary) || !chartPlainText(value.bbox, CHART_TEXT_LIMITS.bbox) || !chartPlainText(value.sessionpath, CHART_TEXT_LIMITS.sessionpath)) return null;
   for (const key of ['sequence', 'uncertainties']) {
     if (!Array.isArray(value[key]) || value[key].length < 1 || value[key].length > CHART_TEXT_LIMITS.items || !value[key].every(item => chartPlainText(item, CHART_TEXT_LIMITS[key]))) return null;
@@ -249,6 +264,56 @@ export function classifyChartShapeEvidence(value, options) {
   return {chartObservation, shapeTags};
 }
 
+// A model proposes only visual evidence. Status and source are assigned here;
+// this path never reads the archive or changes the formal classifier's result.
+export function validateChartVisualProposal(row) {
+  return chartKeys(row, CHART_VISUAL_MODEL_KEYS) && CHART_VISUAL_SESSIONS.includes(row.session)
+    && (row.tag === null || CHART_VISUAL_TAG_CODES.includes(row.tag))
+    && CHART_VISUAL_CONFIDENCES.includes(row.confidence) && typeof row.complete === 'boolean'
+    && chartVisualPlainText(row.evidence, CHART_VISUAL_TEXT_LIMITS.evidence)
+    && chartVisualPlainText(row.uncertainty, CHART_VISUAL_TEXT_LIMITS.uncertainty);
+}
+
+export function normalizeChartVisualTags(rows, {shapeEvidence, observation, now = Date.now()} = {}) {
+  const evidence = validateChartShapeEvidence(shapeEvidence, {now, observation});
+  const supplied = observation && validHistoricalObservation(observation, now) ? observation : null;
+  const suppliedMinute = supplied?.cutoff ? chartCutoffMinute(supplied.date, supplied.cutoff) : null;
+  const chartMinute = evidence ? chartCutoffMinute(evidence.date, evidence.cutoff) : null;
+  // Use the earlier established endpoint when both clocks are available. In
+  // particular, a later model cutoff cannot evade the user's earlier deadline.
+  const cutoffMinute = suppliedMinute === null ? chartMinute : chartMinute === null ? suppliedMinute : Math.min(suppliedMinute, chartMinute);
+  const dateConflict = Boolean(supplied && typeof shapeEvidence?.date === 'string'
+    && validDate(shapeEvidence.date, {allowFuture: true}) && shapeEvidence.date !== supplied.date);
+  const cutoffConflict = Boolean(supplied?.cutoff && typeof shapeEvidence?.cutoff === 'string'
+    && CHART_CUTOFF.test(shapeEvidence.cutoff) && shapeEvidence.cutoff > supplied.cutoff);
+  const proposals = Array.isArray(rows) && rows.length <= 4 ? rows : [];
+  const uncertainty = (...parts) => parts.filter(Boolean).join(' ').slice(0, CHART_VISUAL_TEXT_LIMITS.uncertainty);
+  return CHART_VISUAL_SESSIONS.map(session => {
+    const matches = proposals.filter(row => row?.session === session);
+    const proposal = matches.length === 1 && validateChartVisualProposal(matches[0]) ? matches[0] : null;
+    const base = {session, tag: null, confidence: 'unclassified', evidence: proposal?.evidence.trim() || '', uncertainty: proposal?.uncertainty.trim() || '', complete: proposal?.complete ?? false, source: 'visual', status: 'unclassified'};
+    if (cutoffMinute !== null && cutoffMinute < CHART_SHAPE_END[session]) {
+      return {...base, complete: false, status: 'in_progress', uncertainty: uncertainty('The session had not ended at the established completed-close cutoff.', base.uncertainty)};
+    }
+    if (dateConflict) return {...base, complete: false, uncertainty: uncertainty('The chart date conflicts with the supplied historical date; session timing is unclassified.', base.uncertainty)};
+    if (!proposal) return {...base, uncertainty: 'No valid visual proposal was supplied for this session.'};
+    if (!proposal.complete) return {...base, uncertainty: uncertainty('The complete session is not established visually.', base.uncertainty)};
+    if (proposal.tag === null || proposal.confidence === 'unclassified' || !proposal.evidence.trim()) {
+      return {...base, uncertainty: uncertainty(base.uncertainty, 'The visible evidence does not support a visual tag proposal.')};
+    }
+    const timingUnknown = cutoffMinute === null;
+    const clockUnverified = evidence?.intervalMinutes !== 5 || evidence?.timezone !== 'America/New_York';
+    return {...base, tag: proposal.tag, confidence: timingUnknown || clockUnverified || cutoffConflict ? 'tentative' : proposal.confidence, status: 'candidate',
+      uncertainty: uncertainty(
+        timingUnknown ? 'Timing uncertainty: the New York completed-close cutoff is not established; full-session coverage is a visual proposal.' : '',
+        clockUnverified ? 'The five-minute New York candle clock is not independently established.' : '',
+        cutoffConflict ? 'The supplied cutoff takes precedence over the later model-reported cutoff.' : '',
+        base.uncertainty,
+      ),
+    };
+  });
+}
+
 export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, signal, now = Date.now()}) {
   if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
   const ip = input.clientAddress;
@@ -265,7 +330,7 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
     if (controller.signal.aborted) throw new DOMException('The chart request was cancelled.', 'AbortError');
     const upstream = await fetcher(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://wanhotrading.github.io/sessionpath/', 'X-OpenRouter-Title': 'SessionPath Chart Reader'}, signal: controller.signal,
       body: JSON.stringify({model, messages: [
-        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs and structured shapeEvidence. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null evidence and an empty sessions list instead of inventing events.`},
+        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs, structured shapeEvidence and four visualTags rows. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null shape evidence and an empty shapeEvidence.sessions list, and four null, unclassified visualTags with complete false instead of inventing events.`},
         {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message, ...(input.observation ? {observation: input.observation} : {})})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
       ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0.7, top_p: 0.95, stream: false, reasoning: {effort: 'low', exclude: true}, provider: CHART_PROVIDER, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
     });
@@ -299,7 +364,8 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
     if (!analysis) throw new Error('Invalid analysis');
     const shapeOptions = {now, observation: input.observation};
     const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions));
-    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
+    const visualTags = normalizeChartVisualTags(modelAnalysis.visualTags, {...shapeOptions, shapeEvidence: modelAnalysis.shapeEvidence});
+    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, visualTags, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
   } catch {
     return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The chart interpreter timed out. No automatic retry was made.' : 'The chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
   } finally {clearTimeout(timer); signal?.removeEventListener('abort', abortParent);}

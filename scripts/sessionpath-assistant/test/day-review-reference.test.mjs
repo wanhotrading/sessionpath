@@ -96,7 +96,7 @@ test('formal shape classification still uses its own range and the completed pha
 });
 
 test('legacy v3 callers receive the sourced framework without unrelated example answers', async () => {
-  assert.equal(CHART_REFERENCE_VERSION, 'sessionpath-chart-v6');
+  assert.equal(CHART_REFERENCE_VERSION, 'sessionpath-chart-v7');
   assert.equal(validateChartRequest(chartInput, {now: NOW}).referenceVersion, 'sessionpath-chart-v3');
   let sent;
   const handler = createAssistantHandler({now: () => NOW, fetcher: async (_url, init) => {
@@ -133,7 +133,7 @@ test('health reports the actual public knowledge metadata without a provider cal
   const response = await handler(new Request('https://assistant.test/health'), {});
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.equal(body.chartReferenceVersion, 'sessionpath-chart-v6');
+  assert.equal(body.chartReferenceVersion, 'sessionpath-chart-v7');
   assert.equal(body.model, 'nvidia/nemotron-3.5-super-vl:free');
   assert.equal(body.freeModelsOnly, false); assert.equal(body.chartModel, CHART_MODEL); assert.equal(body.intentModel, FREE_MODEL);
   assert.deepEqual(body.chartKnowledge, {

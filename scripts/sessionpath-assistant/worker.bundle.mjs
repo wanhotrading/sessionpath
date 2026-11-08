@@ -436,7 +436,7 @@ const DAY_REVIEW_READING_GUIDE = "Day review narrative reference\nLocate each ph
 // Shared by the chart-reading endpoint and the user-copyable comparison prompt.
 // Definitions checked against planner-v3.mjs, indicator-v5.mjs,
 // forecast-context.mjs, bbox-return.mjs, the archive shape exporters and the fixed first-breach study protocol.
-const CHART_REFERENCE_VERSION='sessionpath-chart-v6';
+const CHART_REFERENCE_VERSION='sessionpath-chart-v7';
 // Keep dated answers as source material without inserting their completed paths
 // into each unrelated screenshot request. The private Qwen test evaluates them separately.
 const ACTIVE_DAY_REVIEW_GUIDE=DAY_REVIEW_READING_GUIDE.split('\nSource examples below quote Day review Q.')[0]+'\nDated worked examples are retained as separate source references. Describe the current attached screenshot from its own candles; do not substitute a completed example story for the target chart.';
@@ -457,6 +457,10 @@ The standard SessionPath windows are 03:00–05:00, 05:00–08:30 and 08:30–16
 
 Website market/date/window values are selected context, not verified image metadata. The forecast window does not set the observation cutoff to its start or end. For “so far”, use the latest visible completed candle unless the user states a cutoff. A live candle countdown means that bar has not closed. For market, prefer the legible ticker (e.g. NQ1! is NQ), then the chart title, over the selector; flag the mismatch. Otherwise mark unreadable, unsupplied metadata unknown.
 
+Keep every printed table field attached to its own labelled checkpoint and measurement scope. A current WEBSITE INPUTS decision open cannot anchor an earlier, ended SessionPath forecast window. Establish that earlier forecast's decision open and edges from its own printed label or code; if those anchors are unreadable, leave them unknown and describe only the visible relationship. Do not transfer a price between checkpoints because it appears in the same table.
+
+A cumulative high or low since 19:30 belongs to the running combined range, not automatically to the session currently being discussed. It does not identify the phase in which the extreme was touched. Trace the actual extreme candle's time before attributing that high or low to ASIA, LONDON or NY, and use each session's own actual candles for its extremes. A later candle excluded by the observation cutoff may still be visible in the screenshot; describe it as excluded, not absent.
+
 Historical and replay screenshots are supported, including screenshots captured today of an earlier trading day. Establish the candles' trading date from the dated replay badge, legible historical x-axis dates, or the user's explicit chart-date statement. A movable crosshair tooltip is not automatically the latest candle. Store the export timestamp only in captureNy, the historical trading date in date, and the last completed candle's historical timestamp in cutoff. Compare full timestamps including their dates. Do not combine a historical date with the export clock, use today's date for old candles, or reject readable past movement because the export date differs. A historical candle's UTC offset can differ from the export offset across daylight saving changes; establish the candle clock independently.
 
 An optional observation object is the user's declared historical test context. Its date gives the intended New York trading date and its optional cutoff gives the last completed-close deadline. Read only candles at or before that deadline. State a genuine conflict if the legible chart identifies a different day; do not silently substitute a day. This context provides timing only, never prices, session coverage or expected tags. On a five-minute chart a bar labelled 08:40 completes at 08:45 only if that bar is completed. A label explicitly marked last completed close 08:45 already supplies the cutoff. A completed 08:30 cutoff makes London available; an 08:25 cutoff does not.
@@ -464,7 +468,7 @@ An optional observation object is the user's declared historical test context. I
 Exclude candles after a declared cutoff and unfinished bars from completed-close signals. Flag unclear timing. Absence from the screenshot does not prove an event never happened earlier.
 
 Session shape tags (all times America/New_York)
-These label a complete session's actual candles, independently of the SessionPath forecast box or BBOX breakout events. The four shape windows are NTA (12 five-minute bars at 16:00–17:00 on the preceding complete NY trading date plus 18 at 18:00–19:30 on the calendar evening before the trading date; Friday/Sunday for Monday), ASIA (19:30–02:00), LONDON (03:00–08:30), and NY (09:30–16:00, not the 08:30 forecast start). Windows include the start and exclude the end for candle OPEN times. Require the full five-minute window and its final completed close by the observation cutoff. An incomplete or uncertain session stays unclassified; it is not ORDER_UNRESOLVED.
+These label a complete session's actual candles, independently of the SessionPath forecast box or BBOX breakout events. The four shape windows are NTA (12 five-minute bars at 16:00–17:00 on the preceding complete NY trading date plus 18 at 18:00–19:30 on the calendar evening before the trading date; Friday/Sunday for Monday), ASIA (19:30–02:00), LONDON (03:00–08:30), and NY (09:30–16:00, not the 08:30 forecast start). Windows include the start and exclude the end for candle OPEN times. Require the full five-minute window and its final completed close by the observation cutoff. An incomplete session stays unclassified; it is not ORDER_UNRESOLVED. Formal shapeEvidence additionally requires established timing and exact labelled inputs.
 
 Let H and L be the session wick high and low, C the final completed close, W=H−L, and B=prior complete NY BBOX high−low. Apply in this order:
 1. W < 0.18 × B gives NARROW (Narrow range), regardless of shape. Equality is not Narrow. The width is in points; do not use AVR, the overnight range, or the forecast box as B.
@@ -473,7 +477,17 @@ Let H and L be the session wick high and low, C the final completed close, W=H�
 
 Screenshot classifications are provisional. Do not estimate exact H, L, C or BBOX edges from pixels, and do not use a forming candle or a forecast anchor open as the final close. In a synthetic example, a 35-point session with a 200-point BBOX is Narrow (35 < 36), even if it looks like a bounce. Use printed BBOX values (e.g. a table explicitly labelled “Prior NY H / L”) when available. Never reuse example numbers as chart evidence.
 
-For structured chart reading, put shape inputs in shapeEvidence: market (CL, NQ, ES, GC or null), ticker (exact displayed symbol or null; never reconstruct from a title), date (NY trading date YYYY-MM-DD or null), cutoff (NY local YYYY-MM-DDTHH:mm of last observed completed close, or null), captureNy (the screenshot export timestamp converted to NY in the same format, or null), timezone (America/New_York or null), intervalMinutes (5 or null), priorNyHigh, priorNyLow, open1930 (19:30 open), and sessions. Set timezone only from an explicit New York candle clock or a legible chart clock converted using its supported offset; a capture timestamp alone does not establish the candle clock. Overnight cutoff dates can precede the trading date. Session entries contain session (NTA, ASIA, LONDON or NY), high, low, close, order (high_first, low_first, same_bar or null), and complete (true only with full five-minute coverage and completion by cutoff). Copy only explicitly labelled or supplied prices as numbers; otherwise use null. Omit unsupported sessions or use an empty array. The server assigns codes; prose may describe observed shape qualitatively.
+For structured chart reading, put shape inputs in shapeEvidence: market (CL, NQ, ES, GC or null), ticker (exact displayed symbol or null; never reconstruct from a title), date (NY trading date YYYY-MM-DD or null), cutoff (NY local YYYY-MM-DDTHH:mm of last observed completed close, or null), captureNy (the screenshot export timestamp converted to NY in the same format, or null), timezone (America/New_York or null), intervalMinutes (5 or null), priorNyHigh, priorNyLow, open1930 (19:30 open), and sessions. Set timezone only from an explicit New York candle clock or a legible chart clock converted using its supported offset; a capture timestamp alone does not establish the candle clock. Overnight cutoff dates can precede the trading date. Session entries contain session (NTA, ASIA, LONDON or NY), high, low, close, order (high_first, low_first, same_bar or null), and complete (true only with full five-minute coverage and completion by cutoff). Copy only explicitly labelled or supplied prices as numbers; otherwise use null. Omit unsupported sessions or use an empty array. The server assigns formal codes from these exact inputs. Independently provide visualTags as described next; a missing exact price does not prevent a qualitative visual proposal.
+
+Visual session proposals
+Use a separate visualTags array with exactly one row each for NTA, ASIA, LONDON and NY. Each row has only session, tag (one of the eight shape codes above or null), confidence (clear, tentative or unclassified), evidence (plain text, at most 400 characters), uncertainty (plain text, at most 300 characters) and complete (boolean). These are visual candidates, never verified or archive results; they cannot create a Session Path Code or replace formal shapeTags. Missing exact H, L or C stays null in shapeEvidence while readable candle structure can still support visualTags.
+
+For each session, work through these observations before choosing a candidate:
+1. Identify its complete time bounds and the last completed candle. Exclude bars after the supplied cutoff, forming bars, blank future space, and other sessions. A visible full path with unreadable clock metadata may have complete true only with tentative confidence and explicit timing uncertainty; incomplete or missing coverage has complete false and tag null. A known cutoff before a session ends always prevents its completed visual tag.
+2. Separate actual candle wicks and bodies from forecast boxes, IB reference edges, BBOX lines and drawn projections. Identify the first actual session high and the first actual session low in candle order. Apply earliest occurrence for tied extremes; use ORDER_UNRESOLVED only when actual extremes share the first candle or the actual range is zero, after checking Narrow.
+3. Locate the session's own final completed close relative to its own actual high–low range. A clearly printed OWN-session Q2 or Q3, visible candle order and the close's relative position may support a qualitative candidate without exact prices. A BBOX quarter, forecast region, IB quarter or a subsequent candle's close is not the session's own close position. Never manufacture a numerical p or exact OHLC from pixels.
+4. Check Narrow first against the prior complete NY BBOX width. A visibly small session range may support tentative NARROW when exact W is unlabelled; state the unresolved numerical 18% check. If Narrow cannot be established or excluded visually, explicitly name NARROW as a competing interpretation in uncertainty with any tentative shape proposal; naming only another directional shape does not resolve the Narrow priority check. Then apply the actual extreme order and own closing position using the thresholds above. Near a threshold, retain a defensible tentative proposal and name the competing interpretation; do not claim exact threshold precision.
+5. In evidence, state the observed candle order and own final-close position before the proposed interpretation. Use clear only when those observations and the relevant visual distinctions are clear; use tentative for ambiguous thresholds, Narrow comparisons or timing. Use null with unclassified confidence when the visible structure cannot support a candidate. Do not default to null merely because numeric H, L and C are unlabelled.
 
 What the drawings mean
 BBOX is the actual high–low of the prior complete 09:30–16:00 New York reference session. It is separate from today's SessionPath forecast. Its four quarters are positions within that fixed high–low range; they are not AVR quartiles.
@@ -513,7 +527,7 @@ Separate observed facts from interpretation. An exact O/H/L/C value must be expl
 
 const CHART_COMPARISON_PROMPT=`${CHART_READING_SYSTEM}
 
-Apply the reference to the attached chart. Provide Summary, Sequence, BBOX, SessionPath, Session Shape Evidence and Uncertainties. List available shape inputs and give provisional codes only when all required evidence is present. Leave other sessions unclassified. Follow the same timing and word limits.`;
+Apply the reference to the attached chart. Provide Summary, Sequence, BBOX, SessionPath, Formal Session Shape Evidence, Visual Session Candidates and Uncertainties. List available exact shape inputs; formal codes require all formal evidence. Independently describe each session's visible candle order and own closing position, then give a visual candidate where supported, with confidence and uncertainty. Missing numeric H, L or C does not alone prevent a visual candidate. Leave incomplete or unsupported sessions unclassified. Follow the same timing and word limits.`;
 
 // intent.mjs
 const MARKETS = Object.freeze(['CL', 'NQ', 'ES', 'GC']);
@@ -747,6 +761,40 @@ function resolveChartShapeArchive(evidence, observation) {
   return {...observation, shapeTags};
 }
 
+// ../../docs/chart-visual-contract.mjs
+// Visual proposals are a separate evidence channel. They never become formal
+// shapeTags, archive results or inputs to a Session Path Code.
+const CHART_VISUAL_CONTRACT_VERSION = 'sessionpath.chart.visual.v1';
+const CHART_VISUAL_SESSIONS = Object.freeze(['NTA', 'ASIA', 'LONDON', 'NY']);
+const CHART_VISUAL_TAG_CODES = Object.freeze(['DOWN_FINISH', 'DOWN_THEN_BOUNCE', 'DROP_RECOVERY', 'UP_FINISH', 'UP_THEN_PULLBACK', 'RALLY_FADE', 'NARROW', 'ORDER_UNRESOLVED']);
+const CHART_VISUAL_CONFIDENCES = Object.freeze(['clear', 'tentative', 'unclassified']);
+const CHART_VISUAL_STATUSES = Object.freeze(['candidate', 'unclassified', 'in_progress']);
+const CHART_VISUAL_TEXT_LIMITS = Object.freeze({evidence: 400, uncertainty: 300});
+const RESPONSE_KEYS = Object.freeze(['session', 'tag', 'confidence', 'evidence', 'uncertainty', 'complete', 'source', 'status']);
+
+// Keep the browser validator self-contained and independent of server modules.
+function chartVisualPlainText(value, limit) {
+  if (typeof value !== 'string' || value.length > limit) return false;
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]|```|<[^>]*>|https?:\/\/|javascript:|data:|sk-or-|\bSP[1-9]\|/iu.test(value)) return false;
+  if (/\b\d+(?:\.\d+)?\s*(?:%|percent|per\s+cent)\s*(?:chance|probability|odds|likely|certainty)\b|\b(?:probability|chance|odds|win[- ]?rate)\s*(?:(?:is|of|at|:|=|about|around)\s*){0,2}\d+(?:\.\d+)?\s*(?:%|percent|per\s+cent)|(?:概率|機率|几率|勝率|胜率)[^\d]{0,10}\d+(?:\.\d+)?\s*[%％]/iu.test(value)) return false;
+  if (/\b(?:buy|sell|stop[- ]?loss|take[- ]?profit|entry\s+price|price\s+target)\b|\b(?:enter|exit)\s+(?:a|the|your|this|long|short|trade|position)\b|\b(?:go|stay|open|add)\s+(?:long|short)\b|買入|买入|賣出|卖出|做多|做空|止損|止损|止盈|進場|进场|出場|出场/iu.test(value)) return false;
+  return true;
+}
+
+function validateVisualTags(rows) {
+  return Array.isArray(rows) && rows.length === CHART_VISUAL_SESSIONS.length && rows.every((row, index) => {
+    if (row === null || typeof row !== 'object' || Array.isArray(row)
+      || Object.keys(row).length !== RESPONSE_KEYS.length || !RESPONSE_KEYS.every(key => Object.hasOwn(row, key))
+      || row.session !== CHART_VISUAL_SESSIONS[index] || !(row.tag === null || CHART_VISUAL_TAG_CODES.includes(row.tag))
+      || !CHART_VISUAL_CONFIDENCES.includes(row.confidence) || !CHART_VISUAL_STATUSES.includes(row.status)
+      || typeof row.complete !== 'boolean' || row.source !== 'visual'
+      || !chartVisualPlainText(row.evidence, CHART_VISUAL_TEXT_LIMITS.evidence)
+      || !chartVisualPlainText(row.uncertainty, CHART_VISUAL_TEXT_LIMITS.uncertainty)) return false;
+    if (row.status === 'candidate') return row.complete && row.tag !== null && row.confidence !== 'unclassified' && Boolean(row.evidence.trim());
+    return row.tag === null && row.confidence === 'unclassified' && (row.status !== 'in_progress' || row.complete === false);
+  });
+}
+
 // chart-vision.mjs
 
 const CHART_MAX_REQUEST_BYTES = 2 * 1024 * 1024;
@@ -864,7 +912,7 @@ function validateChartRequest(value, {now = Date.now()} = {}) {
   if (!chartKeys(value, ['context', 'image'], ['message', 'referenceVersion', 'observation']) || !chartKeys(value.context, ['market', 'window', 'date'])
     || !MARKETS.includes(value.context.market) || !WINDOWS.includes(value.context.window)
     || !(value.context.date === null || validDate(value.context.date, {now})) || !chartKeys(value.image, ['dataUrl'])
-    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v5', 'sessionpath-chart-v4', 'sessionpath-chart-v3', 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
+    || (value.referenceVersion !== undefined && ![CHART_REFERENCE_VERSION, 'sessionpath-chart-v6', 'sessionpath-chart-v5', 'sessionpath-chart-v4', 'sessionpath-chart-v3', 'sessionpath-chart-v2', CHART_LEGACY_REFERENCE_VERSION].includes(value.referenceVersion))
     || (value.observation !== undefined && !validHistoricalObservation(value.observation, now))
     || (value.message !== undefined && (typeof value.message !== 'string' || value.message.length > 600 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.message)))) {
     throw new ChartInputError('INVALID_CHART_REQUEST', 'Choose a supported market, window and valid date, then attach one screenshot.');
@@ -875,6 +923,19 @@ function validateChartRequest(value, {now = Date.now()} = {}) {
 const chartString = maxLength => ({type: 'string', minLength: 1, maxLength});
 const chartNullableEnum = (type, choices) => ({type: [type, 'null'], enum: [...choices, null]});
 const chartNullablePrice = {type: ['number', 'null']};
+const CHART_VISUAL_MODEL_KEYS = Object.freeze(['session', 'tag', 'confidence', 'evidence', 'uncertainty', 'complete']);
+const CHART_VISUAL_SCHEMA = {
+  type: 'array', minItems: 4, maxItems: 4, items: {
+    type: 'object', required: CHART_VISUAL_MODEL_KEYS, additionalProperties: false,
+    properties: {
+      session: {type: 'string', enum: CHART_VISUAL_SESSIONS},
+      tag: chartNullableEnum('string', CHART_VISUAL_TAG_CODES),
+      confidence: {type: 'string', enum: CHART_VISUAL_CONFIDENCES},
+      evidence: {type: 'string', maxLength: CHART_VISUAL_TEXT_LIMITS.evidence},
+      uncertainty: {type: 'string', maxLength: CHART_VISUAL_TEXT_LIMITS.uncertainty}, complete: {type: 'boolean'},
+    },
+  },
+};
 const CHART_SHAPE_SCHEMA = {
   type: 'object', required: [...CHART_SHAPE_KEYS,'captureNy'], additionalProperties: false,
   properties: {
@@ -895,11 +956,12 @@ const CHART_SHAPE_SCHEMA = {
 const CHART_ANALYSIS_SCHEMA = Object.freeze({
   type: 'object', properties: {
     shapeEvidence: CHART_SHAPE_SCHEMA,
+    visualTags: CHART_VISUAL_SCHEMA,
     summary: chartString(CHART_TEXT_LIMITS.summary),
     sequence: {type: 'array', minItems: 1, maxItems: CHART_TEXT_LIMITS.items, items: chartString(CHART_TEXT_LIMITS.sequence)},
     bbox: chartString(CHART_TEXT_LIMITS.bbox), sessionpath: chartString(CHART_TEXT_LIMITS.sessionpath),
     uncertainties: {type: 'array', minItems: 1, maxItems: CHART_TEXT_LIMITS.items, items: chartString(CHART_TEXT_LIMITS.uncertainties)},
-  }, required: ['shapeEvidence', 'summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], additionalProperties: false,
+  }, required: ['shapeEvidence', 'visualTags', 'summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], additionalProperties: false,
 });
 function chartPlainText(value, limit) {
   if (typeof value !== 'string' || !value.trim() || value.length > limit) return false;
@@ -911,7 +973,7 @@ function chartPlainText(value, limit) {
   return true;
 }
 function validateChartAnalysis(value) {
-  if (!chartKeys(value, ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], ['shapeEvidence'])) return null;
+  if (!chartKeys(value, ['summary', 'sequence', 'bbox', 'sessionpath', 'uncertainties'], ['shapeEvidence', 'visualTags'])) return null;
   if (!chartPlainText(value.summary, CHART_TEXT_LIMITS.summary) || !chartPlainText(value.bbox, CHART_TEXT_LIMITS.bbox) || !chartPlainText(value.sessionpath, CHART_TEXT_LIMITS.sessionpath)) return null;
   for (const key of ['sequence', 'uncertainties']) {
     if (!Array.isArray(value[key]) || value[key].length < 1 || value[key].length > CHART_TEXT_LIMITS.items || !value[key].every(item => chartPlainText(item, CHART_TEXT_LIMITS[key]))) return null;
@@ -996,6 +1058,56 @@ function classifyChartShapeEvidence(value, options) {
   return {chartObservation, shapeTags};
 }
 
+// A model proposes only visual evidence. Status and source are assigned here;
+// this path never reads the archive or changes the formal classifier's result.
+function validateChartVisualProposal(row) {
+  return chartKeys(row, CHART_VISUAL_MODEL_KEYS) && CHART_VISUAL_SESSIONS.includes(row.session)
+    && (row.tag === null || CHART_VISUAL_TAG_CODES.includes(row.tag))
+    && CHART_VISUAL_CONFIDENCES.includes(row.confidence) && typeof row.complete === 'boolean'
+    && chartVisualPlainText(row.evidence, CHART_VISUAL_TEXT_LIMITS.evidence)
+    && chartVisualPlainText(row.uncertainty, CHART_VISUAL_TEXT_LIMITS.uncertainty);
+}
+
+function normalizeChartVisualTags(rows, {shapeEvidence, observation, now = Date.now()} = {}) {
+  const evidence = validateChartShapeEvidence(shapeEvidence, {now, observation});
+  const supplied = observation && validHistoricalObservation(observation, now) ? observation : null;
+  const suppliedMinute = supplied?.cutoff ? chartCutoffMinute(supplied.date, supplied.cutoff) : null;
+  const chartMinute = evidence ? chartCutoffMinute(evidence.date, evidence.cutoff) : null;
+  // Use the earlier established endpoint when both clocks are available. In
+  // particular, a later model cutoff cannot evade the user's earlier deadline.
+  const cutoffMinute = suppliedMinute === null ? chartMinute : chartMinute === null ? suppliedMinute : Math.min(suppliedMinute, chartMinute);
+  const dateConflict = Boolean(supplied && typeof shapeEvidence?.date === 'string'
+    && validDate(shapeEvidence.date, {allowFuture: true}) && shapeEvidence.date !== supplied.date);
+  const cutoffConflict = Boolean(supplied?.cutoff && typeof shapeEvidence?.cutoff === 'string'
+    && CHART_CUTOFF.test(shapeEvidence.cutoff) && shapeEvidence.cutoff > supplied.cutoff);
+  const proposals = Array.isArray(rows) && rows.length <= 4 ? rows : [];
+  const uncertainty = (...parts) => parts.filter(Boolean).join(' ').slice(0, CHART_VISUAL_TEXT_LIMITS.uncertainty);
+  return CHART_VISUAL_SESSIONS.map(session => {
+    const matches = proposals.filter(row => row?.session === session);
+    const proposal = matches.length === 1 && validateChartVisualProposal(matches[0]) ? matches[0] : null;
+    const base = {session, tag: null, confidence: 'unclassified', evidence: proposal?.evidence.trim() || '', uncertainty: proposal?.uncertainty.trim() || '', complete: proposal?.complete ?? false, source: 'visual', status: 'unclassified'};
+    if (cutoffMinute !== null && cutoffMinute < CHART_SHAPE_END[session]) {
+      return {...base, complete: false, status: 'in_progress', uncertainty: uncertainty('The session had not ended at the established completed-close cutoff.', base.uncertainty)};
+    }
+    if (dateConflict) return {...base, complete: false, uncertainty: uncertainty('The chart date conflicts with the supplied historical date; session timing is unclassified.', base.uncertainty)};
+    if (!proposal) return {...base, uncertainty: 'No valid visual proposal was supplied for this session.'};
+    if (!proposal.complete) return {...base, uncertainty: uncertainty('The complete session is not established visually.', base.uncertainty)};
+    if (proposal.tag === null || proposal.confidence === 'unclassified' || !proposal.evidence.trim()) {
+      return {...base, uncertainty: uncertainty(base.uncertainty, 'The visible evidence does not support a visual tag proposal.')};
+    }
+    const timingUnknown = cutoffMinute === null;
+    const clockUnverified = evidence?.intervalMinutes !== 5 || evidence?.timezone !== 'America/New_York';
+    return {...base, tag: proposal.tag, confidence: timingUnknown || clockUnverified || cutoffConflict ? 'tentative' : proposal.confidence, status: 'candidate',
+      uncertainty: uncertainty(
+        timingUnknown ? 'Timing uncertainty: the New York completed-close cutoff is not established; full-session coverage is a visual proposal.' : '',
+        clockUnverified ? 'The five-minute New York candle clock is not independently established.' : '',
+        cutoffConflict ? 'The supplied cutoff takes precedence over the later model-reported cutoff.' : '',
+        base.uncertainty,
+      ),
+    };
+  });
+}
+
 async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, signal, now = Date.now()}) {
   if (!env.OPENROUTER_API_KEY || !env.ASSISTANT_QUOTA) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
   const ip = input.clientAddress;
@@ -1012,7 +1124,7 @@ async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEO
     if (controller.signal.aborted) throw new DOMException('The chart request was cancelled.', 'AbortError');
     const upstream = await fetcher(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://wanhotrading.github.io/sessionpath/', 'X-OpenRouter-Title': 'SessionPath Chart Reader'}, signal: controller.signal,
       body: JSON.stringify({model, messages: [
-        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs and structured shapeEvidence. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null evidence and an empty sessions list instead of inventing events.`},
+        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs, structured shapeEvidence and four visualTags rows. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null shape evidence and an empty shapeEvidence.sessions list, and four null, unclassified visualTags with complete false instead of inventing events.`},
         {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message, ...(input.observation ? {observation: input.observation} : {})})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
       ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0.7, top_p: 0.95, stream: false, reasoning: {effort: 'low', exclude: true}, provider: CHART_PROVIDER, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
     });
@@ -1046,7 +1158,8 @@ async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEO
     if (!analysis) throw new Error('Invalid analysis');
     const shapeOptions = {now, observation: input.observation};
     const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions));
-    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
+    const visualTags = normalizeChartVisualTags(modelAnalysis.visualTags, {...shapeOptions, shapeEvidence: modelAnalysis.shapeEvidence});
+    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, visualTags, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
   } catch {
     return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The chart interpreter timed out. No automatic retry was made.' : 'The chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
   } finally {clearTimeout(timer); signal?.removeEventListener('abort', abortParent);}

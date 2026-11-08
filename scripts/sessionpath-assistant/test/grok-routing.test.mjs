@@ -31,6 +31,6 @@ test('provider/account denials stay fixed and paid-compatible while preserving d
 test('root, ES and GC cache entries all load the upgraded shared screenshot UI',async()=>{
  for(const market of['','es/','gc/']){
   const entry=await readFile(new URL('../../../docs/'+market+'assistant-chat-entry.mjs',import.meta.url),'utf8');const html=await readFile(new URL('../../../docs/'+market+'index.html',import.meta.url),'utf8');
-  assert.match(entry,/assistant-chat\.mjs\?v=grok-chart-20261108/);assert.match(html,/assistant-chat-entry\.mjs\?v=grok-chart-20261108/);
+  assert.match(entry,/assistant-chat\.mjs\?v=visual-tags-20261108b/);assert.match(html,/assistant-chat-entry\.mjs\?v=visual-tags-20261108b/);
  }
 });

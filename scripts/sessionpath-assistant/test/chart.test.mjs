@@ -67,7 +67,9 @@ test('chart uses official multipart image_url format and pinned Grok image model
   const s = setup(async (url, init) => {calledUrl = url; sent = JSON.parse(init.body); return visionResponse(analysis);});
   const response = await s.handler(chartPost(chartBody({referenceVersion: CHART_REFERENCE_VERSION})), s.env); assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body, {ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...context, model: CHART_MODEL, referenceVersion: CHART_REFERENCE_VERSION, analysis});
+  assert.deepEqual(body, {ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...context, model: CHART_MODEL, referenceVersion: CHART_REFERENCE_VERSION, analysis,
+    visualTags: ['NTA', 'ASIA', 'LONDON', 'NY'].map(session => ({session, tag: null, confidence: 'unclassified', evidence: '', uncertainty: 'No valid visual proposal was supplied for this session.', complete: false, source: 'visual', status: 'unclassified'})),
+  });
   assert.equal(calledUrl, OPENROUTER_URL); assert.equal(sent.model, CHART_MODEL); assert.equal(FREE_MODEL, 'nvidia/nemotron-3.5-super-vl:free');
   assert.equal(sent.max_tokens, CHART_MAX_OUTPUT_TOKENS); assert.deepEqual(sent.reasoning, {effort: 'low', exclude: true}); assert.deepEqual(sent.provider, CHART_PROVIDER); assert.equal(sent.temperature, .7); assert.equal(sent.top_p, .95); assert.equal(CHART_TIMEOUT_MS, 180000); assert.equal(sent.response_format.json_schema.strict, true);
   assert.ok(sent.messages[0].content.startsWith(CHART_READING_SYSTEM)); assert.ok(!sent.messages[0].content.includes('Omit all percentages'));
