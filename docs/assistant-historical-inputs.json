@@ -1927,6 +1927,53 @@
         "london_close": null,
         "london_complete": false
       }
+    },
+    {
+      "market": "CL",
+      "date": "2026-11-03",
+      "contract": "NYMEX:CLZ2026",
+      "source": {
+        "provider": "TradingView native CSV",
+        "sha256": "b3ddb81f4799ac2ca38a7f93ab3c66da7696ca97aa93104224fd07e439bcf945",
+        "avrProfile": "explicit-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Unadjusted explicit December 2026 delivery contract."
+      },
+      "snapshot": {
+        "cutoff": "08:30",
+        "as_of": "2026-11-03T13:30:00.000Z",
+        "reference_price": 95.69,
+        "avr": 2.62,
+        "open_1930": 96.28,
+        "range_high": 98.82,
+        "range_low": 95.44,
+        "prior_high": 97.68,
+        "prior_low": 95.15,
+        "prior_ny_date": "2026-11-02",
+        "prior_ny_count": 78,
+        "avr_count": 10,
+        "avr_dates": [
+          "2026-10-20",
+          "2026-10-21",
+          "2026-10-22",
+          "2026-10-23",
+          "2026-10-26",
+          "2026-10-27",
+          "2026-10-28",
+          "2026-10-29",
+          "2026-10-30",
+          "2026-11-02"
+        ],
+        "avr_frozen_at": "2026-11-03T00:30:00.000Z",
+        "last_hour_behavior": "Trend up then fade",
+        "asia_high": 98.14,
+        "asia_low": 96.12,
+        "asia_close": 97.96,
+        "asia_complete": true,
+        "london_high": 98.82,
+        "london_low": 95.44,
+        "london_close": 95.68,
+        "london_complete": true
+      }
     }
   ]
 }
