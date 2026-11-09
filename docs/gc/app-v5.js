@@ -1,5 +1,5 @@
 import {mountMarketEmblem} from './market-emblem.mjs';
-import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=assistant-history-20261105b';
+import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=history-backfill-20261108';
 import {mainInputPlan,nyInputPlan,sessionPositions} from '../tradingview-live-core.mjs';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
 import {loadAsset,yieldToBrowser} from './startup-load.mjs';

@@ -14,8 +14,18 @@ const finite=Number.isFinite;
 const samePrice=(a,b)=>finite(a)&&finite(b)&&Math.abs(a-b)<=1e-7;
 const validDate=date=>typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&finite(Date.parse(date+'T12:00:00Z'))&&new Date(date+'T12:00:00Z').toISOString().slice(0,10)===date;
 const previousDate=date=>new Date(Date.parse(date+'T12:00:00Z')-86400000).toISOString().slice(0,10);
-export const ASSISTANT_HISTORY_URL=new URL('./assistant-historical-inputs.json',import.meta.url).href;
+export const ASSISTANT_HISTORY_URL=new URL('./assistant-historical-inputs.json?v=history-backfill-20261108',import.meta.url).href;
 export const EXPLICIT_AVR_PROFILE='explicit-prior10-0930-1600-frozen-before1930-v1';
+
+function historicalInputFailure(request,reason){
+ const checkpoint=`${request.market} ${request.cutoff}`,date=request.date;
+ const messages={
+  missing:`No saved ${checkpoint} checkpoint is available for ${date} in the historical inputs.`,
+  rejected:`Saved ${checkpoint} inputs for ${date} failed verification.`,
+  source_unavailable:`The historical sources for ${checkpoint} on ${date} could not all be loaded or verified. Checkpoint availability could not be confirmed; try again.`
+ };
+ return failure('HISTORICAL_UNAVAILABLE',messages[reason]+' Today’s prices were not substituted.');
+}
 
 function liveFeedFailure(body,{market,now,reason}){
  // Diagnostics contain only known validation text and formatted timestamps.
@@ -78,7 +88,7 @@ export function archivedForecastRecord(days,timeline,request){
 }
 
 export function validateHistoricalRecord(record,request){
- const s=record?.snapshot,tick={CL:.01,NQ:.25,ES:.25,GC:.1}[request.market],unavailable=()=>failure('HISTORICAL_UNAVAILABLE',`No verified ${request.market} ${request.cutoff} inputs are available for ${request.date}.`);
+ const s=record?.snapshot,tick={CL:.01,NQ:.25,ES:.25,GC:.1}[request.market],unavailable=()=>historicalInputFailure(request,record?'rejected':'missing');
  if(!record||record.market!==request.market||record.date!==request.date||!s||s.cutoff!==request.cutoff||Date.parse(s.as_of)!==nyTimestamp(request.date,request.minute))throw unavailable();
  const contractPattern=new RegExp('^(?:[A-Z0-9_]+:)?'+request.market+'(?:[FGHJKMNQUVXZ]\\d{4}|1!)$');
  if(typeof record.contract!=='string'||!contractPattern.test(record.contract)||!record.source?.provider||![EXPLICIT_AVR_PROFILE,PROFILE].includes(record.source.avrProfile)||record.source.avrProfile===PROFILE&&!record.contract.endsWith('1!')||record.source.avrProfile===EXPLICIT_AVR_PROFILE&&record.contract.endsWith('1!'))throw unavailable();
@@ -100,24 +110,26 @@ export function supplementForecastRecord(payload,request){
  return matches.length?validateHistoricalRecord(matches[0],request):null;
 }
 
-export function historicalFeedRecord(body,request){
- if(body?.schema!=='sessionpath.tradingview.history.v1'||body.status!=='ready'||body.date!==request.date||body.validationBasis!=='authenticated_pine_attestation')return null;
- const received=Date.parse(body.receivedAt);if(!finite(received))return null;
+export function historicalFeedRecord(body,request,{onUnavailable=()=>{}}={}){
+ const unavailable=reason=>{onUnavailable(reason);return null;};
+ if(body?.schema!=='sessionpath.tradingview.history.v1'||body.status!=='ready'||body.date!==request.date||body.validationBasis!=='authenticated_pine_attestation')return unavailable(body?.schema==='sessionpath.tradingview.history.v1'&&body.status==='unavailable'&&body.date===request.date&&body.validationBasis==='authenticated_pine_attestation'&&body.packet===null&&body.receivedAt===null?'missing':'source_unavailable');
+ const received=Date.parse(body.receivedAt);if(!finite(received))return unavailable('rejected');
  // Validate the historical packet against its original receipt time, preserving
  // every profile/coverage check without pretending that it is fresh today.
- let packet;try{packet=validatePersonalRead({...body,schema:READ_SCHEMA},{market:request.market,now:received});}catch{return null;}
- if(packet?.session_date!==request.date)return null;
- const snapshot=packet.snapshots.find(s=>s.cutoff===request.cutoff);if(!snapshot)return null;
+ let packet;try{packet=validatePersonalRead({...body,schema:READ_SCHEMA},{market:request.market,now:received});}catch{return unavailable('rejected');}
+ if(packet?.session_date!==request.date)return unavailable('rejected');
+ const snapshot=packet.snapshots.find(s=>s.cutoff===request.cutoff);if(!snapshot)return unavailable('missing');
  return validateHistoricalRecord({market:request.market,date:request.date,contract:packet.source_symbol,source:{provider:'TradingView personal Pine alert',avrProfile:packet.avr_profile,priceBasis:'Continuous front contract, unadjusted.',observedAt:packet.observed_at,receivedAt:body.receivedAt},snapshot},request);
 }
 
 export async function loadHistoricalForecast({request,archive,loadSupplement,feedURL,fetchImpl=(...args)=>fetch(...args)}){
  if(archive)return validateHistoricalRecord(archive,request);
- if(loadSupplement){let payload;try{payload=await loadSupplement();}catch{}if(payload){const record=supplementForecastRecord(payload,request);if(record)return record;}}
+ let sourceUnavailable=false,rejected=false;
+ if(loadSupplement){let payload;try{payload=await loadSupplement();}catch{sourceUnavailable=true;}if(payload){const record=supplementForecastRecord(payload,request);if(record)return record;}if(payload?.schema!=='sessionpath.assistant.historical-inputs.v1'||!Array.isArray(payload.records))sourceUnavailable=true;}
  if(feedURL){const target=new URL('/api/history',feedURL);target.searchParams.set('market',request.market);target.searchParams.set('date',request.date);const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
-  try{const response=await fetchImpl(target,{credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});if(response.ok){const record=historicalFeedRecord(await response.json(),request);if(record)return record;}}catch{}finally{clearTimeout(timeout);}
+  try{const response=await fetchImpl(target,{credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});if(response.ok){const body=await response.json();let record;try{record=historicalFeedRecord(body,request,{onUnavailable:reason=>{if(reason==='rejected')rejected=true;else if(reason==='source_unavailable')sourceUnavailable=true;}});}catch{rejected=true;}if(record)return record;}else sourceUnavailable=true;}catch{sourceUnavailable=true;}finally{clearTimeout(timeout);}
  }
- throw failure('HISTORICAL_UNAVAILABLE',`No verified ${request.market} ${request.cutoff} inputs are available for ${request.date}. Today’s prices were not substituted.`);
+ throw historicalInputFailure(request,rejected?'rejected':sourceUnavailable?'source_unavailable':'missing');
 }
 
 export function expansionResult(observations,q){
