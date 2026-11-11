@@ -2,46 +2,80 @@
 (()=>{
  const root=document.documentElement,cover=document.getElementById('sessionpath-loading');
  const note=document.getElementById('loading-note'),retry=document.getElementById('loading-retry');
- const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),coin=document.getElementById('loading-coin'),rotor=document.getElementById('loading-coin-rotor');
+ const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),emblem=document.getElementById('loading-emblem');
  const transferKey='sessionpath-loading-transition';
- const markets={ES:{name:'S&P 500',image:'../assets/emblems/es-acrylic-staging.svg'}};
+ const markets={ES:{name:'S&P 500'}};
  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
- let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,spin,audio;
- const artwork=new Map();
- function prepareArtwork(market){
-  if(!window.Image)return Promise.resolve();
-  if(!artwork.has(market)){
-   const img=new window.Image();img.src=markets[market].image;
-   artwork.set(market,img.decode().catch(()=>{}));
+ const typingDuration = 815;
+ let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,audioContext,keyTap;
+ function enableTypingAudio() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return false;
+  try {
+   audioContext ??= new AudioContext();
+   if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
+   return true;
+  } catch {
+   return false;
   }
-  return artwork.get(market);
  }
- // Reuse the exact panel artwork; prepare it before the short transition starts.
- function prepareTransition(){prepareCoinSound();for(const market of Object.keys(markets))void prepareArtwork(market);}
- // A real recorded coin sound; preloading is deferred until a user gesture.
- function prepareCoinSound(){try{if(!audio&&window.Audio){audio=new window.Audio('../assets/audio/coin-cling.mp3');audio.preload='auto';audio.volume=.65;audio.load();}}catch{}}
- function cling(){try{prepareCoinSound();if(audio){audio.currentTime=0;void audio.play().catch(()=>{});}}catch{}}
- document.addEventListener('pointerdown',prepareTransition,{once:true,passive:true});
- document.addEventListener('keydown',prepareTransition,{once:true});
- function present(market,elapsed=0,sound=false){
-  clearTimeout(typeTimer);spin?.cancel();
-  const info=markets[market],text=info?.name||'SessionPath center';
-  title.setAttribute('aria-label',text);title.dataset.fullTitle=text;
-  coin.hidden=!info;
-  if(info){coin.dataset.market=market;}
-  const tick=()=>{const elapsedNow=performance.now()-began;typed.textContent=text.slice(0,Math.min(text.length,Math.floor(text.length*elapsedNow/815)));if(elapsedNow<815)typeTimer=setTimeout(tick,Math.min(16,815-elapsedNow));};
-  if(reduced())typed.textContent=text;else tick();
-  let coinDone=Promise.resolve();
-  if(info&&!reduced()&&elapsed<600){
-   const run=generation;
-   coinDone=Promise.race([prepareArtwork(market),new Promise(resolve=>setTimeout(resolve,400))]).then(()=>{
-    if(run!==generation||!rotor)return;
-    spin=rotor.animate([{transform:'rotateY(0deg)'},{transform:'rotateY(1080deg)'}],{duration:600,easing:'cubic-bezier(.18,.62,.26,1)',fill:'both'});
-    return spin.finished.catch(()=>{});
-   });
+
+ function playKeyTap() {
+  if (audioContext?.state !== 'running') return;
+  try {
+   if (!keyTap) {
+    const rate = audioContext.sampleRate;
+    keyTap = audioContext.createBuffer(1, Math.ceil(rate * .035), rate);
+    const samples = keyTap.getChannelData(0);
+    let body = 0;
+    for (let i = 0; i < samples.length; i++) {
+     const time = i / rate;
+     const noise = Math.random() * 2 - 1;
+     body += (noise - body) * .14;
+     const press = Math.exp(-time / .0035);
+     const release = time < .008 ? 0 : Math.exp(-((time - .008) / .0025)) * .42;
+     samples[i] = (noise * .14 + body * .56) * (press + release) * Math.min(1, i / 6);
+    }
+   }
+   const tap = audioContext.createBufferSource();
+   tap.buffer = keyTap;
+   tap.playbackRate.value = .92 + Math.random() * .16;
+   tap.connect(audioContext.destination);
+   tap.onended = () => tap.disconnect();
+   tap.start();
+  } catch {
+   // Audio may be blocked by the browser. The transition can still finish.
   }
-  if(sound)cling();
-  return Promise.all([coinDone,new Promise(resolve=>setTimeout(resolve,reduced()?0:Math.max(0,815-elapsed)))]);
+ }
+
+ function present(market, elapsed = 0, sound = false) {
+  clearTimeout(typeTimer);
+  const info = markets[market];
+  const text = info?.name || 'SessionPath center';
+  title.setAttribute('aria-label', text);
+  title.dataset.fullTitle = text;
+  emblem.hidden = !info;
+  if (info) emblem.dataset.market = market;
+
+  if (reduced()) {
+   typed.textContent = text;
+   return Promise.resolve();
+  }
+
+  const playTyping = sound && enableTypingAudio();
+  let shown = 0;
+  function tick() {
+   const elapsedNow = performance.now() - began;
+   const count = Math.min(text.length, Math.floor(text.length * elapsedNow / typingDuration));
+   typed.textContent = text.slice(0, count);
+   if (playTyping && count > shown && text.slice(shown, count).trim()) playKeyTap();
+   shown = count;
+   if (elapsedNow < typingDuration) typeTimer = setTimeout(tick, Math.min(16, typingDuration - elapsedNow));
+  }
+  tick();
+  // Leave time for the final key tap to finish before navigation.
+  const soundTail = playTyping ? 40 : 0;
+  return new Promise(resolve => setTimeout(resolve, Math.max(0, typingDuration - elapsed) + soundTail));
  }
  const locked=new Map();
  function lock(){for(const el of document.body.children){if(el===cover||['SCRIPT','STYLE','NOSCRIPT'].includes(el.tagName))continue;if(!locked.has(el))locked.set(el,el.inert);el.inert=true;}}
@@ -56,7 +90,7 @@
  }
  function failure(message){
   if(cover.hidden)return;
-  clear();generation++;root.dataset.loadingCover='error';cover.setAttribute('aria-busy','false');
+  clear();clearTimeout(typeTimer);typed.textContent=title.dataset.fullTitle;generation++;root.dataset.loadingCover='error';cover.setAttribute('aria-busy','false');
   note.textContent=message;note.hidden=false;retry.hidden=false;lock();
  }
  function dismiss(){
@@ -68,7 +102,7 @@
    // The ready panels have completed layout before they become visible behind the fade.
    root.dataset.loadingCover='fading';cover.setAttribute('aria-busy','false');
    finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:900);
-  })),quiet?0:Math.max(0,815-(performance.now()-began)));
+  })),quiet?0:Math.max(0,typingDuration-(performance.now()-began)));
  }
  function state(){
   if(navigating)return;
