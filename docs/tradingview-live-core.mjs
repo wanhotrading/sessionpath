@@ -3,6 +3,10 @@ export const PROFILE='continuous-prior10-0930-1600-frozen-before1930-v1';
 export const READ_SCHEMA='sessionpath.tradingview.read.v1';
 const KEY='sessionpath-personal-read-v1',ENABLED='sessionpath-personal-enabled-v1';
 const CUTS=['03:00','05:00','08:30'];
+const OPEN_TIMING='decision_open_v1';
+const POLL_INTERVAL=30000;
+const BOUNDARY_RETRY_INTERVAL=4000;
+const cutoffMinute=cutoff=>Number(cutoff.slice(0,2))*60+Number(cutoff.slice(3));
 const num=v=>typeof v==='number'&&Number.isFinite(v);
 const previousDate=date=>new Date(Date.parse(date+'T12:00:00Z')-86400000).toISOString().slice(0,10);
 const previousWeekday=date=>{let d=previousDate(date);while([0,6].includes(new Date(d+'T12:00:00Z').getUTCDay()))d=previousDate(d);return d;};
@@ -11,15 +15,26 @@ export function nyClock(now=Date.now()){
  return {date:`${p.year}-${p.month}-${p.day}`,minute:Number(p.hour)*60+Number(p.minute)};
 }
 export function checkpointWaitState(body,{market,cutoff='03:00',now=Date.now()}={}){
- const selected=CUTS.includes(cutoff)?cutoff:'03:00',clock=nyClock(now),minute=Number(selected.slice(0,2))*60+Number(selected.slice(3)),due=minute+5;
- const expected=String(Math.floor(due/60)).padStart(2,'0')+':'+String(due%60).padStart(2,'0');
+ const selected=CUTS.includes(cutoff)?cutoff:'03:00',clock=nyClock(now),due=cutoffMinute(selected);
  const p=body?.packet,received=Date.parse(body?.receivedAt),observed=Date.parse(p?.observed_at);
  if(!p||p.market!==market||!Number.isFinite(received)||!Number.isFinite(observed))return {state:'Waiting',code:'NO_MARKET_DATA',message:`No ${market}1! data has reached this connection. Check that its personal sender alert is active.`};
  if(p.session_date!==clock.date||now-received>480000||now-observed>480000)return {state:'Unavailable',code:'STALE_MARKET_DATA',message:`${market}1! has no fresh data for today’s New York session. Check its personal sender alert.`};
  const label=new Date(observed).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
- if(clock.minute<due)return {state:'Connected',code:'CHECKPOINT_PENDING',message:`${market}1! is connected · last bar ${label} NY. The ${selected} checkpoint is expected after ${expected} NY, when its five-minute candle closes. Auto-fill will apply it automatically; keep this page open.`};
- if(observed<now-120000||nyClock(observed).minute<due)return {state:'Connected',code:'AWAITING_CHECKPOINT_DELIVERY',message:`${market}1! is connected · last bar ${label} NY. Waiting for the ${expected} NY update carrying the ${selected} checkpoint. Auto-fill retries automatically.`};
+ if(clock.minute<due)return {state:'Connected',code:'CHECKPOINT_PENDING',message:`${market}1! is connected · last bar ${label} NY. The ${selected} NY checkpoint is expected on the first trade of that candle. Auto-fill will apply it automatically.`};
+ if(observed<now-120000||nyClock(observed).minute<=due)return {state:'Connected',code:'AWAITING_CHECKPOINT_DELIVERY',message:`${market}1! is connected · last bar ${label} NY. Waiting for the ${selected} NY checkpoint. Auto-fill retries automatically.`};
  return {state:'Waiting',code:'CHECKPOINT_INCOMPLETE',message:`${market}1! is sending fresh data, but the ${selected} checkpoint is incomplete. Check the personal sender’s coverage status on TradingView.`};
+}
+export function checkpointPollDelay(now,cutoffs,snapshots){
+ const clock=nyClock(now);
+ if([0,6].includes(new Date(clock.date+'T12:00:00Z').getUTCDay()))return POLL_INTERVAL;
+ const pending=cutoffs.filter(cutoff=>CUTS.includes(cutoff)&&!snapshots.some(snapshot=>snapshot.cutoff===cutoff));
+ let delay=POLL_INTERVAL;
+ for(const cutoff of pending){
+  const remaining=(cutoffMinute(cutoff)-clock.minute)*60000-now%60000;
+  if(remaining>0)delay=Math.min(delay,remaining+1000);
+  else if(remaining>=-POLL_INTERVAL)delay=Math.min(delay,BOUNDARY_RETRY_INTERVAL);
+ }
+ return delay;
 }
 export function validatePersonalRead(body,{market,now=Date.now()}){
  if(body?.schema!==READ_SCHEMA)throw Error('The personal feed returned an unrecognized response.');
@@ -31,9 +46,13 @@ export function validatePersonalRead(body,{market,now=Date.now()}){
  const observed=Date.parse(p.observed_at),sent=Date.parse(p.sent_at);
  if(![received,observed,sent].every(Number.isFinite)||received>now+60000||observed>now+60000||sent>now+60000||now-received>480000||now-observed>480000||sent<observed||received<observed-60000)throw Error('TradingView feed is stale or its timestamps are invalid.');
  if(!Array.isArray(p.snapshots)||p.snapshots.length>3||new Set(p.snapshots.map(s=>s.cutoff)).size!==p.snapshots.length)throw Error('TradingView sent invalid checkpoint snapshots.');
+ const early=p.checkpoint_timing===OPEN_TIMING;
+ const last=p.snapshots.at(-1);
+ if(p.checkpoint_timing!==undefined&&(!early||!last||Date.parse(last.as_of)!==observed||observed>now+5000))throw Error('TradingView checkpoint timing or coverage could not be verified.');
  for(const s of p.snapshots){
-  const asOf=Date.parse(s.as_of),at=nyClock(asOf),minute=CUTS.includes(s.cutoff)?Number(s.cutoff.slice(0,2))*60+Number(s.cutoff.slice(3)):NaN;
-  if(!Number.isFinite(asOf)||asOf%60000!==0||s.ready!==true||at.date!==p.session_date||at.minute!==minute||observed<asOf+300000||s.avr_override!==false||s.avr_count!==10||s.prior_ny_count!==78)throw Error('TradingView checkpoint timing or coverage could not be verified.');
+  const asOf=Date.parse(s.as_of),at=Number.isFinite(asOf)?nyClock(asOf):null,minute=CUTS.includes(s.cutoff)?cutoffMinute(s.cutoff):NaN;
+  const requiredDelay=early&&s===last?0:300000;
+  if(!Number.isFinite(asOf)||asOf%60000!==0||s.ready!==true||at.date!==p.session_date||at.minute!==minute||observed<asOf+requiredDelay||s.avr_override!==false||s.avr_count!==10||s.prior_ny_count!==78)throw Error('TradingView checkpoint timing or coverage could not be verified.');
   const tick={CL:.01,NQ:.25,ES:.25,GC:.1}[market];
   if(!['reference_price','open_1930','range_high','range_low','prior_high','prior_low'].every(k=>num(s[k])&&s[k]>0&&s[k]<=1e9&&Math.abs(s[k]/tick-Math.round(s[k]/tick))<.00001)||!num(s.avr)||s.avr<=0||s.prior_high<=s.prior_low||s.range_high<s.range_low||s.range_high<Math.max(s.reference_price,s.open_1930)||s.range_low>Math.min(s.reference_price,s.open_1930))throw Error('TradingView checkpoint prices are incomplete or inconsistent.');
   if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||new Set(s.avr_dates).size!==10||s.avr_dates.some((d,i)=>!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>=p.session_date||i>0&&d<=s.avr_dates[i-1])||s.prior_ny_date!==s.avr_dates[9]||s.prior_ny_date!==previousWeekday(p.session_date))throw Error('TradingView AVR does not identify ten prior complete sessions.');
@@ -149,6 +168,7 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
   // locally for its handlers instead of fetching a packet that cannot apply.
   if(managedURL&&(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled)){timer=setTimeout(read,500);return;}
   const seq=sequence,context=inputContext();busy=true;setBusy(true);controller=new AbortController();const expiry=setTimeout(()=>controller.abort(),10000);
+  let snapshots=null;
   try{
    const target=managedURL?new URL(managedURL):new URL('/api/snapshots',url);target.searchParams.set('market',instrument.id);
    const response=await fetch(target,{headers:managedURL?{}:{Authorization:'Bearer '+savedReadKey},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
@@ -156,10 +176,21 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
    if(!response.ok)throw Error('The TradingView bridge is unavailable. Your current inputs were kept.');
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
    const packet=validatePersonalRead(body,{market:instrument.id});
+   snapshots=packet?.snapshots??[];
    if(!packet){const cutoff=followLatest?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);return;}
    apply(packet);
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
-  finally{clearTimeout(expiry);busy=false;setBusy(false);if(active)timer=setTimeout(read,30000);}
+  finally{
+   clearTimeout(expiry);busy=false;setBusy(false);
+   if(active){
+    const now=Date.now(),clock=nyClock(now),cutoff=followLatest?(clock.minute>=300?'05:00':'03:00'):$('asof')?.value;
+    const watched=[cutoff];
+    if(followLatest&&clock.minute<300)watched.push('05:00');
+    if($('ny-date')?.value===clock.date)watched.push('08:30');
+    const delay=snapshots&&!$('replay-toggle')?.checked?checkpointPollDelay(now,watched,snapshots):POLL_INTERVAL;
+    timer=setTimeout(read,delay);
+   }
+  }
  }
  function start(withSound=false){
   if(busy)return;

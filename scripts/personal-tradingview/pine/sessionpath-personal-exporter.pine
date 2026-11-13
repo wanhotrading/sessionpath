@@ -1,5 +1,5 @@
 //@version=6
-// Personal input bridge v1. Independent of the paid-member 08:30 publisher.
+// Personal input bridge. Independent of the paid-member 08:30 publisher.
 // Input conventions reviewed at SessionPath 0449c1466fb0176a59d03bfccdf3b7054ebaad8c.
 // Direct unadjusted 1! observations. Continuous AVR may span delivery months/roll gaps.
 indicator("SessionPath personal · confirmed 5m input bridge", overlay = true, max_bars_back = 20)
@@ -137,8 +137,7 @@ f_behavior(float baseline) =>
     code
 int behavior = f_behavior(nightAvr)
 
-// Called BEFORE this checkpoint bar's H/L/C is accumulated. Cache the resulting
-// JSON once, so later candles cannot change a previously supplied model input.
+// Use the decision candle's open and completed prior candles in both delivery paths.
 f_snapshot(string cutoff, int stamp, float reference, int rule, bool londonReady) =>
     string s = "{\"cutoff\":\"" + cutoff + "\",\"as_of\":\"" + f_utc(stamp) + "\",\"ready\":true"
     s += ",\"reference_price\":" + f_number(reference) + ",\"open_1930\":" + f_number(open1930) + ",\"range_high\":" + f_number(math.max(runningHigh, reference)) + ",\"range_low\":" + f_number(math.min(runningLow, reference))
@@ -148,6 +147,11 @@ f_snapshot(string cutoff, int stamp, float reference, int rule, bool londonReady
     s += ",\"london_high\":" + f_number(londonReady ? londonHigh : na) + ",\"london_low\":" + f_number(londonReady ? londonLow : na) + ",\"london_close\":" + f_number(londonReady ? londonClose : na) + ",\"london_complete\":" + (londonReady ? "true" : "false") + "}"
     s
 
+bool atCutoff = clockMinute == 180 or clockMinute == 300 or clockMinute == 510
+bool londonReady = clockMinute == 510 and londonCount == 66 and londonHigh > londonLow
+bool checkpointReady = weekdayTarget and complete and expectedOvernightOpen == sourceTime and sessionStart == startForBar and avrSessions == 10 and nightAvr > 0 and frozenPriorComplete and frozenPriorHigh > frozenPriorLow and asiaCount == 78 and asiaHigh > asiaLow and behavior > 0 and (clockMinute != 510 or londonReady)
+string cutoff = clockMinute == 180 ? "03:00" : clockMinute == 300 ? "05:00" : "08:30"
+
 if sourceConfirmed
     // Roll target date at 19:30, including after a weekend with no chart candles.
     if na(snapshotsDay) or snapshotsDay != targetDay
@@ -156,11 +160,7 @@ if sourceConfirmed
         snapshot0500 := ""
         snapshot0830 := ""
 
-    bool atCutoff = clockMinute == 180 or clockMinute == 300 or clockMinute == 510
-    bool londonReady = clockMinute == 510 and londonCount == 66 and londonHigh > londonLow
-    bool ready = weekdayTarget and complete and expectedOvernightOpen == sourceTime and sessionStart == startForBar and avrSessions == 10 and nightAvr > 0 and frozenPriorComplete and frozenPriorHigh > frozenPriorLow and asiaCount == 78 and asiaHigh > asiaLow and behavior > 0 and (clockMinute != 510 or londonReady)
-    if atCutoff and ready
-        string cutoff = clockMinute == 180 ? "03:00" : clockMinute == 300 ? "05:00" : "08:30"
+    if atCutoff and checkpointReady
         string frozenSnapshot = f_snapshot(cutoff, sourceTime, sourceOpen, behavior, londonReady)
         if clockMinute == 180 and snapshot0300 == ""
             snapshot0300 := frozenSnapshot
@@ -212,17 +212,35 @@ if sourceConfirmed
             londonClose := sourceClose
             londonCount += 1
 
+f_packet(string first, string second, string third, int observedAt, float lastPrice, bool decisionOpen) =>
+    string snapshots = "[" + first
+    snapshots += (first != "" and second != "" ? "," : "") + second
+    snapshots += ((first != "" or second != "") and third != "" ? "," : "") + third + "]"
+    string packet = "{\"schema\":\"sessionpath.personal.tradingview.v1\",\"token\":\"" + senderToken + "\",\"market\":\"" + syminfo.root + "\",\"source_symbol\":\"" + syminfo.ticker + "\",\"timeframe\":\"5\",\"timezone\":\"America/New_York\",\"confirmed\":true"
+    packet += ",\"observed_at\":\"" + f_utc(observedAt) + "\",\"sent_at\":\"" + f_utc(timenow) + "\",\"session_date\":\"" + f_date(targetDay) + "\",\"last_price\":" + f_number(lastPrice)
+    packet += ",\"feed_type\":\"continuous_front_contract\",\"backadjustment\":\"off\",\"avr_profile\":\"" + AVR_PROFILE + "\",\"snapshots\":" + snapshots
+    packet += (decisionOpen ? ",\"checkpoint_timing\":\"decision_open_v1\"" : "") + "}"
+    if str.length(packet) > 8192
+        runtime.error("Personal snapshot packet exceeds the 8192-character safety bound.")
+    packet
+
+// The first aligned update at the boundary exposes the exact new bar OPEN.
+// The observation and display quote still identify the preceding confirmed bar.
+// Keep the early snapshot out of the ordinary confirmed-bar cache.
+bool previousCandleClosed = sourceAligned[1] and sourceTime[1] == sourceTime - 300000 and sourceCloseTime[1] == sourceTime and not na(sourceClose[1])
+bool earlyFresh = timenow >= sourceTime and timenow - sourceTime <= 120000
+bool earlierCheckpointsReady = clockMinute == 180 or (snapshot0300 != "" and (clockMinute == 300 or snapshot0500 != ""))
+varip int lastSentDecisionOpen = na
+if senderEnabled and barstate.isrealtime and not barstate.isconfirmed and sourceAligned and atCutoff and checkpointReady and snapshotsDay == targetDay and previousCandleClosed and earlierCheckpointsReady and earlyFresh and (na(lastSentDecisionOpen) or sourceTime != lastSentDecisionOpen)
+    string earlySnapshot = f_snapshot(cutoff, sourceTime, sourceOpen, behavior, londonReady)
+    string packet = f_packet(clockMinute == 180 ? earlySnapshot : snapshot0300, clockMinute == 300 ? earlySnapshot : snapshot0500, clockMinute == 510 ? earlySnapshot : snapshot0830, sourceCloseTime[1], sourceClose[1], true)
+    alert(packet, alert.freq_all)
+    lastSentDecisionOpen := sourceTime
+
 bool transportFresh = timenow >= sourceCloseTime and timenow - sourceCloseTime <= 120000
 varip int lastSentClose = na
 if senderEnabled and sourceConfirmed and barstate.isrealtime and transportFresh and (na(lastSentClose) or sourceCloseTime != lastSentClose)
-    string snapshots = "[" + snapshot0300
-    snapshots += (snapshot0300 != "" and snapshot0500 != "" ? "," : "") + snapshot0500
-    snapshots += ((snapshot0300 != "" or snapshot0500 != "") and snapshot0830 != "" ? "," : "") + snapshot0830 + "]"
-    string packet = "{\"schema\":\"sessionpath.personal.tradingview.v1\",\"token\":\"" + senderToken + "\",\"market\":\"" + syminfo.root + "\",\"source_symbol\":\"" + syminfo.ticker + "\",\"timeframe\":\"5\",\"timezone\":\"America/New_York\",\"confirmed\":true"
-    packet += ",\"observed_at\":\"" + f_utc(sourceCloseTime) + "\",\"sent_at\":\"" + f_utc(timenow) + "\",\"session_date\":\"" + f_date(targetDay) + "\",\"last_price\":" + f_number(sourceClose)
-    packet += ",\"feed_type\":\"continuous_front_contract\",\"backadjustment\":\"off\",\"avr_profile\":\"" + AVR_PROFILE + "\",\"snapshots\":" + snapshots + "}"
-    if str.length(packet) > 8192
-        runtime.error("Personal snapshot packet exceeds the 8192-character safety bound.")
+    string packet = f_packet(snapshot0300, snapshot0500, snapshot0830, sourceCloseTime, sourceClose, false)
     alert(packet, alert.freq_once_per_bar_close)
     lastSentClose := sourceCloseTime
 

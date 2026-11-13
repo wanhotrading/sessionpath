@@ -14,6 +14,28 @@ test('fresh03:00 delivery waits and automatically applies03:05 without exposing 
  await h.poll();assert.equal(h.status(),'Connected');assert.equal(h.$('range-high').value,'102');assert.equal(h.state.submits,1);assert.equal(h.state.audioStarts,3);
 });
 
+test('Auto-fill retries just after the boundary and applies the true 03:00 open',async t=>{
+ const h=await harness(t,{market:'NQ'}),ready=structuredClone(h.state.body);
+ h.state.now=Date.parse('2026-11-03T08:00:01Z');
+ h.state.body={...ready,status:'waiting',receivedAt:new Date(h.state.now).toISOString(),packet:{...ready.packet,observed_at:'2026-11-03T08:00:00Z',sent_at:'2026-11-03T08:00:00Z',snapshots:[]}};
+ await h.start();
+ assert.equal(h.$('price').value,'777');
+ assertNoSuccessFeedback(h);
+
+ const retry=[...h.state.timers.entries()].find(([,timer])=>timer.ms===4000);
+ assert.ok(retry,'A pending checkpoint schedules a short boundary retry');
+ h.state.now+=4000;
+ h.state.body={...ready,receivedAt:new Date(h.state.now).toISOString(),packet:{...ready.packet,checkpoint_timing:'decision_open_v1',observed_at:'2026-11-03T08:00:00Z',sent_at:'2026-11-03T08:00:02Z',last_price:100,snapshots:[{...ready.packet.snapshots[0],reference_price:100.25}]}};
+ h.state.timers.delete(retry[0]);
+ retry[1].fn();
+ await settle();
+ assert.equal(h.status(),'Connected');
+ assert.equal(h.$('price').value,'100.25');
+ assert.equal(h.state.submits,1);
+ assert.equal(h.state.audioStarts,3);
+ assert.ok([...h.state.timers.values()].some(timer=>timer.ms===30000),'Normal polling resumes after the verified checkpoint');
+});
+
 for(const market of ['CL','NQ','ES','GC'])test(market+': explicit Auto-fill honors chosen03:00, applies NY filters, and rings/highlights once',async t=>{
  const h=await harness(t,{market});await h.start();assert.equal(h.state.calls.length,1);const call=h.state.calls[0];assert.equal(new URL(call.url).pathname,'/api/snapshots');assert.equal(new URL(call.url).searchParams.get('market'),market);assert.equal(call.options.headers.Authorization,'Bearer '+READ_KEY);assert.equal(h.$('asof').value,'03:00');assert.equal(h.$('range-high').value,'102');assert.equal(h.$('range-low').value,'98');assert.equal(h.state.submits,1);assert.equal(h.state.positionApplies,1);
  for(const id of [...mainIDs,...nyIDs])assert.ok(h.$(id).classList.contains('auto-fill-updated'),id+' is visibly filled');for(const id of ['year','ny-year','ny-asia-shape','util-three-up','ny-strength-three'])assert.ok(!h.$(id).classList.contains('auto-fill-updated'),id+' stays manual');assert.equal(h.state.audioStarts,3);assert.match(h.$('personal-auto-fill-popup').textContent,/^Done!/);assert.equal(h.status(),'Connected');

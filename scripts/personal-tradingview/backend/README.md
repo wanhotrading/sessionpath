@@ -46,7 +46,10 @@ Success is `200 {status:"accepted"|"duplicate"|"ignored"}`. A fresh authenticate
 heartbeat advances live source/receipt times even if the upstream alert has
 recomputed or omitted an already accepted checkpoint. The original checkpoint
 is retained; the revision does not overwrite model inputs or freeze transport.
-Duplicate or older observations never refresh source/receipt times.
+Duplicate or older observations never refresh source/receipt times. At the same
+observation time, a verified exact-open packet can add the missing boundary
+checkpoint to a legacy heartbeat while preserving that heartbeat's timestamps
+and all previously accepted snapshots.
 
 Read responses identify `snapshotPolicy: "first-accepted-per-checkpoint"` and
 include bounded `checkpointProvenance` and `reconciliation` metadata. Every new
@@ -117,8 +120,13 @@ ten-session AVR profile are accepted. Transport must arrive within 180 seconds
 of its aligned bar close. Session date is derived from the completed interval
 (`observed_at - 1 ms`), so the 19:25–19:30 bar still belongs to the old anchor.
 
-Frozen cutoff snapshots are cumulative and ordered 03:00, 05:00, 08:30; their
-first confirmed delivery occurs at 03:05, 05:05, 08:35. Every model snapshot
+Frozen cutoff snapshots are cumulative and ordered 03:00, 05:00, 08:30. An
+authenticated sender may attach `checkpoint_timing: "decision_open_v1"` when the
+newest snapshot is the exact opening price at the observed cutoff. The observed
+timestamp is the prior five-minute candle's confirmed close. This lets Auto-fill
+use the new decision open as soon as the next bar starts. Earlier snapshots and
+unmarked senders still require their first five-minute candle to have closed.
+Every model snapshot
 requires canonical positive prices, consistent running/session ranges, an exact
 previous-evening 19:30 AVR freeze, ten chronological completed-session dates,
 the latest prior date/count78, no manual AVR override, and completed Asia data.

@@ -1,4 +1,4 @@
-import {validatePersonalRead,nyClock,READ_SCHEMA,PROFILE} from './tradingview-live-core.mjs';
+import {validatePersonalRead,nyClock,READ_SCHEMA,PROFILE} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {regime} from './research-core.mjs';
 import {readSnapshot} from './window-engine.mjs';
 import {nyTimestamp} from './planner-v3.mjs';
@@ -195,7 +195,7 @@ export function createForecastRequester({market,feedURL,isReady=()=>true,isRepla
     try{packet=validatePersonalRead(body,{market,now:now()});}catch(error){throw failure('FEED_UNAVAILABLE',liveFeedFailure(body,{market,now:now(),reason:error.message}));}
     if(!packet)throw failure('CHECKPOINT_UNAVAILABLE','No complete TradingView checkpoint has arrived for today.');
     snapshot=packet.snapshots.find(s=>s.cutoff===request.cutoff);
-    if(!snapshot){const clock=nyClock(now()),due=request.minute+5;throw failure('CHECKPOINT_UNAVAILABLE',clock.minute<due?`The ${request.cutoff} New York checkpoint is available after its first five-minute candle closes.`:`The ${request.cutoff} New York checkpoint has not arrived. Check the sender’s coverage.`);}
+    if(!snapshot){const clock=nyClock(now());throw failure('CHECKPOINT_UNAVAILABLE',clock.minute<request.minute?`The ${request.cutoff} New York checkpoint is available on the first trade of that candle.`:clock.minute===request.minute?`The ${request.cutoff} New York checkpoint has not arrived yet. Retry shortly.`:`The ${request.cutoff} New York checkpoint has not arrived. Check the sender’s coverage.`);}
    }
    const blocked=()=>!request.historical&&(isReplay()&&!resumeAssistantHistory||isHistorical());
    if(!isReady()||blocked()||context()!==before)throw failure('INPUTS_CHANGED','Your inputs changed while the forecast was loading. Please request it again.');

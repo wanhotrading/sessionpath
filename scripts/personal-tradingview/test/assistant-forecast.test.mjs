@@ -45,6 +45,24 @@ test('a missing future checkpoint never falls back to an earlier window',async()
  assert.equal(result.ok,false);assert.equal(result.error.code,'CHECKPOINT_UNAVAILABLE');assert.equal(h.state.applies,0);assert.equal(result.code,undefined);
 });
 
+test('the assistant uses a verified decision open and historical reads still accept the archived packet',async()=>{
+ const h=harness({market:'NQ',window:'08:30-16:00'});
+ const packet=h.state.body.packet;
+ packet.checkpoint_timing='decision_open_v1';
+ packet.observed_at='2026-11-03T13:30:00Z';
+ packet.sent_at='2026-11-03T13:30:01Z';
+ packet.snapshots.at(-1).reference_price=100.25;
+ h.state.now=Date.parse('2026-11-03T13:30:02Z');
+ h.state.body.receivedAt=new Date(h.state.now).toISOString();
+ const result=await h.request(h.input);
+ assert.equal(result.ok,true);
+ assert.equal(h.state.applies,1);
+ assert.equal(h.state.model.query.price,100.25);
+ assert.equal(result.range.upper,102.25);
+ const historical=historicalFeedRecord({...h.state.body,schema:'sessionpath.tradingview.history.v1',date:packet.session_date,validationBasis:'authenticated_pine_attestation'},{market:'NQ',date:packet.session_date,cutoff:'08:30',minute:510});
+ assert.equal(historical?.snapshot.reference_price,100.25);
+});
+
 test('stale, wrong-day, mismatched market and invalid AVR coverage packets never change inputs',async()=>{
  for(const mutate of [h=>h.state.now+=600000,h=>h.state.body.packet.session_date='2026-11-02',h=>h.state.body.packet.market='NQ',h=>h.state.body.packet.snapshots[0].avr_count=9]){
   const h=harness();mutate(h);const result=await h.request(h.input);assert.equal(result.ok,false);assert.equal(result.error.code,'FEED_UNAVAILABLE');assert.equal(h.state.applies,0);

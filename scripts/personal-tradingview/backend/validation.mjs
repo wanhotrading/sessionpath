@@ -2,6 +2,7 @@ export const PERSONAL_SCHEMA = 'sessionpath.personal.tradingview.v1';
 export const PERSONAL_AVR_PROFILE = 'continuous-prior10-0930-1600-frozen-before1930-v1';
 export const PERSONAL_MARKETS = Object.freeze({CL:0.01,NQ:0.25,ES:0.25,GC:0.1});
 export const PERSONAL_CUTOFFS = ['03:00','05:00','08:30'];
+export const DECISION_OPEN_TIMING = 'decision_open_v1';
 export class FeedError extends Error {
   constructor(code,status=400){super(code);this.code=code;this.status=status;}
 }
@@ -23,9 +24,13 @@ function instant(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\
 function keys(obj,allowed){if(!obj||typeof obj!=='object'||Array.isArray(obj)||Object.keys(obj).some(k=>!allowed.includes(k)))bad('UNEXPECTED_FIELDS');}
 function price(value,tick){if(typeof value!=='number'||!Number.isFinite(value)||value<=0||value>1e9||Math.abs(value/tick-Math.round(value/tick))>0.00001)bad('INVALID_PRICE');return Number((Math.round(value/tick)*tick).toFixed(2));}
 const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready'];
-function normalizeSnapshot(s,{date,observedMs,tick}){
+function normalizeSnapshot(s,{date,observedMs,tick,decisionOpen}){
   keys(s,snapshotKeys);
-  if(!PERSONAL_CUTOFFS.includes(s.cutoff)||instant(s.as_of)!==nyEpoch(date,s.cutoff)||observedMs<instant(s.as_of)+300000)bad('INVALID_CUTOFF');
+  const asOf = instant(s.as_of);
+  if (!PERSONAL_CUTOFFS.includes(s.cutoff) || asOf !== nyEpoch(date,s.cutoff)) bad('INVALID_CUTOFF');
+  // An exact-open packet may publish only its newest cutoff at this boundary.
+  // Earlier snapshots and legacy senders keep the original completed-bar rule.
+  if (decisionOpen ? observedMs !== asOf : observedMs < asOf + 300000) bad('INVALID_CUTOFF');
   if(s.ready!==true||s.avr_override!==false||s.avr_count!==10||s.prior_ny_count!==78||s.asia_complete!==true||!Number.isInteger(s.last_hour_rule)||s.last_hour_rule<1||s.last_hour_rule>5)bad('INCOMPLETE_SNAPSHOT');
   if(typeof s.avr!=='number'||!Number.isFinite(s.avr)||s.avr<=0||s.avr>1e9)bad('INVALID_AVR');
   const frozen=nyEpoch(datePlus(date,-1),'19:30');
@@ -46,13 +51,21 @@ function normalizeSnapshot(s,{date,observedMs,tick}){
   result.london_complete=londonReady;result.ready=true;return result;
 }
 export function normalizePacket(input,{now=Date.now()}={}){
-  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed']);
+  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing']);
   if(input.schema!==PERSONAL_SCHEMA||!Object.hasOwn(PERSONAL_MARKETS,input.market)||input.source_symbol!==input.market+'1!'||input.timeframe!=='5'||input.timezone!=='America/New_York'||input.confirmed!==true||input.feed_type!=='continuous_front_contract'||input.backadjustment!=='off'||input.avr_profile!==PERSONAL_AVR_PROFILE)bad('INVALID_FEED');
   const observedMs=instant(input.observed_at),sentMs=instant(input.sent_at);
   if(observedMs%300000||observedMs>now+5000||now-observedMs>180000||sentMs<observedMs||sentMs>now+30000||now-sentMs>180000||sentMs-observedMs>180000)bad('STALE_TRANSPORT');
   if(!validDate(input.session_date)||input.session_date!==targetSessionDate(observedMs-1))bad('SESSION_DATE_MISMATCH');
   if(!Array.isArray(input.snapshots)||input.snapshots.length>3)bad('INVALID_SNAPSHOTS');
-  const snapshots=input.snapshots.map(s=>normalizeSnapshot(s,{date:input.session_date,observedMs,tick:PERSONAL_MARKETS[input.market]}));
+  const decisionOpen = Object.hasOwn(input,'checkpoint_timing');
+  if (decisionOpen && (input.checkpoint_timing !== DECISION_OPEN_TIMING || input.snapshots.length === 0)) bad('INVALID_CHECKPOINT_TIMING');
+  if (decisionOpen && observedMs > now) bad('STALE_TRANSPORT');
+  const snapshots = input.snapshots.map((snapshot,index) => normalizeSnapshot(snapshot, {
+    date: input.session_date,
+    observedMs,
+    tick: PERSONAL_MARKETS[input.market],
+    decisionOpen: decisionOpen && index === input.snapshots.length - 1
+  }));
   if(snapshots.some((s,i)=>i&&PERSONAL_CUTOFFS.indexOf(s.cutoff)<=PERSONAL_CUTOFFS.indexOf(snapshots[i-1].cutoff)))bad('DUPLICATE_OR_UNORDERED_CUTOFF');
   if(snapshots.length&&(!weekday(input.session_date)||nyDate(observedMs)!==input.session_date))bad('INVALID_SESSION_DATE');
   // Available snapshots are cumulative; a sender may omit a still-unready cutoff,
@@ -60,5 +73,5 @@ export function normalizePacket(input,{now=Date.now()}={}){
   if(snapshots.some((s,i)=>s.cutoff!==PERSONAL_CUTOFFS[i]))bad('MISSING_EARLIER_CUTOFF');
   const shared=['open_1930','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','asia_high','asia_low','asia_close'];
   if(snapshots.some((s,i)=>i&&(shared.some(k=>JSON.stringify(s[k])!==JSON.stringify(snapshots[0][k]))||s.range_high<snapshots[i-1].range_high||s.range_low>snapshots[i-1].range_low)))bad('INCONSISTENT_SNAPSHOT_SEQUENCE');
-  return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:price(input.last_price,PERSONAL_MARKETS[input.market])};
+  return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:price(input.last_price,PERSONAL_MARKETS[input.market]),...(decisionOpen?{checkpoint_timing:DECISION_OPEN_TIMING}:{})};
 }

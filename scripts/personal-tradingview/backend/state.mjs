@@ -1,7 +1,15 @@
+import {DECISION_OPEN_TIMING} from './validation.mjs';
+
+function enrichesSameObservation(current,incoming){
+  if (incoming.observedMs !== current.observedMs || incoming.packet.session_date !== current.packet.session_date || incoming.packet.checkpoint_timing !== DECISION_OPEN_TIMING) return false;
+  const boundary = incoming.packet.snapshots.at(-1);
+  return boundary?.as_of === incoming.packet.observed_at && !Object.hasOwn(current.snapshotHashes,boundary.cutoff);
+}
+
 export function decideFeedUpdate(current,incoming){
   // A historical-feed correction must not stop a fresh transport heartbeat.
   // Snapshot immutability is enforced by retaining first-accepted values below.
-  if(current&&incoming.observedMs<=current.observedMs)return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
+  if(current&&incoming.observedMs<=current.observedMs&&!enrichesSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
   if(current&&incoming.packet.session_date<current.packet.session_date)return {status:'ignored'};
   return {status:'accepted'};
 }
@@ -36,13 +44,19 @@ export async function reconcileFrozenCheckpoints(current,incoming){
       checkpointProvenance[cutoff]=initialProvenance(incoming,cutoff,'first-received');
     }
   }
-  const packet={...incoming.packet,snapshots};
+  // A legacy heartbeat can arrive just before the exact-open packet at the
+  // same boundary. Retain its transport and add only verified frozen values.
+  const sameObservation = current && enrichesSameObservation(current,incoming);
+  const packet = sameObservation
+    ? {...current.packet,checkpoint_timing:DECISION_OPEN_TIMING,snapshots}
+    : {...incoming.packet,snapshots};
   const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields};
   // The composite can contain first-accepted checkpoints from different source
   // revisions. Its own hash must describe the stored packet, not a rejected
   // replacement; per-cutoff provenance identifies each authenticated source.
   const packetHash=JSON.stringify(packet)===JSON.stringify(incoming.packet)?incoming.packetHash:await stateHash(packet);
-  return {...incoming,packet,packetHash,snapshotHashes,checkpointProvenance,reconciliation};
+  const transport = sameObservation ? current : incoming;
+  return {...transport,packet,packetHash,snapshotHashes,checkpointProvenance,reconciliation};
 }
 // SQLite-backed Durable Objects also expose the transactional KV storage API.
 // Keep frozen daily inputs separately from the live heartbeat. Neither record
