@@ -21,13 +21,15 @@ export function mountInstrumentSelector(){
  for(const c of Object.values(instruments)){const option=document.createElement('option');option.value=c.id;option.textContent=c.id+' · '+c.name;select.append(option);}select.value=instrument.id;label.append(select);
  document.querySelector('.top-actions').prepend(label);
  select.addEventListener('change',()=>{
-  if(select.value==='GC'){const transition={instrument:'GC'};document.dispatchEvent(new CustomEvent('sessionpath:instrument-change',{detail:transition}));saveMarketInputs();const target=new URL('./gc/',location.href);target.searchParams.set('instrument','GC');Promise.resolve(transition.finished).finally(()=>location.assign(target.href));return;}
-  if(select.value==='ES'){saveMarketInputs();const target=new URL('./es/',location.href);target.searchParams.set('instrument','ES');location.assign(target.href);return;}
-  const transition={instrument:select.value};
+  const nextMarket=select.value;
+  if(nextMarket===instrument.id||!Object.hasOwn(instruments,nextMarket))return;
+  const path=instruments[nextMarket].route;
+  const target=new URL(path||location.href,location.href);
+  target.searchParams.set('instrument',nextMarket);
+  const transition={instrument:nextMarket};
   document.dispatchEvent(new CustomEvent('sessionpath:instrument-change',{detail:transition}));
-  saveMarketInputs();const url=new URL(location.href);url.searchParams.set('instrument',select.value);
-  // Finish the gesture-triggered sound and title before navigating; the new page resumes this cover.
-  Promise.resolve(transition.finished).finally(()=>location.assign(url.href));
+  saveMarketInputs();
+  Promise.resolve(transition.finished).finally(()=>location.assign(target.href));
  });
  document.querySelector('.ambient-footer span').textContent=instrument.id+' / RESEARCH WORKSPACE';
  document.querySelector('.page-heading h1').textContent=instrument.id;

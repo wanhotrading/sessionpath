@@ -2,12 +2,13 @@
 (()=>{
  const root=document.documentElement,cover=document.getElementById('sessionpath-loading');
  const note=document.getElementById('loading-note'),retry=document.getElementById('loading-retry');
- const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed'),emblem=document.getElementById('loading-emblem');
+ const title=document.getElementById('loading-title'),typed=document.getElementById('loading-typed');
  const transferKey='sessionpath-loading-transition';
- const markets={ES:{name:'S&P 500'}};
+ const markets={CL:{name:'Crude oil'},NQ:{name:'Nasdaq 100'},ES:{name:'S&P 500'},GC:{name:'Gold'}};
  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
  const typingDuration = 815;
- let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,audioContext,keyTap,bootChime;
+ const fadeOutDuration = 550;
+ let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,audioContext,keyTap;
  function enableTypingAudio() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return false;
@@ -48,55 +49,38 @@
   }
  }
 
- // Game Boy channel 1 startup pitches, with the Color model's four-frame spacing.
- // https://guydunton.com/articles/gameboy-first-sounds/
- const bootPitchGap = 4 * 70224 / 4194304;
- const bootEnvelopeStep = 3 / 64;
-
- function playBootChime(secondsUntilTitle) {
-  try {
-   if (!bootChime) {
-    const rate = audioContext.sampleRate;
-    bootChime = audioContext.createBuffer(1, Math.ceil(rate * (bootPitchGap + 15 * bootEnvelopeStep)), rate);
-    const samples = bootChime.getChannelData(0);
-    for (let i = 0; i < samples.length; i++) {
-     const time = i / rate;
-     const first = time < bootPitchGap;
-     const age = first ? time : time - bootPitchGap;
-     const frequency = 131072 / (2048 - (first ? 0x783 : 0x7c1));
-     const phase = age * frequency % 1;
-     const volume = Math.max(0, 15 - Math.floor(age / bootEnvelopeStep)) / 15;
-     const attack = Math.min(1, age / .001);
-     const blend = first ? Math.min(1, (bootPitchGap - time) / .001) : 1;
-     samples[i] = (phase < .5 ? 1 : -1) * volume * attack * blend * .09;
-    }
+ function playBootChime() {
+  const chime = document.getElementById('loading-chime');
+  if (!chime) return Promise.resolve();
+  return new Promise(resolve => {
+   const finish = () => {
+    clearTimeout(startDeadline);
+    clearTimeout(playbackDeadline);
+    chime.removeEventListener('playing', onPlaying);
+    chime.removeEventListener('ended', finish);
+    chime.removeEventListener('error', stop);
+    chime.removeEventListener('abort', stop);
+    resolve();
+   };
+   const stop = () => {
+    chime.pause();
+    finish();
+   };
+   const onPlaying = () => clearTimeout(startDeadline);
+   const startDeadline = setTimeout(stop, 1800);
+   const playbackDeadline = setTimeout(stop, 10000);
+   chime.addEventListener('playing', onPlaying, {once:true});
+   chime.addEventListener('ended', finish, {once:true});
+   chime.addEventListener('error', stop, {once:true});
+   chime.addEventListener('abort', stop, {once:true});
+   try {
+    chime.currentTime = 0;
+    chime.volume = .85;
+    void chime.play().catch(stop);
+   } catch {
+    stop();
    }
-   const chime = audioContext.createBufferSource();
-   const delay = Math.max(0, secondsUntilTitle - bootPitchGap);
-   chime.buffer = bootChime;
-   chime.connect(audioContext.destination);
-   return new Promise(resolve => {
-    const finish = () => {
-     chime.onended = null;
-     clearTimeout(watchdog);
-     chime.disconnect();
-     resolve();
-    };
-    // If the browser interrupts playback, let the user get to their selected market.
-    const watchdog = setTimeout(() => {
-     try { chime.stop(); } catch {}
-     finish();
-    }, (delay + bootChime.duration) * 1000 + 250);
-    chime.onended = finish;
-    try {
-     chime.start(audioContext.currentTime + delay);
-    } catch {
-     finish();
-    }
-   });
-  } catch {
-   return undefined;
-  }
+  });
  }
 
  function present(market, elapsed = 0, sound = false) {
@@ -105,8 +89,6 @@
   const text = info?.name || 'SessionPath center';
   title.setAttribute('aria-label', text);
   title.dataset.fullTitle = text;
-  emblem.hidden = !info;
-  if (info) emblem.dataset.market = market;
 
   if (reduced()) {
    typed.textContent = text;
@@ -114,17 +96,14 @@
   }
 
   const playTyping = sound && enableTypingAudio();
+  const chimeFinished = sound ? playBootChime() : Promise.resolve();
   let shown = 0;
-  let chimeFinished;
   function tick() {
    const elapsedNow = performance.now() - began;
    const count = Math.min(text.length, Math.floor(text.length * elapsedNow / typingDuration));
    typed.textContent = text.slice(0, count);
    if (playTyping && count > shown && text.slice(shown, count).trim()) {
     playKeyTap();
-    if (!chimeFinished && audioContext.state === 'running') {
-     chimeFinished = playBootChime(Math.max(0, typingDuration - elapsedNow) / 1000);
-    }
    }
    shown = count;
    if (elapsedNow < typingDuration) typeTimer = setTimeout(tick, Math.min(16, typingDuration - elapsedNow));
@@ -132,18 +111,31 @@
   tick();
   // Keep the outgoing cover visible until both typing and the final ding have finished.
   const keyTapTail = playTyping ? 40 : 0;
-  return new Promise(resolve => {
-   setTimeout(() => resolve(chimeFinished), Math.max(0, typingDuration - elapsed) + keyTapTail);
-  });
+  const typingFinished = new Promise(resolve => setTimeout(resolve, Math.max(0, typingDuration - elapsed) + keyTapTail));
+  return Promise.all([typingFinished, chimeFinished]);
  }
  const locked=new Map();
  function lock(){for(const el of document.body.children){if(el===cover||['SCRIPT','STYLE','NOSCRIPT'].includes(el.tagName))continue;if(!locked.has(el))locked.set(el,el.inert);el.inert=true;}}
  function unlock(){for(const [el,value] of locked)el.inert=value;locked.clear();}
  function clear(){clearTimeout(delay);clearTimeout(finish);clearTimeout(watchdog);}
  function show(market=null,elapsed=0,sound=false){
-  clear();generation++;began=performance.now()-elapsed;cover.hidden=false;
-  cover.style.removeProperty('opacity');root.dataset.loadingCover='loading';
-  cover.setAttribute('aria-busy','true');note.hidden=true;retry.hidden=true;lock();const presentation=present(market,elapsed,sound);
+  clear();
+  const run=++generation;
+  began=performance.now()-elapsed;
+  cover.hidden=false;
+  cover.style.removeProperty('opacity');
+  if(market)cover.dataset.marketSwitch='true';
+  else delete cover.dataset.marketSwitch;
+  const fadeIn=sound&&!reduced();
+  root.dataset.loadingCover=sound?(fadeIn?'switch-enter':'switch-hold'):'loading';
+  cover.setAttribute('aria-busy','true');
+  note.hidden=true;
+  retry.hidden=true;
+  lock();
+  const presentation=present(market,elapsed,sound);
+  if(fadeIn)requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   if(run===generation)root.dataset.loadingCover='switch-hold';
+  }));
   watchdog=setTimeout(()=>failure('Loading is taking longer than usual. You can retry.'),30000);
   return presentation;
  }
@@ -160,7 +152,7 @@
    if(run!==generation||navigating)return;
    // The ready panels have completed layout before they become visible behind the fade.
    root.dataset.loadingCover='fading';cover.setAttribute('aria-busy','false');
-   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:900);
+   finish=setTimeout(()=>{if(run!==generation)return;cover.hidden=true;delete root.dataset.loadingCover;unlock();},quiet?0:fadeOutDuration);
   })),quiet?0:Math.max(0,typingDuration-(performance.now()-began)));
  }
  function state(){
