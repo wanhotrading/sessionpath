@@ -7,7 +7,7 @@
  const markets={CL:{name:'Crude oil'},NQ:{name:'Nasdaq 100'},GC:{name:'Gold'}};
  const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches||root.classList.contains('motion-paused')||document.body.classList.contains('motion-paused');
  const typingDuration = 815;
- let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,audioContext,keyTap;
+ let began=performance.now(),generation=0,delay,finish,watchdog,navigating=false,typeTimer,audioContext,keyTap,bootChime;
  function enableTypingAudio() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return false;
@@ -48,6 +48,57 @@
   }
  }
 
+ // Game Boy channel 1 startup pitches, with the Color model's four-frame spacing.
+ // https://guydunton.com/articles/gameboy-first-sounds/
+ const bootPitchGap = 4 * 70224 / 4194304;
+ const bootEnvelopeStep = 3 / 64;
+
+ function playBootChime(secondsUntilTitle) {
+  try {
+   if (!bootChime) {
+    const rate = audioContext.sampleRate;
+    bootChime = audioContext.createBuffer(1, Math.ceil(rate * (bootPitchGap + 15 * bootEnvelopeStep)), rate);
+    const samples = bootChime.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) {
+     const time = i / rate;
+     const first = time < bootPitchGap;
+     const age = first ? time : time - bootPitchGap;
+     const frequency = 131072 / (2048 - (first ? 0x783 : 0x7c1));
+     const phase = age * frequency % 1;
+     const volume = Math.max(0, 15 - Math.floor(age / bootEnvelopeStep)) / 15;
+     const attack = Math.min(1, age / .001);
+     const blend = first ? Math.min(1, (bootPitchGap - time) / .001) : 1;
+     samples[i] = (phase < .5 ? 1 : -1) * volume * attack * blend * .09;
+    }
+   }
+   const chime = audioContext.createBufferSource();
+   const delay = Math.max(0, secondsUntilTitle - bootPitchGap);
+   chime.buffer = bootChime;
+   chime.connect(audioContext.destination);
+   return new Promise(resolve => {
+    const finish = () => {
+     chime.onended = null;
+     clearTimeout(watchdog);
+     chime.disconnect();
+     resolve();
+    };
+    // If the browser interrupts playback, let the user get to their selected market.
+    const watchdog = setTimeout(() => {
+     try { chime.stop(); } catch {}
+     finish();
+    }, (delay + bootChime.duration) * 1000 + 250);
+    chime.onended = finish;
+    try {
+     chime.start(audioContext.currentTime + delay);
+    } catch {
+     finish();
+    }
+   });
+  } catch {
+   return undefined;
+  }
+ }
+
  function present(market, elapsed = 0, sound = false) {
   clearTimeout(typeTimer);
   const info = markets[market];
@@ -64,18 +115,26 @@
 
   const playTyping = sound && enableTypingAudio();
   let shown = 0;
+  let chimeFinished;
   function tick() {
    const elapsedNow = performance.now() - began;
    const count = Math.min(text.length, Math.floor(text.length * elapsedNow / typingDuration));
    typed.textContent = text.slice(0, count);
-   if (playTyping && count > shown && text.slice(shown, count).trim()) playKeyTap();
+   if (playTyping && count > shown && text.slice(shown, count).trim()) {
+    playKeyTap();
+    if (!chimeFinished && audioContext.state === 'running') {
+     chimeFinished = playBootChime(Math.max(0, typingDuration - elapsedNow) / 1000);
+    }
+   }
    shown = count;
    if (elapsedNow < typingDuration) typeTimer = setTimeout(tick, Math.min(16, typingDuration - elapsedNow));
   }
   tick();
-  // Leave time for the final key tap to finish before navigation.
-  const soundTail = playTyping ? 40 : 0;
-  return new Promise(resolve => setTimeout(resolve, Math.max(0, typingDuration - elapsed) + soundTail));
+  // Keep the outgoing cover visible until both typing and the final ding have finished.
+  const keyTapTail = playTyping ? 40 : 0;
+  return new Promise(resolve => {
+   setTimeout(() => resolve(chimeFinished), Math.max(0, typingDuration - elapsed) + keyTapTail);
+  });
  }
  const locked=new Map();
  function lock(){for(const el of document.body.children){if(el===cover||['SCRIPT','STYLE','NOSCRIPT'].includes(el.tagName))continue;if(!locked.has(el))locked.set(el,el.inert);el.inert=true;}}
