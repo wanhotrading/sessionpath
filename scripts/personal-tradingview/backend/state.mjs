@@ -1,15 +1,26 @@
 import {DECISION_OPEN_TIMING} from './validation.mjs';
 
-function enrichesSameObservation(current,incoming){
+function addsBoundaryAtSameObservation(current,incoming){
   if (incoming.observedMs !== current.observedMs || incoming.packet.session_date !== current.packet.session_date || incoming.packet.checkpoint_timing !== DECISION_OPEN_TIMING) return false;
   const boundary = incoming.packet.snapshots.at(-1);
   return boundary?.as_of === incoming.packet.observed_at && !Object.hasOwn(current.snapshotHashes,boundary.cutoff);
 }
 
+function canAddBboxHistory(original,candidate){
+  if(!original||original.bbox_history||!candidate?.bbox_history)return false;
+  const {bbox_history,...candidateInputs}=candidate;
+  return JSON.stringify(original)===JSON.stringify(candidateInputs);
+}
+
+function addsHistoryAtSameObservation(current,incoming){
+  return incoming.observedMs===current.observedMs&&incoming.packet.session_date===current.packet.session_date&&
+    incoming.packet.snapshots.some(candidate=>canAddBboxHistory(current.packet.snapshots.find(s=>s.cutoff===candidate.cutoff),candidate));
+}
+
 export function decideFeedUpdate(current,incoming){
   // A historical-feed correction must not stop a fresh transport heartbeat.
   // Snapshot immutability is enforced by retaining first-accepted values below.
-  if(current&&incoming.observedMs<=current.observedMs&&!enrichesSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
+  if(current&&incoming.observedMs<=current.observedMs&&!addsBoundaryAtSameObservation(current,incoming)&&!addsHistoryAtSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
   if(current&&incoming.packet.session_date<current.packet.session_date)return {status:'ignored'};
   return {status:'accepted'};
 }
@@ -25,13 +36,19 @@ export async function reconcileFrozenCheckpoints(current,incoming){
   const sameDay=current?.packet.session_date===incoming.packet.session_date;
   const prior=new Map((sameDay?current.packet.snapshots:[]).map(snapshot=>[snapshot.cutoff,snapshot]));
   const supplied=new Map(incoming.packet.snapshots.map(snapshot=>[snapshot.cutoff,snapshot]));
-  const snapshots=[],snapshotHashes={},checkpointProvenance={},retainedCutoffs=[],revisedCutoffs=[],missingCutoffs=[],addedCutoffs=[],changedFields={};
+  const snapshots=[],snapshotHashes={},checkpointProvenance={},retainedCutoffs=[],revisedCutoffs=[],missingCutoffs=[],addedCutoffs=[],historyAddedCutoffs=[],changedFields={};
   for(const cutoff of frozenCutoffs){
     const original=prior.get(cutoff),candidate=supplied.get(cutoff);
     if(original){
-      snapshots.push(original);snapshotHashes[cutoff]=current.snapshotHashes[cutoff];retainedCutoffs.push(cutoff);
+      const addingHistory=canAddBboxHistory(original,candidate);
+      snapshots.push(addingHistory?candidate:original);
+      snapshotHashes[cutoff]=addingHistory?incoming.snapshotHashes[cutoff]:current.snapshotHashes[cutoff];
+      retainedCutoffs.push(cutoff);
       checkpointProvenance[cutoff]=current.checkpointProvenance?.[cutoff]??initialProvenance(current,cutoff,'legacy-receipt');
-      if(!candidate)missingCutoffs.push(cutoff);
+      if(addingHistory){
+        historyAddedCutoffs.push(cutoff);
+        checkpointProvenance[cutoff]={...checkpointProvenance[cutoff],bboxHistory:initialProvenance(incoming,cutoff,'enriched-matching-checkpoint')};
+      }else if(!candidate)missingCutoffs.push(cutoff);
       else if(incoming.snapshotHashes[cutoff]!==current.snapshotHashes[cutoff]){
         revisedCutoffs.push(cutoff);
         changedFields[cutoff]=Object.keys(original).filter(key=>JSON.stringify(original[key])!==JSON.stringify(candidate[key]));
@@ -44,13 +61,14 @@ export async function reconcileFrozenCheckpoints(current,incoming){
       checkpointProvenance[cutoff]=initialProvenance(incoming,cutoff,'first-received');
     }
   }
-  // A legacy heartbeat can arrive just before the exact-open packet at the
-  // same boundary. Retain its transport and add only verified frozen values.
-  const sameObservation = current && enrichesSameObservation(current,incoming);
+  // Keep transport timestamps and the reported quote when an authenticated
+  // boundary or matching history enriches the same observation.
+  const addingBoundary = current && addsBoundaryAtSameObservation(current,incoming);
+  const sameObservation = current && (addingBoundary || addsHistoryAtSameObservation(current,incoming));
   const packet = sameObservation
-    ? {...current.packet,checkpoint_timing:DECISION_OPEN_TIMING,snapshots}
+    ? {...current.packet,...(addingBoundary?{checkpoint_timing:DECISION_OPEN_TIMING}:{}),snapshots}
     : {...incoming.packet,snapshots};
-  const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields};
+  const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields,...(historyAddedCutoffs.length?{historyAddedCutoffs}:{})};
   // The composite can contain first-accepted checkpoints from different source
   // revisions. Its own hash must describe the stored packet, not a rejected
   // replacement; per-cutoff provenance identifies each authenticated source.

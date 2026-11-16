@@ -17,7 +17,8 @@ function execute(lines,context,result){const names=Object.keys(context),body=lin
 const snapshotLines=pine.slice(pine.indexOf('f_snapshot(string'),pine.indexOf('\nif sourceConfirmed\n')).split('\n').slice(1).filter(line=>/^    (string s =|s \+=)/.test(line));
 const packetLines=pine.slice(pine.indexOf('    string snapshots ='),pine.indexOf('    if str.length(packet)')).split('\n').filter(line=>/^    (string (snapshots|packet) =|(snapshots|packet) \+=)/.test(line));
 const days=['2026-10-20','2026-10-21','2026-10-22','2026-10-23','2026-10-26','2026-10-27','2026-10-28','2026-10-29','2026-10-30','2026-11-02'];
-const base={f_utc,f_number,f_date:formatDate,Math,String,open1930:100,runningHigh:103,runningLow:98,frozenPriorHigh:105,frozenPriorLow:95,frozenPriorDate:Date.parse('2026-11-02T05:00:00Z'),nightAvr:10,frozenAvrDates:JSON.stringify(days),sessionStart:Date.parse('2026-11-03T00:30:00Z'),asiaHigh:102,asiaLow:99,asiaClose:101,londonHigh:103,londonLow:98,londonClose:100,rule:1};
+const base={f_utc,f_number,f_date:formatDate,f_bbox_history:()=>'',
+ Math,String,open1930:100,runningHigh:103,runningLow:98,frozenPriorHigh:105,frozenPriorLow:95,frozenPriorDate:Date.parse('2026-11-02T05:00:00Z'),nightAvr:10,frozenAvrDates:JSON.stringify(days),sessionStart:Date.parse('2026-11-03T00:30:00Z'),asiaHigh:102,asiaLow:99,asiaClose:101,londonHigh:103,londonLow:98,londonClose:100,rule:1};
 export function renderSnapshot(cutoff,overrides={}){return execute(snapshotLines,{...base,cutoff,stamp:Date.parse('2026-11-03T'+({'03:00':'08:00','05:00':'10:00','08:30':'13:30'}[cutoff])+':00Z'),reference:101,londonReady:cutoff==='08:30',...overrides},'s');}
 export function renderPacket(snapshots,market='CL',overrides={}){return execute(packetLines,{f_utc,f_number,f_date:formatDate,String,first:snapshots[0]||'',second:snapshots[1]||'',third:snapshots[2]||'',senderToken:'Q'.repeat(43),syminfo:{root:market,ticker:market+'1!'},observedAt:Date.parse('2026-11-03T13:35:00Z'),timenow:Date.parse('2026-11-03T13:35:01Z'),targetDay:Date.parse('2026-11-03T05:00:00Z'),lastPrice:101,decisionOpen:false,AVR_PROFILE:'continuous-prior10-0930-1600-frozen-before1930-v1',...overrides},'packet');}
 
@@ -158,4 +159,98 @@ test('decision-open delivery uses the true new bar open and previous confirmed q
  assert.match(early,/sourceTime != lastSentDecisionOpen/);
  assert.match(early,/alert\(packet, alert\.freq_all\)\n\s+lastSentDecisionOpen := sourceTime/);
  assert.doesNotMatch(early,/\bsnapshot(?:0300|0500|0830)\s*:=|\bsourceHigh\b|\bsourceLow\b/);
+});
+
+// Execute the Pine history serializer and minimum-count transitions with
+// JavaScript scalars. Pine's unknown integer is represented here by NaN.
+const f_bbox_min=(a,b)=>Number.isNaN(a)?b:Number.isNaN(b)?a:Math.min(a,b);
+const section=(start,end)=>pine.slice(pine.indexOf(start),pine.indexOf(end));
+const historySource=section('f_bbox_history(int stamp','// Original last-hour');
+const historyBody=historySource.trim().split('\n').slice(1).map(line=>{
+ const code=line.trim().replaceAll('str.tostring','String').replace(/\bna\(/g,'Number.isNaN(').replace(/\bint\(/g,'Math.trunc(');
+ if(code==='if supportsBboxHistory')return 'if (supportsBboxHistory) {';
+ if(code==='history')return '} return history;';
+ return code.replace(/^(?:string|bool) /,'let ').replace(' := ',' = ')+';';
+}).join('\n');
+const minSource=section('f_bbox_step(int','f_bbox_attempts(int');
+const stepReturn=[...minSource.matchAll(/^ {8}(\[.*\])$/gm)].map(([,x])=>x.replaceAll('int(na)','NaN'));
+assert.equal(stepReturn.length,3);
+const stepBody='function f_bbox_step(side,edge,unarmed,armed){\n'+
+ 'if(side===0)return '+stepReturn[0]+';\n'+
+ 'if(side===edge)return '+stepReturn[1]+';\n'+
+ 'return '+stepReturn[2]+';\n}\n';
+const attemptsBody=section('f_bbox_attempts(int','// The first term is close').trim().split('\n').slice(1).map((line,i,a)=>
+ i===a.length-1?'return '+line.trim()+';':(line.trim().startsWith('int ')?line.trim().replace(/^int /,'const '):'const '+line.trim())+';'
+).join('\n');
+export const executableAttemptStep=new Function('edge','unarmed','armed','atOpen','atHigh','atLow','atClose','f_bbox_min',stepBody+attemptsBody);
+
+function renderBboxHistory(cutoff,asOf,overrides={}){
+ const context={stamp:asOf,cutoff,bboxAsia:1,bboxGap:0,bboxEarly:2,bboxLate:3,bboxFirst03:2,bboxEarlierClose:0,bboxInherited:1,
+  bboxLatestClose:asOf-5*60000,bboxUpperUnarmed:2,bboxUpperArmed:3,bboxLowerUnarmed:NaN,bboxLowerArmed:0,
+  runningHigh:106,runningLow:96,bboxLastHourRv:1.125,supportsBboxHistory:true,f_number,f_bbox_min,...overrides};
+ return new Function(...Object.keys(context),historyBody)(...Object.values(context));
+}
+
+test('checkpoint only exposes elapsed windows, and the 03 candle is recorded once closed',()=>{
+ const cutoffs=['03:00','05:00','08:30'];
+ for(const [index,cutoff] of cutoffs.entries()){
+  const snap=JSON.parse(renderSnapshot(cutoff,{f_bbox_history:(stamp,name)=>renderBboxHistory(name,stamp)}));
+  assert.deepEqual(snap.bbox_history.phases,[[1,0,null,null],[1,0,2,null],[1,0,2,3]][index]);
+  assert.equal(snap.bbox_history.first03,index?2:null);
+  assert.equal(snap.bbox_history.latest_minutes,5);
+  assert.equal(snap.bbox_history.attempts_up,2);
+  assert.equal(snap.bbox_history.attempts_down,0);
+  assert.equal(snap.bbox_history.inherited,1);
+  assert.equal(snap.bbox_history.last_hour_rv,1.125);
+ }
+});
+
+test('no-break and unsupported-market histories are distinct, and geometry excludes the decision open',()=>{
+ const quiet={bboxAsia:0,bboxGap:0,bboxEarly:0,bboxLate:0,bboxFirst03:0,bboxInherited:0,bboxLatestClose:NaN,
+  bboxUpperUnarmed:NaN,bboxUpperArmed:0,bboxLastHourRv:0};
+ const snap=JSON.parse(renderSnapshot('03:00',{reference:108,f_bbox_history:(stamp,c)=>renderBboxHistory(c,stamp,quiet)}));
+ assert.equal(snap.bbox_history.latest_minutes,null);
+ assert.deepEqual(snap.bbox_history.phases,[0,0,null,null]);
+ assert.equal(snap.bbox_history.last_hour_rv,0);
+ assert.equal(snap.bbox_history.past_high,106);
+ assert.equal(snap.range_high,108);
+ const gc=JSON.parse(renderSnapshot('03:00',{f_bbox_history:(stamp,c)=>renderBboxHistory(c,stamp,{supportsBboxHistory:false})}));
+ assert.equal(Object.hasOwn(gc,'bbox_history'),false);
+ assert.match(pine,/supportsBboxHistory = syminfo\.root == "CL" or syminfo\.root == "NQ" or syminfo\.root == "ES"/);
+});
+
+test('attempt count does not treat crossing a time boundary as a second entry',()=>{
+ const count=states=>f_bbox_min(...states.reduce((m,bar)=>executableAttemptStep(1,...m,...bar,f_bbox_min),[0,NaN]));
+ assert.equal(count([[0,1,0,1],[1,1,1,1]]),1,'One excursion reaches both windows');
+ assert.equal(count([[0,1,0,0],[0,1,0,1]]),2,'A witnessed inside close resets');
+ assert.equal(count([[1,1,1,1],[1,1,1,1]]),0,'An inherited outside open does not infer an entry');
+ assert.equal(count([[1,1,2,2]]),0,'A jump over the full BBOX does not invent an inside trade');
+});
+
+test('all checkpoint history updates run on confirmed source candles after serialization',()=>{
+ const update=pine.indexOf('if supportsBboxHistory and complete and frozenPriorComplete');
+ assert.ok(pine.indexOf('if sourceConfirmed\n    // Roll target')<update);
+ assert.ok(pine.indexOf('if atCutoff and checkpointReady')<update);
+ assert.match(pine,/if clockMinute == 180\n\s+bboxFirst03 := f_bbox_mask/);
+ assert.match(pine,/if upper or lower\n\s+bboxLatestClose := sourceCloseTime/);
+ assert.match(pine,/float lastPrice = sourceOpen\[12\][\s\S]*?for i = 12 to 1[\s\S]*?sourceClose\[i\] - lastPrice/);
+});
+
+test('receiver retains actual encoded BBOX history throughout the checkpoint sequence',()=>{
+ const cutoffs=['03:00','05:00','08:30'];
+ for(const market of ['CL','NQ','ES']){
+  const snapshots=cutoffs.map((cutoff,i)=>{
+   const levels={runningHigh:[106,106,107][i],runningLow:[98,94,93][i]};
+   return renderSnapshot(cutoff,{
+    ...levels,asiaHigh:106,londonHigh:107,londonLow:93,
+    f_bbox_history:(stamp,name)=>renderBboxHistory(name,stamp,{
+     ...levels,bboxInherited:0,bboxEarlierClose:[1,3,3][i],bboxLowerArmed:[0,1,2][i],
+     bboxLatestClose:stamp-[60,5,0][i]*60000,
+    }),
+   });
+  });
+  const packet=JSON.parse(renderPacket(snapshots,market));
+  const normalized=normalizePacket(packet,{now:Date.parse(packet.sent_at)});
+  assert.deepEqual(normalized.snapshots.map(s=>s.bbox_history),packet.snapshots.map(s=>s.bbox_history));
+ }
 });

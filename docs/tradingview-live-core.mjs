@@ -1,3 +1,5 @@
+import {makeBBoxBreakoutHistory} from './bbox-breakout-history.mjs?v=bbox-history-20261116';
+
 // A personal TradingView transport is independent of the public delayed-data source.
 export const PROFILE='continuous-prior10-0930-1600-frozen-before1930-v1';
 export const READ_SCHEMA='sessionpath.tradingview.read.v1';
@@ -94,6 +96,21 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  const fillButton=document.createElement('button');fillButton.type='button';fillButton.id='personal-auto-fill';fillButton.className='quiet';fillButton.textContent='Auto-fill';fillButton.setAttribute('aria-describedby','personal-auto-fill-status');
  const fillStatus=document.createElement('p');fillStatus.id='personal-auto-fill-status';fillStatus.className='compact-note';fillStatus.setAttribute('role','status');fillStatus.setAttribute('aria-live','polite');fillStatus.textContent='Failed to fetch';
  row.append(fillButton,fillStatus);const planning=form.querySelector('.planning-bar');if(planning)planning.after(row);else form.prepend(row);
+ const mainBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'bbox-breakout-history',()=> $('bbox-return-details')||$('range-assessment')||row);
+ const nyBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'ny-bbox-breakout-history',()=> $('ny-reference')?.querySelector('.ny-price-inputs'));
+ function showBBoxHistory(packet=null,message){
+  if(!mainBBoxHistory&&!nyBBoxHistory)return;
+  const today=nyClock().date;
+  const replay=$('replay-toggle')?.checked;
+  const mainDate=$('trading-date')?.value;
+  const nyDate=$('ny-date')?.value;
+  const cutoff=$('asof')?.value;
+  const note=date=>replay?'Live BBOX history is unavailable in replay.':date&&date!==today?'Live BBOX history is available for today’s New York date.':message;
+  const match=(date,selected)=>!replay&&date===today&&packet?.session_date===today?packet.snapshots.find(s=>s.cutoff===selected):undefined;
+  mainBBoxHistory?.update({snapshot:match(mainDate,cutoff),cutoff,message:note(mainDate)});
+  nyBBoxHistory?.update({snapshot:match(nyDate,'08:30'),cutoff:'08:30',message:note(nyDate)});
+ }
+ showBBoxHistory();
  let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='',followLatest=true;
  const autoPositions=true;
  try{if(managedURL){sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}else savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
@@ -141,17 +158,17 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  }
  function resetApplied(){appliedMain='';appliedNY='';}
  function setFields(updates){const targets=[];for(const [id,v]of Object.entries(updates)){const el=$(id);if(el){el.value=typeof v==='number'?String(Number(v.toFixed(8))):String(v);targets.push(el);}}return targets;}
- function pause(message){active=false;sequence++;controller?.abort();clearTimeout(timer);try{sessionStorage.removeItem(ENABLED);}catch{}say(message,'Paused');}
+ function pause(message){active=false;sequence++;controller?.abort();clearTimeout(timer);try{sessionStorage.removeItem(ENABLED);}catch{}say(message,'Paused');showBBoxHistory(null,'Use Auto-fill to load verified BBOX history.');}
  function inputContext(){return [instrument.id,$('asof')?.value,$('trading-date')?.value,$('replay-toggle')?.checked,$('ny-date')?.value,followLatest].join('|');}
  function apply(packet){
   mountPrivateNotes();
-  if($('replay-toggle')?.checked){say('Replay is on. Live input updates are paused. Turn Replay off to resume.','Paused');return;}
+  if($('replay-toggle')?.checked){say('Replay is on. Live input updates are paused. Turn Replay off to resume.','Paused');showBBoxHistory();return;}
   if(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled){say('Connected. Waiting for the research data to finish loading.','Waiting');return;}
   const clock=nyClock(),updated=[];
   applying=true;
   try{
    if(followLatest){const cutoff=clock.minute>=300?'05:00':'03:00';if($('asof').value!==cutoff){$('asof').value=cutoff;resetApplied();}if($('trading-date').value!==clock.date){$('trading-date').value=clock.date;resetApplied();}if($('date-label'))$('date-label').textContent='Today · '+clock.date;}
-   if($('trading-date').value!==clock.date){say('Select today’s New York date or enable Follow latest checkpoint.','Waiting');return;}
+   if($('trading-date').value!==clock.date){say('Select today’s New York date or enable Follow latest checkpoint.','Waiting');showBBoxHistory();return;}
    const s=packet.snapshots.find(s=>s.cutoff===$('asof').value),ny=packet.snapshots.find(s=>s.cutoff==='08:30');
    if(s){const id=JSON.stringify(s)+'|'+$('ud-units')?.value;if(id!==appliedMain){updated.push(...setFields(mainInputPlan(s,$('ud-units')?.value)));form.requestSubmit();appliedMain=id;}}
    if(ny&&$('ny-price')&&$('ny-avr')&&$('ny-date')?.value===clock.date){const id=JSON.stringify(ny)+'|'+$('ny-basis')?.value+'|'+$('ny-position-mode')?.value+'|'+autoPositions;if(id!==appliedNY){updated.push(...setFields(nyInputPlan(ny)));$('ny-avr').dispatchEvent(new Event('input',{bubbles:true}));const positions=sessionPositions(ny,$('ny-basis')?.value);if(positions){updated.push(...setFields(positions));for(const id of Object.keys(positions))$(id)?.dispatchEvent(new Event('input',{bubbles:true}));if(autoPositions)$('ny-position-apply')?.click();const note=$('ny-position-status');if(note)note.textContent=autoPositions?note.textContent+' · TradingView personal snapshot.':'TradingView positions filled. Quarter filters retained; click Apply Exact / Wide to use these positions.';}for(const id of ['ny-util-autofill-status','ny-close-autofill-status'])if($(id))$(id).textContent='Not updated by this personal feed: NY close counts and U/D utilization need manual review. Existing direction entries were kept.';$('ny-range-low').dispatchEvent(new Event('input',{bubbles:true}));$('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));appliedNY=id;}}
@@ -159,6 +176,7 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
    const applied=[s?.cutoff,ny&&appliedNY?'08:30 NY':null].filter(Boolean).join(' / ');
    if(!s){const waiting=checkpointWaitState({packet,receivedAt:packet.observed_at},{market:instrument.id,cutoff:$('asof').value});say(waiting.message,waiting.state);}
    else say(`${instrument.id}1! · bar closed ${time} NY · ${applied?'applied '+applied:'waiting for the selected checkpoint'}. Five-minute updates; decision opens stay fixed.`,'Connected');
+   showBBoxHistory(packet);
    completeFill(updated);
   }finally{applying=false;}
  }
@@ -166,7 +184,7 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
   clearTimeout(timer);if(!active||busy||document.hidden)return;
   // A fresh managed connection can mount before the research module. Wait
   // locally for its handlers instead of fetching a packet that cannot apply.
-  if(managedURL&&(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled)){timer=setTimeout(read,500);return;}
+  if(managedURL&&(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled)){showBBoxHistory();timer=setTimeout(read,500);return;}
   const seq=sequence,context=inputContext();busy=true;setBusy(true);controller=new AbortController();const expiry=setTimeout(()=>controller.abort(),10000);
   let snapshots=null;
   try{
@@ -177,9 +195,9 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
    const packet=validatePersonalRead(body,{market:instrument.id});
    snapshots=packet?.snapshots??[];
-   if(!packet){const cutoff=followLatest?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);return;}
+   if(!packet){const cutoff=followLatest?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);showBBoxHistory();return;}
    apply(packet);
-  }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');}
+  }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');showBBoxHistory(null,'Waiting for a fresh verified TradingView checkpoint.');}
   finally{
    clearTimeout(expiry);busy=false;setBusy(false);
    if(active){
@@ -204,8 +222,9 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  const manualEdit=e=>{if(active&&!applying&&e.isTrusted&&managed.has(e.target.id))pause('Paused after your manual edit. Resume to fill from TradingView again.');};
  document.addEventListener('input',manualEdit);document.addEventListener('change',manualEdit);
  document.addEventListener('click',e=>{if(active&&!applying&&e.isTrusted&&e.target.closest?.('#context-auto-fill,#ny-auto-fill,#reset-btn,#ny-clear,#local-review-apply,.checkpoint'))pause('Paused while you use another input source or reset the form. Resume to fill from TradingView.');},true);
- const contextFields=new Set(['asof','trading-date','ny-date','replay-toggle','ny-basis','ny-position-mode','ud-units']);
- document.addEventListener('change',e=>{if(!applying&&contextFields.has(e.target.id)){if(e.target.id==='asof')followLatest=false;resetApplied();sequence++;if(active)void read();}});
+ const bboxContextFields=new Set(['asof','trading-date','ny-date','replay-toggle']);
+ const contextFields=new Set([...bboxContextFields,'ny-basis','ny-position-mode','ud-units']);
+ document.addEventListener('change',e=>{if(!applying&&contextFields.has(e.target.id)){if(e.target.id==='asof')followLatest=false;if(bboxContextFields.has(e.target.id))showBBoxHistory();resetApplied();sequence++;if(active)void read();}});
  document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
  // An explicit chat forecast pins its selected decision checkpoint just like a
  // manual Decision time change, so later background polls cannot replace it.

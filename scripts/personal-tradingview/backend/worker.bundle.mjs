@@ -24,8 +24,56 @@ function nyEpoch(date,clock){
 function instant(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value))bad('INVALID_TIMESTAMP');const n=Date.parse(value);if(!Number.isFinite(n)||new Date(n).toISOString().replace('.000Z','Z')!==value.replace('.000Z','Z'))bad('INVALID_TIMESTAMP');return n;}
 function keys(obj,allowed){if(!obj||typeof obj!=='object'||Array.isArray(obj)||Object.keys(obj).some(k=>!allowed.includes(k)))bad('UNEXPECTED_FIELDS');}
 function price(value,tick){if(typeof value!=='number'||!Number.isFinite(value)||value<=0||value>1e9||Math.abs(value/tick-Math.round(value/tick))>0.00001)bad('INVALID_PRICE');return Number((Math.round(value/tick)*tick).toFixed(2));}
-const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready'];
-function normalizeSnapshot(s,{date,observedMs,tick,decisionOpen}){
+const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready','bbox_history'];
+const bboxHistoryKeys=['v','phases','first03','latest_minutes','attempts_up','attempts_down','earlier_close','inherited','past_high','past_low','last_hour_rv'];
+// Same contiguous local chart segments as the historical research.
+const bboxPhaseEnds=[120,180,300,510];
+const bboxPhaseCounts={'03:00':2,'05:00':3,'08:30':4};
+const sideMask=(upper,lower)=>(upper?1:0)|(lower?2:0);
+function bboxSequenceMatches(prior,next){
+  return prior.phases.every((phase,i)=>phase===null||phase===next.phases[i])&&
+    (prior.first03===null||prior.first03===next.first03)&&
+    prior.attempts_up<=next.attempts_up&&prior.attempts_down<=next.attempts_down&&
+    (prior.earlier_close&next.earlier_close)===prior.earlier_close&&
+    prior.past_high<=next.past_high&&prior.past_low>=next.past_low;
+}
+function normalizeBboxHistory(h,s,tick){
+  keys(h,bboxHistoryKeys);
+  const count=bboxPhaseCounts[s.cutoff];
+  const validMask=value=>Number.isInteger(value)&&value>=0&&value<=3;
+  if(h.v!==1||!Array.isArray(h.phases)||h.phases.length!==4||h.phases.some((phase,i)=>i<count?!validMask(phase):phase!==null))bad('INVALID_BBOX_HISTORY');
+  const phases=[...h.phases];
+  const overall=phases.slice(0,count).reduce((mask,phase)=>mask|phase,0);
+  const rangeMask=(high,low)=>sideMask(high>s.prior_high,low<s.prior_low);
+  if(phases[0]!==rangeMask(s.asia_high,s.asia_low))bad('INVALID_BBOX_ASIA_HISTORY');
+  if(count===4&&(phases[2]|phases[3])!==rangeMask(s.london_high,s.london_low))bad('INVALID_BBOX_LONDON_HISTORY');
+  if(count===2?h.first03!==null:!validMask(h.first03)||(h.first03&phases[2])!==h.first03)bad('INVALID_BBOX_FIRST_LONDON_BAR');
+  const lastPhase=phases.findLastIndex(value=>value!==null&&value>0);
+  if(lastPhase<0){
+    if(h.latest_minutes!==null)bad('INVALID_BBOX_BREACH_TIME');
+  }else {
+    const lastClose=bboxPhaseEnds[count-1]-h.latest_minutes;
+    const phaseStart=bboxPhaseEnds[lastPhase-1]??-270;
+    if(!Number.isInteger(h.latest_minutes)||h.latest_minutes<0||h.latest_minutes%5||lastClose<=phaseStart||lastClose>bboxPhaseEnds[lastPhase])bad('INVALID_BBOX_BREACH_TIME');
+  }
+  const attemptLimit=2*(bboxPhaseEnds[count-1]+270)/5;
+  for(const [attempts,bit] of [[h.attempts_up,1],[h.attempts_down,2]]){
+    if(!Number.isInteger(attempts)||attempts<0||attempts>attemptLimit||(attempts>0&&!(overall&bit)))bad('INVALID_BBOX_ATTEMPTS');
+  }
+  const openSide=rangeMask(s.open_1930,s.open_1930);
+  if(!validMask(h.earlier_close)||(h.earlier_close&overall)!==h.earlier_close||h.inherited!==openSide||
+    (h.inherited&phases[0])!==h.inherited)bad('INVALID_BBOX_SIDE');
+  const high=price(h.past_high,tick),low=price(h.past_low,tick);
+  if(high<low||Math.max(high,s.reference_price)!==s.range_high||Math.min(low,s.reference_price)!==s.range_low||
+    s.open_1930<low||s.open_1930>high||s.asia_high>high||s.asia_low<low||
+    (count===4&&(s.london_high>high||s.london_low<low))||rangeMask(high,low)!==overall)bad('INVALID_BBOX_RANGE');
+  if(typeof h.last_hour_rv!=='number'||!Number.isFinite(h.last_hour_rv)||h.last_hour_rv<0||
+    h.last_hour_rv>Math.sqrt(12)*(high-low)+1e-5)bad('INVALID_BBOX_VOLATILITY');
+  return {v:1,phases,first03:h.first03,latest_minutes:h.latest_minutes,attempts_up:h.attempts_up,
+    attempts_down:h.attempts_down,earlier_close:h.earlier_close,inherited:h.inherited,
+    past_high:high,past_low:low,last_hour_rv:h.last_hour_rv};
+}
+function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   keys(s,snapshotKeys);
   const asOf = instant(s.as_of);
   if (!PERSONAL_CUTOFFS.includes(s.cutoff) || asOf !== nyEpoch(date,s.cutoff)) bad('INVALID_CUTOFF');
@@ -49,7 +97,13 @@ function normalizeSnapshot(s,{date,observedMs,tick,decisionOpen}){
   if(s.london_complete!==londonReady)bad('INVALID_LONDON_STATE');
   for(const k of ['london_high','london_low','london_close']){if(londonReady)result[k]=price(s[k],tick);else {if(s[k]!==null)bad('FUTURE_LONDON_VALUES');result[k]=null;}}
   if(londonReady&&(result.london_high<=result.london_low||result.london_close<result.london_low||result.london_close>result.london_high||result.london_high>result.range_high||result.london_low<result.range_low))bad('INCONSISTENT_LONDON');
-  result.london_complete=londonReady;result.ready=true;return result;
+  result.london_complete=londonReady;result.ready=true;
+  if(market!=='GC'&&Object.hasOwn(s,'bbox_history')){
+    // An invalid optional attestation must not disable ordinary Auto-fill.
+    try{result.bbox_history=normalizeBboxHistory(s.bbox_history,result,tick);}
+    catch(error){if(!(error instanceof FeedError))throw error;}
+  }
+  return result;
 }
 function normalizePacket(input,{now=Date.now()}={}){
   keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing']);
@@ -63,6 +117,7 @@ function normalizePacket(input,{now=Date.now()}={}){
   if (decisionOpen && observedMs > now) bad('STALE_TRANSPORT');
   const snapshots = input.snapshots.map((snapshot,index) => normalizeSnapshot(snapshot, {
     date: input.session_date,
+    market: input.market,
     observedMs,
     tick: PERSONAL_MARKETS[input.market],
     decisionOpen: decisionOpen && index === input.snapshots.length - 1
@@ -74,21 +129,38 @@ function normalizePacket(input,{now=Date.now()}={}){
   if(snapshots.some((s,i)=>s.cutoff!==PERSONAL_CUTOFFS[i]))bad('MISSING_EARLIER_CUTOFF');
   const shared=['open_1930','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','asia_high','asia_low','asia_close'];
   if(snapshots.some((s,i)=>i&&(shared.some(k=>JSON.stringify(s[k])!==JSON.stringify(snapshots[0][k]))||s.range_high<snapshots[i-1].range_high||s.range_low>snapshots[i-1].range_low)))bad('INCONSISTENT_SNAPSHOT_SEQUENCE');
+  let previousHistory=null;
+  for(const snapshot of snapshots){
+    if(!snapshot.bbox_history)continue;
+    if(previousHistory&&!bboxSequenceMatches(previousHistory,snapshot.bbox_history))delete snapshot.bbox_history;
+    else previousHistory=snapshot.bbox_history;
+  }
   return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:price(input.last_price,PERSONAL_MARKETS[input.market]),...(decisionOpen?{checkpoint_timing:DECISION_OPEN_TIMING}:{})};
 }
 
 // state.mjs
 
-function enrichesSameObservation(current,incoming){
+function addsBoundaryAtSameObservation(current,incoming){
   if (incoming.observedMs !== current.observedMs || incoming.packet.session_date !== current.packet.session_date || incoming.packet.checkpoint_timing !== DECISION_OPEN_TIMING) return false;
   const boundary = incoming.packet.snapshots.at(-1);
   return boundary?.as_of === incoming.packet.observed_at && !Object.hasOwn(current.snapshotHashes,boundary.cutoff);
 }
 
+function canAddBboxHistory(original,candidate){
+  if(!original||original.bbox_history||!candidate?.bbox_history)return false;
+  const {bbox_history,...candidateInputs}=candidate;
+  return JSON.stringify(original)===JSON.stringify(candidateInputs);
+}
+
+function addsHistoryAtSameObservation(current,incoming){
+  return incoming.observedMs===current.observedMs&&incoming.packet.session_date===current.packet.session_date&&
+    incoming.packet.snapshots.some(candidate=>canAddBboxHistory(current.packet.snapshots.find(s=>s.cutoff===candidate.cutoff),candidate));
+}
+
 function decideFeedUpdate(current,incoming){
   // A historical-feed correction must not stop a fresh transport heartbeat.
   // Snapshot immutability is enforced by retaining first-accepted values below.
-  if(current&&incoming.observedMs<=current.observedMs&&!enrichesSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
+  if(current&&incoming.observedMs<=current.observedMs&&!addsBoundaryAtSameObservation(current,incoming)&&!addsHistoryAtSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
   if(current&&incoming.packet.session_date<current.packet.session_date)return {status:'ignored'};
   return {status:'accepted'};
 }
@@ -104,13 +176,19 @@ async function reconcileFrozenCheckpoints(current,incoming){
   const sameDay=current?.packet.session_date===incoming.packet.session_date;
   const prior=new Map((sameDay?current.packet.snapshots:[]).map(snapshot=>[snapshot.cutoff,snapshot]));
   const supplied=new Map(incoming.packet.snapshots.map(snapshot=>[snapshot.cutoff,snapshot]));
-  const snapshots=[],snapshotHashes={},checkpointProvenance={},retainedCutoffs=[],revisedCutoffs=[],missingCutoffs=[],addedCutoffs=[],changedFields={};
+  const snapshots=[],snapshotHashes={},checkpointProvenance={},retainedCutoffs=[],revisedCutoffs=[],missingCutoffs=[],addedCutoffs=[],historyAddedCutoffs=[],changedFields={};
   for(const cutoff of frozenCutoffs){
     const original=prior.get(cutoff),candidate=supplied.get(cutoff);
     if(original){
-      snapshots.push(original);snapshotHashes[cutoff]=current.snapshotHashes[cutoff];retainedCutoffs.push(cutoff);
+      const addingHistory=canAddBboxHistory(original,candidate);
+      snapshots.push(addingHistory?candidate:original);
+      snapshotHashes[cutoff]=addingHistory?incoming.snapshotHashes[cutoff]:current.snapshotHashes[cutoff];
+      retainedCutoffs.push(cutoff);
       checkpointProvenance[cutoff]=current.checkpointProvenance?.[cutoff]??initialProvenance(current,cutoff,'legacy-receipt');
-      if(!candidate)missingCutoffs.push(cutoff);
+      if(addingHistory){
+        historyAddedCutoffs.push(cutoff);
+        checkpointProvenance[cutoff]={...checkpointProvenance[cutoff],bboxHistory:initialProvenance(incoming,cutoff,'enriched-matching-checkpoint')};
+      }else if(!candidate)missingCutoffs.push(cutoff);
       else if(incoming.snapshotHashes[cutoff]!==current.snapshotHashes[cutoff]){
         revisedCutoffs.push(cutoff);
         changedFields[cutoff]=Object.keys(original).filter(key=>JSON.stringify(original[key])!==JSON.stringify(candidate[key]));
@@ -123,13 +201,14 @@ async function reconcileFrozenCheckpoints(current,incoming){
       checkpointProvenance[cutoff]=initialProvenance(incoming,cutoff,'first-received');
     }
   }
-  // A legacy heartbeat can arrive just before the exact-open packet at the
-  // same boundary. Retain its transport and add only verified frozen values.
-  const sameObservation = current && enrichesSameObservation(current,incoming);
+  // Keep transport timestamps and the reported quote when an authenticated
+  // boundary or matching history enriches the same observation.
+  const addingBoundary = current && addsBoundaryAtSameObservation(current,incoming);
+  const sameObservation = current && (addingBoundary || addsHistoryAtSameObservation(current,incoming));
   const packet = sameObservation
-    ? {...current.packet,checkpoint_timing:DECISION_OPEN_TIMING,snapshots}
+    ? {...current.packet,...(addingBoundary?{checkpoint_timing:DECISION_OPEN_TIMING}:{}),snapshots}
     : {...incoming.packet,snapshots};
-  const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields};
+  const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields,...(historyAddedCutoffs.length?{historyAddedCutoffs}:{})};
   // The composite can contain first-accepted checkpoints from different source
   // revisions. Its own hash must describe the stored packet, not a rejected
   // replacement; per-cutoff provenance identifies each authenticated source.

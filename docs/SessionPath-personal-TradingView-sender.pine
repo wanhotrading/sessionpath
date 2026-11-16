@@ -6,6 +6,8 @@ indicator("SessionPath personal · confirmed 5m input bridge", overlay = true, m
 
 string TZ = "America/New_York"
 string AVR_PROFILE = "continuous-prior10-0930-1600-frozen-before1930-v1"
+float BBOX_EPS = 0.00000001
+bool supportsBboxHistory = syminfo.root == "CL" or syminfo.root == "NQ" or syminfo.root == "ES"
 bool senderEnabled = input.bool(false, "Enable personal input bridge", group = "Personal connection")
 string senderToken = input.string("", "Personal write token", group = "Personal connection", display = display.none, tooltip = "Enter only the private scoped personal-feed token. Keep it out of source, logs and screenshots. Configure the webhook URL in the alert dialog.")
 if not timeframe.isminutes or timeframe.multiplier != 5 or not chart.is_standard
@@ -111,6 +113,81 @@ var string snapshot0300 = ""
 var string snapshot0500 = ""
 var string snapshot0830 = ""
 
+// Side: 0 inside, 1 above, 2 below. A boundary touch alone is inside.
+// Each phase and the outside-close mask use 1 for above, 2 for below, 3 for both.
+var int bboxAsia = 0
+var int bboxGap = 0
+var int bboxEarly = 0
+var int bboxLate = 0
+var int bboxFirst03 = 0
+var int bboxEarlierClose = 0
+var int bboxInherited = 0
+var int bboxLatestClose = na
+var int bboxUpperUnarmed = 0
+var int bboxUpperArmed = na
+var int bboxLowerUnarmed = 0
+var int bboxLowerArmed = na
+
+f_bbox_side(float price, float lower, float upper) =>
+    price > upper + BBOX_EPS ? 1 : price < lower - BBOX_EPS ? 2 : 0
+
+f_bbox_mask(int mask, bool upper, bool lower) =>
+    int upperFlag = upper or mask % 2 == 1 ? 1 : 0
+    int lowerFlag = lower or mask >= 2 ? 2 : 0
+    upperFlag + lowerFlag
+
+f_bbox_min(int a, int b) =>
+    na(a) ? b : na(b) ? a : math.min(a, b)
+
+// Two minimum counts per edge retain whether an observed inside price has
+// armed another attempt. Unknown intrabar order cannot add a proven attempt.
+f_bbox_step(int side, int edge, int unarmed, int armed) =>
+    if side == 0
+        [int(na), f_bbox_min(unarmed, armed)]
+    else if side == edge
+        [f_bbox_min(unarmed, armed + 1), int(na)]
+    else
+        [unarmed, armed]
+
+f_bbox_attempts(int edge, int unarmed, int armed, int atOpen, int atHigh, int atLow, int atClose) =>
+    [openUnarmed, openArmed] = f_bbox_step(atOpen, edge, unarmed, armed)
+    [highUnarmed, highArmed] = f_bbox_step(atHigh, edge, openUnarmed, openArmed)
+    [highLowUnarmed, highLowArmed] = f_bbox_step(atLow, edge, highUnarmed, highArmed)
+    [lowUnarmed, lowArmed] = f_bbox_step(atLow, edge, openUnarmed, openArmed)
+    [lowHighUnarmed, lowHighArmed] = f_bbox_step(atHigh, edge, lowUnarmed, lowArmed)
+    int mergedUnarmed = f_bbox_min(highLowUnarmed, lowHighUnarmed)
+    int mergedArmed = f_bbox_min(highLowArmed, lowHighArmed)
+    f_bbox_step(atClose, edge, mergedUnarmed, mergedArmed)
+
+// The first term is close minus open for the oldest candle in the hour.
+// The subsequent eleven terms are close minus the preceding close.
+f_bbox_last_hour_rv() =>
+    float lastPrice = sourceOpen[12]
+    float squares = 0.0
+    for i = 12 to 1
+        float delta = sourceClose[i] - lastPrice
+        squares += delta * delta
+        lastPrice := sourceClose[i]
+    math.sqrt(squares)
+float bboxLastHourRv = f_bbox_last_hour_rv()
+
+f_bbox_history(int stamp, string cutoff) =>
+    string history = ""
+    if supportsBboxHistory
+        bool earlyComplete = cutoff != "03:00"
+        bool lateComplete = cutoff == "08:30"
+        string phaseEarly = earlyComplete ? str.tostring(bboxEarly) : "null"
+        string phaseLate = lateComplete ? str.tostring(bboxLate) : "null"
+        string phases = "[" + str.tostring(bboxAsia) + "," + str.tostring(bboxGap) + "," + phaseEarly + "," + phaseLate + "]"
+        string first03 = earlyComplete ? str.tostring(bboxFirst03) : "null"
+        string latest = na(bboxLatestClose) ? "null" : str.tostring(int((stamp - bboxLatestClose) / 60000))
+        history := ",\"bbox_history\":{\"v\":1,\"phases\":" + phases + ",\"first03\":" + first03 + ",\"latest_minutes\":" + latest
+        history += ",\"attempts_up\":" + str.tostring(f_bbox_min(bboxUpperUnarmed, bboxUpperArmed))
+        history += ",\"attempts_down\":" + str.tostring(f_bbox_min(bboxLowerUnarmed, bboxLowerArmed))
+        history += ",\"earlier_close\":" + str.tostring(bboxEarlierClose) + ",\"inherited\":" + str.tostring(bboxInherited)
+        history += ",\"past_high\":" + f_number(runningHigh) + ",\"past_low\":" + f_number(runningLow) + ",\"last_hour_rv\":" + (bboxLastHourRv == 0.0 ? "0" : f_number(bboxLastHourRv)) + "}"
+    history
+
 // Original last-hour classification, using only closes before the checkpoint.
 f_behavior(float baseline) =>
     int code = 0
@@ -144,7 +221,8 @@ f_snapshot(string cutoff, int stamp, float reference, int rule, bool londonReady
     s += ",\"prior_high\":" + f_number(frozenPriorHigh) + ",\"prior_low\":" + f_number(frozenPriorLow) + ",\"prior_ny_date\":\"" + f_date(frozenPriorDate) + "\",\"prior_ny_count\":78"
     s += ",\"avr\":" + f_number(nightAvr) + ",\"avr_count\":10,\"avr_dates\":" + frozenAvrDates + ",\"avr_frozen_at\":\"" + f_utc(sessionStart) + "\",\"avr_override\":false,\"last_hour_rule\":" + str.tostring(rule)
     s += ",\"asia_high\":" + f_number(asiaHigh) + ",\"asia_low\":" + f_number(asiaLow) + ",\"asia_close\":" + f_number(asiaClose) + ",\"asia_complete\":true"
-    s += ",\"london_high\":" + f_number(londonReady ? londonHigh : na) + ",\"london_low\":" + f_number(londonReady ? londonLow : na) + ",\"london_close\":" + f_number(londonReady ? londonClose : na) + ",\"london_complete\":" + (londonReady ? "true" : "false") + "}"
+    s += ",\"london_high\":" + f_number(londonReady ? londonHigh : na) + ",\"london_low\":" + f_number(londonReady ? londonLow : na) + ",\"london_close\":" + f_number(londonReady ? londonClose : na) + ",\"london_complete\":" + (londonReady ? "true" : "false")
+    s += f_bbox_history(stamp, cutoff) + "}"
     s
 
 bool atCutoff = clockMinute == 180 or clockMinute == 300 or clockMinute == 510
@@ -196,6 +274,18 @@ if sourceConfirmed
             londonLow := na
             londonClose := na
             londonCount := 0
+            bboxAsia := 0
+            bboxGap := 0
+            bboxEarly := 0
+            bboxLate := 0
+            bboxFirst03 := 0
+            bboxEarlierClose := 0
+            bboxInherited := frozenPriorComplete ? f_bbox_side(sourceOpen, frozenPriorLow, frozenPriorHigh) : 0
+            bboxLatestClose := na
+            bboxUpperUnarmed := 0
+            bboxUpperArmed := na
+            bboxLowerUnarmed := 0
+            bboxLowerArmed := na
         if sourceTime != expectedOvernightOpen
             complete := false
         runningHigh := math.max(runningHigh, sourceHigh)
@@ -211,6 +301,34 @@ if sourceConfirmed
             londonLow := na(londonLow) ? sourceLow : math.min(londonLow, sourceLow)
             londonClose := sourceClose
             londonCount += 1
+        // The checkpoint for this bar has already been frozen. Update the
+        // path only for the next checkpoint, never from a live unfinished bar.
+        if supportsBboxHistory and complete and frozenPriorComplete
+            int atOpen = f_bbox_side(sourceOpen, frozenPriorLow, frozenPriorHigh)
+            int atHigh = f_bbox_side(sourceHigh, frozenPriorLow, frozenPriorHigh)
+            int atLow = f_bbox_side(sourceLow, frozenPriorLow, frozenPriorHigh)
+            int atClose = f_bbox_side(sourceClose, frozenPriorLow, frozenPriorHigh)
+            bool upper = atHigh == 1
+            bool lower = atLow == 2
+            if clockMinute >= 1170 or clockMinute < 120
+                bboxAsia := f_bbox_mask(bboxAsia, upper, lower)
+            else if clockMinute < 180
+                bboxGap := f_bbox_mask(bboxGap, upper, lower)
+            else if clockMinute < 300
+                bboxEarly := f_bbox_mask(bboxEarly, upper, lower)
+            else
+                bboxLate := f_bbox_mask(bboxLate, upper, lower)
+            if clockMinute == 180
+                bboxFirst03 := f_bbox_mask(0, upper, lower)
+            if upper or lower
+                bboxLatestClose := sourceCloseTime
+            bboxEarlierClose := f_bbox_mask(bboxEarlierClose, atClose == 1, atClose == 2)
+            [nextUpperUnarmed, nextUpperArmed] = f_bbox_attempts(1, bboxUpperUnarmed, bboxUpperArmed, atOpen, atHigh, atLow, atClose)
+            [nextLowerUnarmed, nextLowerArmed] = f_bbox_attempts(2, bboxLowerUnarmed, bboxLowerArmed, atOpen, atHigh, atLow, atClose)
+            bboxUpperUnarmed := nextUpperUnarmed
+            bboxUpperArmed := nextUpperArmed
+            bboxLowerUnarmed := nextLowerUnarmed
+            bboxLowerArmed := nextLowerArmed
 
 f_packet(string first, string second, string third, int observedAt, float lastPrice, bool decisionOpen) =>
     string snapshots = "[" + first
