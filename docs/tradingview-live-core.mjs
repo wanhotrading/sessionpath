@@ -97,7 +97,8 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  const fillStatus=document.createElement('p');fillStatus.id='personal-auto-fill-status';fillStatus.className='compact-note';fillStatus.setAttribute('role','status');fillStatus.setAttribute('aria-live','polite');fillStatus.textContent='Failed to fetch';
  row.append(fillButton,fillStatus);const planning=form.querySelector('.planning-bar');if(planning)planning.after(row);else form.prepend(row);
  const mainBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'bbox-breakout-history',()=> $('bbox-return-details')||$('range-assessment')||row);
- const nyBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'ny-bbox-breakout-history',()=> $('ny-reference')?.querySelector('.ny-price-inputs'));
+ const nyBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'ny-bbox-breakout-history',()=>
+  $('ny-reference')?.querySelector('.ny-numeric-inputs, .ny-price-inputs')||$('ny-reference')?.querySelector('.section-heading'));
  function showBBoxHistory(packet=null,message){
   if(!mainBBoxHistory&&!nyBBoxHistory)return;
   const today=nyClock().date;
