@@ -3,6 +3,7 @@ import {CHART_MAX_REQUEST_BYTES, CHART_TIMEOUT_MS, CHART_MODEL, ChartInputError,
 import {chartEventResponse, wantsChartEvents} from './chart-stream.mjs';
 import {CHART_REFERENCE_VERSION} from '../../docs/chart-reading-reference.mjs';
 import {DAY_REVIEW_KNOWLEDGE} from '../../docs/chart-day-review-knowledge.mjs';
+import {openAIChartRequested} from './openai-chart.mjs';
 
 export const ASSISTANT_ORIGIN = 'https://wanhotrading.github.io';
 // Verified against the official model catalog: zero prompt/completion pricing,
@@ -118,7 +119,8 @@ export function createAssistantHandler({fetcher = fetch, timeoutMs = UPSTREAM_TI
     if (origin && origin !== ASSISTANT_ORIGIN) return errorReply(403, 'ORIGIN_NOT_ALLOWED', 'This origin is not allowed.', origin);
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') {
-      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, intentModel: FREE_MODEL, chartModel: CHART_MODEL, freeModelsOnly: false, appRequestCountLimits: false, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
+      const usesOpenAI = openAIChartRequested(env);
+      return reply({ok: true, service: 'sessionpath-assistant', model: FREE_MODEL, intentModel: FREE_MODEL, chartModel: usesOpenAI ? env.OPENAI_CHART_MODEL : CHART_MODEL, chartProvider: usesOpenAI ? 'openai' : 'openrouter', freeModelsOnly: false, appRequestCountLimits: false, chartReferenceVersion: CHART_REFERENCE_VERSION, chartKnowledge: {schema: DAY_REVIEW_KNOWLEDGE.schema, source: DAY_REVIEW_KNOWLEDGE.source.url, readDate: DAY_REVIEW_KNOWLEDGE.source.readDate, dictionaryEntries: DAY_REVIEW_KNOWLEDGE.tagDictionary.entries.length, exampleDates: DAY_REVIEW_KNOWLEDGE.workedExamples.map(example=>example.date)}}, 200, origin);
     }
     const chartRoute = url.pathname === '/api/chart';
     if (url.pathname !== '/api/chat' && !chartRoute) return errorReply(404, 'NOT_FOUND', 'Not found.', origin);

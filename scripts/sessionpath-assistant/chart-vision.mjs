@@ -2,6 +2,7 @@ import {MARKETS, WINDOWS, validDate} from './intent.mjs';
 import {CHART_REFERENCE_VERSION, CHART_READING_SYSTEM} from '../../docs/chart-reading-reference.mjs';
 import {resolveChartShapeArchive} from './chart-shape-archive.mjs';
 import {CHART_VISUAL_SESSIONS, CHART_VISUAL_TAG_CODES, CHART_VISUAL_CONFIDENCES, CHART_VISUAL_TEXT_LIMITS, chartVisualPlainText} from '../../docs/chart-visual-contract.mjs';
+import {OPENAI_CHART_MODEL, openAIChartRequested, requestOpenAIChart} from './openai-chart.mjs';
 
 export const CHART_MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 export const CHART_MAX_DATA_URL_LENGTH = 1.5 * 1024 * 1024;
@@ -315,18 +316,30 @@ export function normalizeChartVisualTags(rows, {shapeEvidence, observation, now 
 }
 
 export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHART_TIMEOUT_MS, origin, reply, errorReply, boundedText, classifyRejectedUpstream, model, endpoint, signal, now = Date.now()}) {
-  if (!env.OPENROUTER_API_KEY) return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
-  // Visual reads share the existing key spending cap, without an additional
-  // SessionPath daily, client or short-window request-count quota.
+  const useOpenAI = openAIChartRequested(env);
+  if (useOpenAI ? env.OPENAI_CHART_MODEL !== OPENAI_CHART_MODEL || !env.OPENAI_API_KEY : !env.OPENROUTER_API_KEY) {
+    return errorReply(503, 'AI_NOT_CONFIGURED', 'The chart interpreter is not available yet.', origin);
+  }
+  const responseModel = useOpenAI ? OPENAI_CHART_MODEL : model;
+  const instructions = `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs, structured shapeEvidence and four visualTags rows. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null shape evidence and an empty shapeEvidence.sessions list, and four null, unclassified visualTags with complete false instead of inventing events.`;
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
   const abortParent = () => controller.abort();
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener('abort', abortParent, {once: true});
   try {
     if (controller.signal.aborted) throw new DOMException('The chart request was cancelled.', 'AbortError');
+    let modelAnalysis;
+    if (useOpenAI) {
+      const result = await requestOpenAIChart({input, instructions, schema: CHART_ANALYSIS_SCHEMA, apiKey: env.OPENAI_API_KEY, fetcher, boundedText, signal: controller.signal});
+      if (result.error) {
+        const {status, code, message, headers} = result.error;
+        return errorReply(status, code, message, origin, headers);
+      }
+      modelAnalysis = result.analysis;
+    } else {
     const upstream = await fetcher(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://wanhotrading.github.io/sessionpath/', 'X-OpenRouter-Title': 'SessionPath Chart Reader'}, signal: controller.signal,
       body: JSON.stringify({model, messages: [
-        {role: 'system', content: `${CHART_READING_SYSTEM}\nReturn only the requested JSON: five descriptive outputs, structured shapeEvidence and four visualTags rows. Keep prose concise and plain text without markup or URLs. For an unreadable or blank image, state that the evidence cannot be established; use null shape evidence and an empty shapeEvidence.sessions list, and four null, unclassified visualTags with complete false instead of inventing events.`},
+        {role: 'system', content: instructions},
         {role: 'user', content: [{type: 'text', text: JSON.stringify({request: input.message, ...(input.observation ? {observation: input.observation} : {})})}, {type: 'image_url', image_url: {url: input.image.dataUrl}}]},
       ], max_tokens: CHART_MAX_OUTPUT_TOKENS, temperature: 0.7, top_p: 0.95, stream: false, reasoning: {effort: 'low', exclude: true}, provider: CHART_PROVIDER, response_format: {type: 'json_schema', json_schema: {name: 'sessionpath_chart_analysis', strict: true, schema: CHART_ANALYSIS_SCHEMA}}}),
     });
@@ -355,13 +368,14 @@ export async function handleChartAnalysis(input, env, {fetcher, timeoutMs = CHAR
     if (data.model !== model) throw new Error('Unexpected chart model');
     if (data.choices?.length === 1 && data.choices[0]?.finish_reason === 'length') return errorReply(503, 'FREE_MODEL_OUTPUT_LIMIT', 'The chart interpreter reached its output limit. Try a simpler screenshot.', origin);
     if (!Array.isArray(data.choices) || data.choices.length !== 1 || data.choices[0]?.finish_reason !== 'stop' || typeof data.choices[0]?.message?.content !== 'string') throw new Error('Invalid result');
-    const modelAnalysis = JSON.parse(data.choices[0].message.content);
+    modelAnalysis = JSON.parse(data.choices[0].message.content);
+    }
     const analysis = validateChartAnalysis(modelAnalysis);
     if (!analysis) throw new Error('Invalid analysis');
     const shapeOptions = {now, observation: input.observation};
     const shape = resolveChartShapeArchive(validateChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions), classifyChartShapeEvidence(modelAnalysis.shapeEvidence, shapeOptions));
     const visualTags = normalizeChartVisualTags(modelAnalysis.visualTags, {...shapeOptions, shapeEvidence: modelAnalysis.shapeEvidence});
-    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model, referenceVersion: input.referenceVersion, analysis, ...shape, visualTags, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
+    return reply({ok: true, schema: 'sessionpath.assistant.chart.v1', action: 'describe_chart', ...input.context, model: responseModel, referenceVersion: input.referenceVersion, analysis, ...shape, visualTags, ...(input.observation ? {observationContext: input.observation} : {})}, 200, origin);
   } catch {
     return errorReply(503, controller.signal.aborted ? 'FREE_MODEL_TIMEOUT' : 'INVALID_CHART_RESPONSE', controller.signal.aborted ? 'The chart interpreter timed out. No automatic retry was made.' : 'The chart interpreter did not return a valid descriptive result. No forecast was created.', origin);
   } finally {clearTimeout(timer); signal?.removeEventListener('abort', abortParent);}

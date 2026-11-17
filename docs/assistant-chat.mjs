@@ -9,6 +9,12 @@ const CONCEPTS=['mean_box','containment','avr_expansion','extension'];
 const STORAGE='sessionpath-assistant-chat-v1';
 const ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chat';
 const CHART_ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chart';
+const CHART_HEALTH_URL=new URL('/health',CHART_ENDPOINT).href;
+const CHART_READERS=Object.freeze({
+ 'gpt-6.1-sol':{label:'GPT-6.1 Sol (OpenAI)',provider:'openai'},
+ 'x-ai/grok-4.7':{label:'Grok 4.7 (OpenRouter/xAI)',provider:'openrouter'}
+});
+const CHART_IMAGE_DISCLOSURE='Send shares this screenshot with the active chart service, OpenAI or OpenRouter/xAI. Crop out account details.';
 const MAX_IMAGE_BYTES=10*1024*1024,MAX_IMAGE_PIXELS=16000000,MAX_IMAGE_URL=1572864;
 const DEFAULT_CHART_QUESTION='Describe the visible price movement so far.';
 const DEFINITIONS={
@@ -29,6 +35,18 @@ const nyDate=now=>{const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{t
 const monthWords='(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
 const dateMentionPattern=new RegExp('\\b'+monthWords+'\\.?\\s*\\d{1,2}\\b|\\b\\d{1,2}(?:st|nd|rd|th)?\\s*'+monthWords+'\\b|\\b(?:today|yesterday)\\b|\\b\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}\\b|\\b\\d{1,2}\\/\\d{1,2}\\b|\\d{1,2}月|昨天|昨日|今天|今日','iu');
 const mentionsDate=query=>dateMentionPattern.test(query);
+
+function chartReader(model){return Object.hasOwn(CHART_READERS,model)?CHART_READERS[model]:null;}
+
+export async function loadChartConfiguration({signal,fetchImpl=(...args)=>fetch(...args)}={}){
+ const response=await fetchImpl(CHART_HEALTH_URL,{method:'GET',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal});
+ if(!response.ok)return null;
+ const config=await response.json();
+ if(config?.ok!==true||config.service!=='sessionpath-assistant')return null;
+ const reader=chartReader(config.chartModel);
+ const provider=config.chartProvider??(config.chartModel==='x-ai/grok-4.7'?'openrouter':null);
+ return reader&&provider===reader.provider?config.chartModel:null;
+}
 
 export function chartImageDimensions(input,mime){
  const bytes=input instanceof Uint8Array?input:new Uint8Array(input),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let width,height;
@@ -130,10 +148,10 @@ function validForecast(result,intent){
  return ['containment','upperTouch','lowerTouch'].every(key=>{const p=result.probabilities[key];return p&&Number.isFinite(p.p)&&p.p>=0&&p.p<=1&&Number.isInteger(p.n)&&p.n===result.sampleCount&&Number.isInteger(p.k)&&p.k>=0&&p.k<=p.n&&Math.abs(p.k/p.n-p.p)<=1/p.n;});
 }
 
-export function mountAssistantChat({instrument,document:doc=globalThis.document,fetchImpl=(...args)=>fetch(...args),navigate=url=>doc.defaultView.location.assign(url),storage=doc.defaultView.sessionStorage,rootURL=new URL('./',import.meta.url),requestTimeout=30000,now=()=>Date.now(),prepareImage=normalizeChartImage}={}){
+export function mountAssistantChat({instrument,document:doc=globalThis.document,fetchImpl=(...args)=>fetch(...args),navigate=url=>doc.defaultView.location.assign(url),storage=doc.defaultView.sessionStorage,rootURL=new URL('./',import.meta.url),requestTimeout=30000,now=()=>Date.now(),prepareImage=normalizeChartImage,getChartConfiguration=null}={}){
  if(doc.getElementById('sessionpath-assistant')||!MARKETS.includes(instrument?.id))return null;
  const win=doc.defaultView,element=(tag,className,text)=>{const el=doc.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
- const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set(),attachment=null,preparingImage=false,attachmentVersion=0;
+ const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set(),attachment=null,preparingImage=false,attachmentVersion=0,chartConfigController=null;
  const host=element('aside','sp-assistant');host.id='sessionpath-assistant';host.setAttribute('aria-label','SessionPath assistant');
  const viewport=element('div','sp-chat-viewport');viewport.hidden=true;viewport.dataset.state='closed';
  const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','SessionPath conversation');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');panel.inert=true;viewport.append(panel);
@@ -141,7 +159,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const history=element('div','sp-chat-history');history.setAttribute('role','log');history.setAttribute('aria-label','Conversation');history.setAttribute('aria-live','polite');history.setAttribute('aria-relevant','additions');
  const examples=element('div','sp-chat-examples');for(const query of ['CL 03-05','NQ 05-0830','GC 08:30-16:00']){const button=element('button','',query);button.type='button';button.addEventListener('click',()=>{input.value=query;submit(query);});examples.append(button);}
  const status=element('p','sp-chat-status');status.setAttribute('role','status');
- const attachmentBox=element('section','sp-chat-attachment');attachmentBox.hidden=true;attachmentBox.setAttribute('aria-label','Screenshot to send');const preview=element('img','sp-chat-preview');preview.alt='Selected chart screenshot';const attachmentInfo=element('div','sp-chat-attachment-info'),attachmentName=element('span','sp-chat-filename'),attachmentSize=element('small','sp-chat-image-size');attachmentInfo.append(attachmentName,attachmentSize);const removeAttachment=element('button','sp-chat-remove-image','×');removeAttachment.type='button';removeAttachment.setAttribute('aria-label','Remove screenshot');const disclosure=element('p','sp-chat-image-disclosure','Send shares this image with OpenRouter/xAI. Crop out account details.');
+ const attachmentBox=element('section','sp-chat-attachment');attachmentBox.hidden=true;attachmentBox.setAttribute('aria-label','Screenshot to send');const preview=element('img','sp-chat-preview');preview.alt='Selected chart screenshot';const attachmentInfo=element('div','sp-chat-attachment-info'),attachmentName=element('span','sp-chat-filename'),attachmentSize=element('small','sp-chat-image-size');attachmentInfo.append(attachmentName,attachmentSize);const removeAttachment=element('button','sp-chat-remove-image','×');removeAttachment.type='button';removeAttachment.setAttribute('aria-label','Remove screenshot');const disclosure=element('p','sp-chat-image-disclosure',CHART_IMAGE_DISCLOSURE);disclosure.setAttribute('aria-live','polite');
  const historicalLabel=element('label','sp-chat-historical-toggle'),historical=element('input');historical.type='checkbox';historicalLabel.append(historical,doc.createTextNode('Historical / replay screenshot'));
  const observationFields=element('div','sp-chat-historical-fields');observationFields.hidden=true;
  const chartDateLabel=element('label','','Chart trading date · NY'),chartDate=element('input','sp-chat-chart-date');chartDate.type='date';chartDate.max=nyDate(now());chartDateLabel.append(chartDate);
@@ -190,7 +208,18 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   if(time&&(!/^([01]\d|2[0-3]):[0-5]\d$/u.test(time)||Number(time.slice(3))%5!==0))throw new Error('Use a five-minute completed-close time, for example 08:45 NY.');
   return {mode:'historical',date,cutoff:time?`${date}T${time}`:null};
  }
- function clearAttachment(){attachmentVersion++;if(attachment?.previewURL)win.URL.revokeObjectURL(attachment.previewURL);attachment=null;preparingImage=false;resetChartObservation();preview.removeAttribute('src');attachmentName.textContent='';attachmentSize.textContent='';attachmentBox.hidden=true;delete host.dataset.hasImage;filePicker.value='';if(!destroyed)setBusy(busy);}
+ async function updateChartDisclosure(version){
+  chartConfigController?.abort();disclosure.textContent=CHART_IMAGE_DISCLOSURE;
+  if(!getChartConfiguration)return;
+  const check=new AbortController();chartConfigController=check;
+  const timeout=setTimeout(()=>check.abort(),3000);
+  try{
+   const reader=chartReader(await getChartConfiguration({signal:check.signal}));
+   if(reader&&!check.signal.aborted&&!destroyed&&version===attachmentVersion&&attachment)disclosure.textContent=`Configured reader · ${reader.label}. ${CHART_IMAGE_DISCLOSURE}`;
+  }catch{/* The generic disclosure covers both destinations if the configuration is unavailable. */}
+  finally{clearTimeout(timeout);if(chartConfigController===check)chartConfigController=null;}
+ }
+ function clearAttachment(){attachmentVersion++;chartConfigController?.abort();if(attachment?.previewURL)win.URL.revokeObjectURL(attachment.previewURL);attachment=null;preparingImage=false;resetChartObservation();preview.removeAttribute('src');attachmentName.textContent='';attachmentSize.textContent='';attachmentBox.hidden=true;delete host.dataset.hasImage;filePicker.value='';if(!destroyed)setBusy(busy);}
  async function stageImage(file){
   if(busy||preparingImage||destroyed)return false;open();preparingImage=true;let prepared=false;const version=++attachmentVersion;setBusy(false,'Preparing screenshot locally…');
   try{
@@ -198,7 +227,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    if(!normalized||typeof normalized.dataUrl!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/u.test(normalized.dataUrl)||normalized.dataUrl.length>MAX_IMAGE_URL)throw new Error('The screenshot could not be prepared. Crop it and try again.');
    const binary=win.atob(normalized.dataUrl.split(',')[1]),data=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
    const blob=new win.Blob([data],{type:'image/jpeg'}),previewURL=win.URL.createObjectURL(blob);if(attachment?.previewURL)win.URL.revokeObjectURL(attachment.previewURL);
-   resetChartObservation();attachment={dataUrl:normalized.dataUrl,previewURL,name:plain(file?.name,240)?file.name:'Chart screenshot'};preview.src=previewURL;attachmentName.textContent=attachment.name;attachmentSize.textContent=`${normalized.width} × ${normalized.height} · ready to send`;attachmentBox.hidden=false;host.dataset.hasImage='true';prepared=true;return true;
+   resetChartObservation();attachment={dataUrl:normalized.dataUrl,previewURL,name:plain(file?.name,240)?file.name:'Chart screenshot'};preview.src=previewURL;attachmentName.textContent=attachment.name;attachmentSize.textContent=`${normalized.width} × ${normalized.height} · ready to send`;attachmentBox.hidden=false;host.dataset.hasImage='true';prepared=true;void updateChartDisclosure(version);return true;
   }catch(error){if(!destroyed&&version===attachmentVersion)status.textContent=plain(error?.message,400)?error.message:'The screenshot could not be prepared.';return false;}
   finally{if(!destroyed&&version===attachmentVersion){const message=status.textContent;preparingImage=false;setBusy(false,prepared?'Screenshot ready. Press Send when you are ready.':message);}filePicker.value='';}
  }
@@ -209,7 +238,8 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   const observation=body.observationContext;
   const contextLabel=observation?`Historical screenshot · chart date ${observation.date} · NY${observation.cutoff?` · last completed close ${observation.cutoff.slice(11)}`:''}. Selected context: ${context.market} · ${context.window} NY${context.date?` · ${context.date}`:''}.`:`Selected context: ${context.market} · ${context.window} NY · ${context.date??'live / today'}.`;
   item.append(element('p','sp-chat-note',`${contextLabel} This selection does not verify the screenshot’s market, date or timeframe.`));
-  item.append(createChartVisualReading(doc,body));
+  const modelLabel=body.model==='gpt-6.1-sol'?chartReader(body.model).label:body.model;
+  item.append(createChartVisualReading(doc,{...body,model:modelLabel}));
   const pathCode=makeChartSessionPathCode(body),asksForPath=/\bpath[\s-]+code\b/iu.test(query);
   const calculated=element('details','sp-chat-calculated-classification');calculated.append(element('summary','','Calculated classification'));
   if(body.shapeTags?.length){

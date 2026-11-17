@@ -1,3 +1,3 @@
 import {instrument} from './instrument.mjs';
-import {mountAssistantChat} from '../assistant-chat.mjs?v=visual-tags-20261108b';
-mountAssistantChat({instrument});
+import {loadChartConfiguration,mountAssistantChat} from '../assistant-chat.mjs?v=chart-provider-20261117';
+mountAssistantChat({instrument,getChartConfiguration:loadChartConfiguration});

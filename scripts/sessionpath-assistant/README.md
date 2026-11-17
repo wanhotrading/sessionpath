@@ -6,7 +6,7 @@ No model-generated forecast numbers or Pine code are accepted.
 The separate opt-in screenshot route returns bounded visual descriptions only;
 it never calls the forecast adapter or generates a trading recommendation.
 
-The Worker uses only `nvidia/nemotron-3.5-super-vl:free`, without a fallback array,
+For text intent, the Worker uses only `nvidia/nemotron-3.5-super-vl:free`, without a fallback array,
 plugins or user-selected models. The official OpenRouter model catalog verified
 zero prompt/completion pricing, optional reasoning and structured-output support
 for this exact free variant. `OPENROUTER_API_KEY` must be configured as a Worker secret, never in
@@ -87,22 +87,12 @@ the nested `metadata.raw` JSON error message may be used. Other metadata fields
 are never scanned. Raw error text and metadata are never returned, logged or stored.
 Oversized or unreadable error bodies remain the generic request-rejected error.
 
-## Persistent public usage limits
+## Public API usage
 
-Both text interpretation and screenshot reading reserve from the same budget.
-
-SQLite-backed `AssistantQuota` coordinates one global budget of 40 actual AI
-attempts per UTC day, with 10 per client/day and 5 per rolling ten minutes.
-Reservations are atomic and persist across restarts. Failed upstream attempts
-count. Exact deterministic commands do not consume the AI budget.
-
-Only Cloudflare's trusted `CF-Connecting-IP` is used; X-Forwarded-For and request
-body IPs cannot bypass quota. Client addresses are hashed with a private random
-nonce and UTC day before storage. Only the current day's bounded counters are
-retained: no raw IPs, prompts, responses or credentials. CORS allows only the
-GitHub Pages origin; server-side requests still require a trusted Cloudflare
-address before AI inference. CORS is not an authentication mechanism: this is
-intentionally a public assistant with a strict shared free-use budget.
+The public assistant uses the configured provider project’s API credits and provider
+limits. SessionPath applies no request-count limit. Exact deterministic commands
+operate locally. CORS allows the GitHub Pages origin and the Worker is publicly
+reachable.
 
 ## Screenshot descriptions
 
@@ -125,13 +115,18 @@ and chunk boundaries are inspected without decompressing pixels; JPEG frame
 headers must be within the first 64 KiB, as in normalized browser screenshots.
 This is bounded header validation, not a full image codec decoder.
 
-The existing pinned free model receives an official Chat Completions multipart
-user message: a `text` content part followed by `image_url` with the base64 data
-URL. No remote image fetch, tool or paid fallback is enabled. It uses the same
-server secret and quota object as text chat, with a 40-second upstream deadline,
-1600-token output cap and no automatic retry. Images are processed for the
-requested call and are not stored or logged by this Worker. The selected free
-provider receives the upload, so its own data terms still apply.
+With `OPENAI_CHART_MODEL=gpt-6.1-sol`, SessionPath sends the chart image and
+question from the Worker to the OpenAI Responses API. It requests Standard
+processing, strict structured output, high image detail, and low reasoning
+effort with a cap of 1,800 output tokens. It retains the existing chart instructions, validation and formal
+shape rules. The browser can receive the final reading as JSON or as the final
+event in the existing chart stream. Without the model setting, screenshot
+reading uses the existing `x-ai/grok-4.7` route through OpenRouter. Requests to
+either provider have a 180-second deadline and do not retry automatically.
+
+This Worker does not store or log the chart image and sets `store: false` for
+OpenAI requests. The selected provider receives the image and question, and
+its own data-use and retention terms still apply.
 
 The shared reference in `docs/chart-reading-reference.mjs` is inlined into the
 Worker during build and also supplies the user-copyable comparison prompt.
@@ -139,7 +134,7 @@ Worker during build and also supplies the user-copyable comparison prompt.
 The base success response is:
 
 ```json
-{"ok":true,"schema":"sessionpath.assistant.chart.v1","action":"describe_chart","market":"CL","window":"03:00-05:00","date":null,"model":"nvidia/nemotron-3.5-super-vl:free","referenceVersion":"sessionpath-chart-v1","analysis":{"summary":"...","sequence":["..."],"bbox":"...","sessionpath":"...","uncertainties":["..."]}}
+{"ok":true,"schema":"sessionpath.assistant.chart.v1","action":"describe_chart","market":"CL","window":"03:00-05:00","date":null,"model":"gpt-6.1-sol","referenceVersion":"sessionpath-chart-v1","analysis":{"summary":"...","sequence":["..."],"bbox":"...","sessionpath":"...","uncertainties":["..."]}}
 ```
 
 Analysis fields are plain descriptive text: summary at most 800 characters,
@@ -186,15 +181,19 @@ The migration in the metadata is for the initial deployment only. For later
 updates, omit migrations, keep the existing `ASSISTANT_QUOTA` namespace, and
 preserve secret bindings with `keep_bindings: ["secret_text"]`.
 
-`GET /health` exposes service identity and free-only routing, without secrets,
-quota counters, prompts or data feed access.
+For the OpenAI chart route, configure `OPENAI_API_KEY` as a separate Worker
+secret and set `OPENAI_CHART_MODEL=gpt-6.1-sol`. Preserve the OpenRouter secret
+and the existing Durable Object namespace. Remove the model setting to route
+new screenshot requests via OpenRouter again.
+
+`GET /health` exposes model and provider configuration without secrets, quota
+counters, prompts, or data feed access. It makes no upstream API calls.
 
 ## Verification
 
-`node build.mjs`; `node --test test/assistant.test.mjs`. The runtime test additionally
-needs Miniflare and verifies actual RPC, concurrent enforcement, SQLite
-persistence and restart behavior. Existing project test dependencies can be
-reused via the personal TradingView package-test-loader; no new install is needed.
+Run `node build.mjs` and `node --test test/*.test.mjs`. The focused OpenAI tests
+exercise the chart route with a mocked upstream REST response. Live verification
+uses the configured API project and a real screenshot.
 
 References: [verified free model](https://openrouter.ai/nvidia/nemotron-3.5-super-vl:free),
 [OpenRouter free variants](https://openrouter.ai/docs/guides/routing/model-variants/free),
@@ -202,4 +201,8 @@ References: [verified free model](https://openrouter.ai/nvidia/nemotron-3.5-supe
 [reasoning token controls](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens),
 [Chat Completions image schema](https://openrouter.ai/openapi.json),
 [image inputs](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding),
+[GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol),
+[OpenAI Responses API image inputs](https://developers.openai.com/api/docs/guides/images-vision/),
+[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs/),
+[OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data/),
 [Cloudflare SQLite storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/).
