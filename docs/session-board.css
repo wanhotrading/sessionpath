@@ -1,0 +1,172 @@
+body.session-board-active {
+  min-height: 100dvh;
+  height: auto !important;
+  overflow: visible !important;
+  padding-bottom: 98px !important;
+}
+
+html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto !important; }
+
+body.session-board-active::before {
+  background: linear-gradient(180deg, #110a23a3, #10172e35 40%, #070c20b5),
+    url("assets/backgrounds/snowy-sunset-dither.webp") center 40% / cover no-repeat;
+}
+
+.session-board-active .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 37;
+  background: #13172af5;
+}
+
+.session-board-active .topbar .site-brand-logo { width: 148px; height: 49px; }
+.session-board-active .topbar nav { display: flex; }
+.session-board-active .topbar nav .workspace-tools-toggle {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 8px;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.session-board-active .topbar nav .workspace-tools-toggle:hover,
+.session-board-active .topbar nav .workspace-tools-toggle:focus-visible { background: #b7c8f329; }
+.session-board-active .topbar .private-label { display: none; }
+.session-board-active :is(#edge-left, #edge-right, .ambient-footer, .bbox-breakout-history) { display: none !important; }
+
+.session-board-active main#workspace {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 13px !important;
+  width: min(1490px, 100%) !important;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box;
+  margin: 0 auto !important;
+  padding: 13px clamp(13px, 2.8vw, 38px) 0 !important;
+}
+
+.session-board-active #workspace > :is(#conditions, #ny-reference, #comparison) { display: none !important; }
+.session-board-active #projection .forecast-context-grid,
+.session-board-active #projection .forecast-main { display: contents; }
+.session-board-active #projection :is(#result-header, #forecast-context, #forecast, .forecast-main > details:not(#bbox-return-details)) {
+  display: none !important;
+}
+
+.session-board-active #workspace > :is(#projection, #sessions-section, #session-board) {
+  min-width: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: visible;
+  scroll-margin-top: 85px;
+}
+
+.session-board-active #workspace > :is(#session-board, #projection) {
+  padding: 0;
+  border: 0;
+  background: none !important;
+  box-shadow: none;
+}
+
+.session-board-active #projection > #indicator-section {
+  margin: 0;
+  padding: 17px;
+  border: 1px solid #b4c7fa33;
+  border-radius: 16px;
+  background: #101a30f0;
+}
+
+.session-board-active #bbox-return-details,
+.session-board-active #research-followup {
+  width: auto;
+  margin: 0 0 10px;
+  padding: 12px 16px;
+  border: 1px solid #b4c7fa33;
+  border-radius: 12px;
+  background: #101a30ed;
+  scroll-margin-top: 85px;
+}
+
+.session-board-active #research-followup[open] { padding-bottom: 17px; }
+
+.session-board-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 12px 16px 15px;
+  margin-bottom: 10px;
+  border: 1px solid #c2b5f84b;
+  border-radius: 15px;
+  background: #141a33f2;
+  color: #eff3ff;
+}
+
+.session-board-header h1 { margin: 0; font-size: clamp(21px, 2.3vw, 31px); line-height: 1.16; letter-spacing: -.025em; }
+.session-board-date { margin: 5px 0 0; font-size: 13px; color: #bac9e1; }
+.session-board-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 22px; }
+.session-board-actions label { display: grid; gap: 4px; font-size: 12px; color: #c7d3e8; }
+.session-board-actions select { min-width: 128px; padding: 6px 9px; font-size: 13px; }
+.session-board-actions #personal-auto-fill-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0; }
+.session-board-actions #personal-auto-fill { color: #f2f5ff; background: #3d3872; border-color: #b8a5f477; }
+.session-board-actions #personal-auto-fill:hover { background: #51478c; }
+
+.session-board-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+}
+
+.session-board-window {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: clamp(10px, 1.25vw, 17px);
+  border: 1px solid #b4c7fa40;
+  border-radius: 16px;
+  color: #ebf1fb;
+  background: linear-gradient(145deg, #1c2745f5, #111a31f7 62%);
+}
+
+.session-board-window h2 { margin: 0; font-size: clamp(18px, 1.7vw, 24px); letter-spacing: -.024em; }
+.session-board-source { min-height: 1.3em; margin: 0; color: #bfcae5; font-size: 12px; }
+.session-board-check { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 0; }
+.session-board-check > div { min-width: 0; display: grid; gap: 2px; padding: 6px 9px; border: 1px solid #b4c7fa2e; border-radius: 8px; background: #070d203d; }
+.session-board-check dt { font-size: 11px; color: #b8c7e4; }
+.session-board-check dd { margin: 0; color: #edf2ff; font: 650 15px/1.2 ui-monospace, monospace; }
+.session-board-window .forecast-context { flex: 1; min-width: 0; }
+.session-board-export { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.session-board-export textarea { flex: 0 0 100%; }
+.session-board-copy-status, .session-board-match-count { color: #c0d1e8; font-size: 12px; }
+
+body.session-board-active[data-device-view="mobile"] .topbar nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 935px) {
+  .session-board-active .topbar .site-brand-logo { width: 125px; height: 41px; }
+  .session-board-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 800px) {
+  body.session-board-active { padding-bottom: calc(154px + env(safe-area-inset-bottom, 0px)) !important; }
+  .session-board-active .topbar { position: relative; }
+  .session-board-active #workspace > :is(#projection, #sessions-section, #session-board),
+  .session-board-active #bbox-return-details { scroll-margin-top: 10px; }
+  .session-board-window .forecast-context { margin: 0; }
+}

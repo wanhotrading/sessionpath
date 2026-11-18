@@ -1,5 +1,6 @@
+import {mountSessionBoard} from '../session-board.mjs?v=capture-board-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
-import {mainInputPlan,nyInputPlan,sessionPositions} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
+import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
 import {loadAsset,yieldToBrowser} from './startup-load.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
@@ -118,7 +119,7 @@ function resultHeader(q,selection){const n=selection.matches.length;const label=
  $('result-header').innerHTML=`<div class="result-head"><div><div class="eyebrow">${state.library?'COMPLETED DAYS · ALL TAGS AVAILABLE':'Forecasting'}</div><h2>${state.library?'Explore the full-day evidence':`${clockLabel(q.minute)} → ${clockLabel(q.endMinute)} ET`}</h2><p>${n.toLocaleString()} ${selection.numericCount?'closest cases':'historical cases'}${selection.numericCount?` from ${selection.pool.length.toLocaleString()} eligible days`:''}${selection.observationCount?` · ${selection.observationCount} earlier checkpoint${selection.observationCount===1?'':'s'} included`:''}${q.raw!==q.minute?` · using completed bars as of ${clockLabel(q.minute)}`:''}</p></div><span class="status-pill ${state.library||n<20?'amber':''}">${label}</span></div>`;
 }
 function metricCard(title,m,color,description){return `<div class="metric"><div class="metric-title">${title}</div><div class="metric-value ${color}">${m.meanPoints==null?'—':num(m.meanPoints)} <small>points</small></div><div class="metric-sub">${description}<br>Median <b>${pt(m.medianPoints)}</b> · middle 50% <b>${num(m.p25Points)}–${num(m.p75Points)}</b></div></div>`;}
-function renderProjection(q,selection){renderForecastContext($('forecast-context'),q);resultHeader(q,selection);state.summary=renderOutlook(q,selection);renderComparison(state);}
+function renderProjection(q,selection){renderForecastContext($('forecast-context'),q);resultHeader(q,selection);state.summary=renderOutlook(q,selection);if(!document.body.classList.contains('session-board-active'))renderComparison(state);}
 function eligibleTags(day,q){return state.library?day.tags:day.knownTags.filter(t=>Number.isFinite(t.minute)&&t.minute<=q.minute).map(t=>t.tag);}
 function renderGallery(){const size=Number($('gallery-size').value),total=state.matches.length,pages=Math.max(1,Math.ceil(total/size));state.page=Math.min(state.page,pages-1);const start=state.page*size,items=state.matches.slice(start,start+size);
  let coverage=$('gallery-coverage');
@@ -149,7 +150,7 @@ function showViewer(index){if(!state.matches.length)return;state.viewer=(index+s
 }
 function clearResults(message){clearForecastContext($('forecast-context'),undefined,!(val('avr')>0)||val('range-high')===null&&val('range-low')===null&&val('printed')===null);state.box=null;state.pine=null;renderBoxEmpty('Update valid planning inputs to estimate the box.');state.matches=[];state.pool=[];state.summary=null;$('comparison-results').innerHTML='<p class="notice">Update valid planning inputs to compare cases.</p>';$('result-header').innerHTML='';$('forecast').innerHTML=`<div class="panel empty">${message}</div>`;$('range-assessment').innerHTML='';$('cohort-note').textContent='';renderGallery();}
 function analyze(){if(!state.ready)return;renderBBoxReturn();state.request++;$('form-error').textContent='';syncInputs();renderTags();renderCheckpoints();renderSessions();state.page=0;let q;try{q=state.library?{minute:clockMinute($('asof').value),date:$('trading-date').value,tags:[...state.selected],tagMode:$('tag-mode').value,year:$('year').value,observations:[]}:readQuery();}catch(e){$('form-error').textContent=e.message;state.query=null;clearResults('<b>Update your inputs</b>Correct the input message above to calculate a new estimate.');return;}state.query=q;
- if(state.library){clearForecastContext($('forecast-context'),'Return to planning for compression and expansion.');state.box=null;state.pine=null;renderBoxEmpty('Return to planning to estimate future movement.');const matches=state.days.filter(d=>(!q.year||d.date.startsWith(q.year))&&hasTags(d,q.tags,q.tagMode,q.minute,true)).sort((a,b)=>b.date.localeCompare(a.date)).map(day=>({day}));state.matches=matches;state.pool=matches;state.summary=null;resultHeader(q,{matches,pool:matches,numericCount:0,observationCount:0});$('forecast').innerHTML='<div class="panel"><h2>Completed-day chart research</h2><div class="notice">All dictionary tags are enabled. This mode reveals outcomes and does not produce movement estimates. Only the selected tags and year filter apply.</div></div>';$('range-assessment').innerHTML='';$('cohort-note').textContent=`${matches.length} dates · ${q.tagMode.toUpperCase()} tag matching · full-day hindsight`;renderGallery();renderComparison(state);return;}
+ if(state.library){clearForecastContext($('forecast-context'),'Return to planning for compression and expansion.');state.box=null;state.pine=null;renderBoxEmpty('Return to planning to estimate future movement.');const matches=state.days.filter(d=>(!q.year||d.date.startsWith(q.year))&&hasTags(d,q.tags,q.tagMode,q.minute,true)).sort((a,b)=>b.date.localeCompare(a.date)).map(day=>({day}));state.matches=matches;state.pool=matches;state.summary=null;resultHeader(q,{matches,pool:matches,numericCount:0,observationCount:0});$('forecast').innerHTML='<div class="panel"><h2>Completed-day chart research</h2><div class="notice">All dictionary tags are enabled. This mode reveals outcomes and does not produce movement estimates. Only the selected tags and year filter apply.</div></div>';$('range-assessment').innerHTML='';$('cohort-note').textContent=`${matches.length} dates · ${q.tagMode.toUpperCase()} tag matching · full-day hindsight`;renderGallery();if(!document.body.classList.contains('session-board-active'))renderComparison(state);return;}
  const blocked=q.tags.filter(id=>{const tag=state.tags.find(t=>t.id===id);return !tag||tag.earliestMinute==null||tag.earliestMinute>q.minute;});if(blocked.length){clearResults(`<b>Some tags are only known later</b>Remove ${blocked.map(t=>esc(friendly(t))).join(', ')} or browse completed-day tags. These cannot be used at ${clockLabel(q.minute)}.`);return;}
  if(q.behavior&&q.minute< -210){clearResults('<b>The last-hour condition needs a full prior hour</b>Clear that condition or choose 20:30 ET or later.');return;}
  try{const key=`${q.minute}:${q.endMinute}`;let rows=state.rowCache.get(key);if(!rows){rows=deriveRows(state.days,state.timeline,q.minute,q.endMinute);state.rowCache.set(key,rows);if(state.rowCache.size>12)state.rowCache.delete(state.rowCache.keys().next().value);}const selection=selectMatches(state.days,rows,q);state.matches=selection.matches;state.pool=selection.pool;renderProjection(q,selection);renderBox();$('cohort-note').textContent=`${rows.length} complete historical windows before your filters. ${selection.numericCount?'Sorted by numeric similarity; lower distance means closer.':q.limit==='ALL'?'All eligible days contribute equally.':'No numeric ranking: most recent eligible days selected.'} ${q.observations.length?`${q.observations.length} earlier checkpoints were matched at their own times.`:''} Same explicit-contract research through ${instrument.id==='ES'?'2026-10-15':'2026-09-25'}.`;renderGallery();}catch(e){clearResults(`<b>Unable to calculate this window</b>${esc(e.message)}`);}
@@ -273,7 +274,7 @@ async function startResearch(){
   state.shapeDictionary=state.tags;Object.assign(state,enrichResearch(state.days,state.tags,state.extra));migrateCheckpoints();
   await yieldToBrowser();
   mountNYReference(state.days,state.timeline); configureNYDirectionAutoFill(state.days,state.timeline);
-  restoreMarketInputs();syncDate();syncInputs();
+  restoreMarketInputs();if(!['50','ALL'].includes($('sample-size').value))$('sample-size').value='50';syncDate();syncInputs();
   state.ready=true;$('analyze-btn').disabled=false;
   await yieldToBrowser();
   // Date change already renders the initial forecast; do not calculate twice.
@@ -336,5 +337,27 @@ mountAssistantForecastAdapter({
   }
  },
  readForecast:({request})=>request.minute===510?null:({query:state.query,box:state.box,code:state.box&&state.query?makeForecastCode(state.box,state.query):'',conditions:{tags:[...state.selected],tagMode:state.query?.tagMode,year:state.query?.year,nearestCaseLimit:state.query?.limit,bboxLocation:state.query?.location,lastHourBehavior:state.query?.behavior,earlierCheckpointCount:state.query?.observations?.length||0}})
+});
+mountSessionBoard({
+ market:instrument.id,nyClock,mainInputPlan,
+ archive:request=>archivedForecastRecord(state.days,state.timeline,request),
+ preferences:(minute,date)=>({
+  tags:[...state.selected].filter(id=>state.tags.some(tag=>tag.id===id&&Number.isFinite(tag.earliestMinute)&&tag.earliestMinute<=minute)),
+  tagMode:$('tag-mode').value,limit:$('sample-size').value==='ALL'?'ALL':50,
+  year:minute===510?$('ny-year')?.value||'':$('year').value,
+  observations:minute!==510&&$('use-checkpoints').checked?state.checkpoints.filter(c=>c.date===date&&c.minute<minute).sort((a,b)=>a.minute-b.minute).slice(-8).map(c=>c.condition):[],
+ }),
+ estimate:q=>{
+  const box=boxEstimate(state.days,state.timeline,q,q.endMinute);
+  return {code:box?makeForecastCode(box,q):'',count:box?.n||0};
+ },
+ applyArchivedNY:(snapshot,date)=>{
+  for(const [id,value] of Object.entries(nyInputPlan(snapshot)))$(id).value=String(value);
+  $('ny-end').value='960';
+  const day=state.days.find(day=>day.date===date);
+  if(day)fillNYPositionHelper(day,state.timeline,510);
+  $('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
+ },
+ renderContext:renderForecastContext,clearContext:clearForecastContext,
 });
 await startResearch();

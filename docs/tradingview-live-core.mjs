@@ -198,6 +198,7 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
    snapshots=packet?.snapshots??[];
    if(!packet){const cutoff=followLatest?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);showBBoxHistory();return;}
    apply(packet);
+   document.dispatchEvent(new CustomEvent('sessionpath:verified-checkpoints',{detail:packet}));
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');showBBoxHistory(null,'Waiting for a fresh verified TradingView checkpoint.');}
   finally{
    clearTimeout(expiry);busy=false;setBusy(false);
@@ -218,7 +219,7 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
   try{if(!managedURL)sessionStorage.setItem(ENABLED,'true');}catch{}
   void read();
  }
- fillButton.addEventListener('click',()=>{if(busy)return;followLatest=false;start(true);});
+ fillButton.addEventListener('click',()=>{if(busy)return;followLatest=document.body.classList.contains('session-board-active');start(true);});
  const managed=new Set(['price','avr','prior-high','prior-low','open1930','range-high','range-low','up','down','printed','location','range-position','behavior','ny-price','ny-avr','ny-range-high','ny-range-low','ny-printed','ny-position-asia','ny-position-london']);
  const manualEdit=e=>{if(active&&!applying&&e.isTrusted&&managed.has(e.target.id))pause('Paused after your manual edit. Resume to fill from TradingView again.');};
  document.addEventListener('input',manualEdit);document.addEventListener('change',manualEdit);
