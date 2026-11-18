@@ -1,4 +1,4 @@
-import {windows,time,currentNYStep,currentNYSession,validateStudy,prepareScenario,remaining,fromAnchor,curve} from './core.mjs?v=1';
+import {windows,time,currentNYStep,currentNYSession,validateStudy,prepareScenario,remaining,fromAnchor,curve} from './core.mjs?v=2';
 import {createOnlineClock} from '../ny-online-clock.mjs?v=automatic-bbox-20261118';
 
 const $ = id=>document.getElementById(id);
@@ -11,6 +11,10 @@ const patternValues = [
 ];
 const bboxEdges = [['either','Either BBOX edge'],['upper','Upper BBOX edge'],['lower','Lower BBOX edge'],['both','Both BBOX edges']];
 const eveningEdges = [['upper','Upper breakout high'],['lower','Lower breakout low']];
+const preciseSignals = [
+  ['any','Any evening candle'],['first','18:00–18:05 candle'],['later','Any 18:05–19:30 candle'],
+  ...Array.from({length:17},(_,i)=>['bar-'+(i+2),time(i+1)+'–'+time(i+2)+' candle'])
+];
 const percent = p=>p==null?'—':(p*100).toFixed(1)+'%';
 const count = n=>n.toLocaleString('en-US');
 const counts = (k,n)=>count(k)+' / '+count(n);
@@ -42,12 +46,15 @@ function configureInputs() {
   fillOptions($('edge'),evening?eveningEdges:bboxEdges,evening?eveningEdge:bboxEdge);
   $('history-label').hidden=windowIndex===0||evening;
   renderPatterns();
+  renderPathOptions();
 }
 
 function renderPatterns() {
   const host=$('patterns');
   $('history-label').hidden=windowIndex===0||mode==='evening';
-  if (mode==='evening'||$('history').value!=='custom'||!windowIndex) {
+  const show=mode==='bbox'&&$('history').value==='custom'&&windowIndex>0;
+  $('pattern-note').hidden=!show;
+  if (!show) {
     host.replaceChildren();
     return;
   }
@@ -65,9 +72,22 @@ function renderPatterns() {
   }));
 }
 
+function renderPathOptions() {
+  $('prior-path').hidden=mode==='evening'||windowIndex===0;
+  if ($('prior-path').hidden) return;
+  const repeat=$('prior-path-filter').value==='returned-repeat';
+  $('repeat-window-label').hidden=!repeat;
+  const select=$('repeat-window'), previous=select.value;
+  const choices=[['any','Any prior window'], ...windows.slice(0,windowIndex).map((window,i)=>[String(i),window.label])];
+  fillOptions(select,choices,choices.some(([value])=>value===previous)?previous:'any');
+  $('path-cutoff').textContent='Trace from 18:00 through '+time(windows[windowIndex].start)+' NY. A return requires a five-minute close inside. A fresh breach requires a later wick beyond the same edge.';
+}
+
 function settings() {
+  const repeat=$('repeat-window').value;
   return {mode,window:windowIndex,startPosition:$('start-position').value,history:$('history').value,
-    pattern,anchor:$('anchor').value,edge:$('edge').value,eveningOpen:$('evening-open').value,signalBar:$('signal-bar').value};
+    pattern,anchor:$('anchor').value,edge:$('edge').value,eveningOpen:$('evening-open').value,signalBar:$('signal-bar').value,
+    traceEdge:$('trace-edge').value,priorPath:$('prior-path-filter').value,repeatWindow:repeat&&repeat!=='any'?Number(repeat):null};
 }
 
 function refreshURL(market) {
@@ -83,7 +103,7 @@ function loadMarket(market) {
   if (!sourceCache.has(market)) {
     const task=(async()=>{
       if (typeof DecompressionStream!=='function') throw Error('Open in an up-to-date browser to read this archive.');
-      const response=await fetch('./'+market.toLowerCase()+'.bin?v=1',{signal:AbortSignal.timeout(15000)});
+      const response=await fetch('./'+market.toLowerCase()+'-v2.bin',{signal:AbortSignal.timeout(15000)});
       if(!response.ok||!response.body) throw Error('The market archive is unavailable. Try again.');
       const decoded=new Response(response.body.pipeThrough(new DecompressionStream('gzip')));
       return validateStudy(await decoded.json(),market);
@@ -119,7 +139,7 @@ async function changeMarket() {
 const milestones=[1,18,48,72,96,108,120,132,144,156,168,174];
 function axisSteps(start,end,short=false) {
   if(short&&end-start<=23) return [start,Math.round((start+end)/2),end];
-  if(short&&start===1) return [start,18,72,108,132,174];
+  if(short&&end===174&&start<18) return [start,...(18-start>=12?[18]:[]),72,108,132,174];
   if(short&&start===18&&end===108) return [start,48,72,96,end];
   if(short&&start===18) return [start,48,72,108,132,end];
   return [...new Set([start,...milestones.filter(i=>i>start&&i<end),end])];
@@ -167,10 +187,16 @@ function rebuild() {
   reachedAt=null;
   $('reached').checked=false;
   $('progress-label').hidden=!(mode==='bbox'&&opts.edge==='both');
-  const desc=mode==='evening'
-    ?(opts.edge==='lower'?'Break below the evening low':'Break above the evening high')+' by 08:30 NY'
-    :windows[opts.window].label+' NY · '+$('edge').selectedOptions[0].textContent;
-  $('scenario-caption').textContent=data.market+' · '+desc;
+  $('current-position-label').hidden=mode!=='bbox';
+  const target=opts.edge==='lower'?'low':'high';
+  const direction=opts.edge==='lower'?'Below':'Above';
+  const level=opts.anchor==='first'?'first breach candle':'18:00–19:30';
+  const pathApplied=mode==='bbox'&&opts.window>0&&opts.priorPath!=='any';
+  const pathLabel=pathApplied?' · '+(opts.traceEdge==='upper'?'Upper':'Lower')+' edge · '+$('prior-path-filter').selectedOptions[0].textContent+
+    (opts.priorPath==='returned-repeat'&&opts.repeatWindow!==null?' in '+windows[opts.repeatWindow].label:''):'';
+  const desc=mode==='evening' ? direction+' '+level+' '+target+' by 08:30 NY' :
+    windows[opts.window].label+' NY · '+$('edge').selectedOptions[0].textContent;
+  $('scenario-caption').textContent=data.market+' · '+desc+pathLabel;
   $('asof').min=String(scenario.start);
   $('asof').max=String(scenario.end);
   $('asof').step='1';
@@ -217,17 +243,28 @@ function display(step,clockNotice='') {
   }
   let message=clockNotice;
   if(reached) message='The future estimate is complete for this target. The curve remains available for historical comparison.';
-  else if (!message&&!point.n) message=scenario.paths.length?'No matching nights still had this target pending.':'No historical nights match these inputs.';
+  else if (!message&&!point.n) {
+    const inherited=mode==='bbox'&&scenario.paths.length&&scenario.paths.every(path=>path.hit===scenario.start);
+    message=inherited?'The selected edge was already breached at the target window’s open.':
+      scenario.paths.length?'No matching nights still had this target pending.':'No historical nights match these inputs.';
+  }
   else if (!message&&step===scenario.end) message='Window ended at '+end+' NY.';
   $('observed-state').hidden=!message;
   $('observed-state').textContent=message;
   $('graph').classList.toggle('dimmed',reached);
   drawMarker?.(point);
-  const clockText='Each point assumes the target was still unbroken through that checkpoint. Dashed segments have fewer than 30 cases.';
+  const condition=mode==='bbox' ?
+    ('Estimates assume the selected target was still pending from '+time(scenario.start)+' to the observation time. '+($('edge').value==='both' ?
+      'The target stays pending until both edges have been breached by a wick.' :
+      'A wick beyond the target counts even if price moved back inside.')) :
+    'Estimates assume the evening level was still unbroken through the observation time.';
+  const clockText=condition+' Dashed segments have fewer than 30 cases.';
   const firstCandle=mode==='evening'&&$('anchor').value==='first';
+  const anySignal=['any','later'].includes($('signal-bar').value);
   $('curve-note').textContent=firstCandle
     ? clockText+' From the first breach candle, '+percent(reference.n?(reference.n-reference.k)/reference.n:null)+
-      ' held through 08:30 ('+counts(reference.n-reference.k,reference.n)+'). Before 19:30, new signal dates enter as their candles close.'
+      ' held through 08:30 ('+counts(reference.n-reference.k,reference.n)+').'+
+      (anySignal?' Before 19:30, new signal dates enter as their candles close.':'')
     : clockText;
   renderDistance(point,reached);
 }
@@ -239,11 +276,12 @@ function renderDistance(point,reached) {
     return;
   }
   const distance=$('distance').value,progress=$('progress-label').hidden?'any':$('progress').value;
-  if(distance==='any'&&progress==='any') {
-    host.textContent='Choose a distance or edge already breached to compare with the time-only estimate.';
+  const position=$('current-position-label').hidden?'any':$('current-position').value;
+  if(distance==='any'&&progress==='any'&&position==='any') {
+    host.textContent='Choose an observation filter to compare with the time-only estimate.';
     return;
   }
-  const matched=remaining(scenario,point.step,{distance,progress});
+  const matched=remaining(scenario,point.step,{distance,progress,position});
   const value=document.createElement('strong');
   value.textContent=percent(matched.p);
   host.replaceChildren(value, document.createTextNode(' · '+sample(matched)+(matched.n?' · 95% '+interval(matched):'')));
@@ -291,6 +329,7 @@ $('window').addEventListener('change',()=>{
   pattern=[...defaultPatterns[windowIndex]];
   chosen=null;
   renderPatterns();
+  renderPathOptions();
   rebuild();
 });
 $('history').addEventListener('change',()=>{
@@ -299,11 +338,19 @@ $('history').addEventListener('change',()=>{
 });
 $('edge').addEventListener('change',()=>{
   if(mode==='evening') eveningEdge=$('edge').value;
-  else bboxEdge=$('edge').value;
+  else {
+    bboxEdge=$('edge').value;
+    if($('prior-path-filter').value==='any'&&['upper','lower'].includes(bboxEdge)) $('trace-edge').value=bboxEdge;
+  }
   rebuild();
 });
+$('prior-path-filter').addEventListener('change',()=>{
+  renderPathOptions();
+  rebuild();
+});
+for (const id of ['trace-edge','repeat-window']) $(id).addEventListener('change',rebuild);
 for (const id of ['start-position','anchor','evening-open','signal-bar']) $(id).addEventListener('change',rebuild);
-for (const id of ['distance','progress']) $(id).addEventListener('change',()=>display(chosen));
+for (const id of ['distance','progress','current-position']) $(id).addEventListener('change',()=>display(chosen));
 $('asof').addEventListener('input',event=>choose(Number(event.currentTarget.value)));
 $('reached').addEventListener('change',()=>{
   reachedAt=$('reached').checked?chosen:null;
@@ -320,6 +367,7 @@ $('graph').addEventListener('pointerdown',event=>{
   const fraction=((event.clientX-rect.left)/rect.width*720-x0)/(x1-x0);
   choose(Math.round(scenario.start+(scenario.end-scenario.start)*fraction));
 });
+fillOptions($('signal-bar'),preciseSignals,'any');
 configureInputs();
 refreshClock();
 setInterval(refreshClock,1000);

@@ -6,6 +6,7 @@ export const windows = [
 ];
 export const lastStep = 174;
 const encoding = {none:0,upper:1,lower:2,both:3};
+const pathStage = {'no-return':1, 'returned-no-repeat':2, 'returned-repeat':3};
 const pending = (step, hit) => hit<0 || hit>step;
 
 export function time(step) {
@@ -32,10 +33,13 @@ export function validateStudy(data, market) {
   const series = (value,min,max) => Array.isArray(value)&&value.length===4&&value.every(v=>Number.isInteger(v)&&v>=min&&v<=max);
   const outcome = value => Array.isArray(value)&&value.length===2&&event(value[0])&&distance(value[1]);
   const evening = value => value===null||(Array.isArray(value)&&value.length===3&&value[0]>=1&&value[0]<=18&&Number.isInteger(value[0])&&outcome(value[1])&&outcome(value[2]));
-  if (data?.version!==1 || data.market!==market || !Array.isArray(data.dateRange) || data.dateRange.length!==2 ||
-      !Array.isArray(data.rows) || !data.rows.length || !data.rows.every(r=>Array.isArray(r)&&r.length===7&&
+  const path = value => Array.isArray(value) && value.length===2 && series(value[0],0,3) &&
+    Number.isInteger(value[1]) && value[1]>=0 && value[1]<=15;
+  if (data?.version!==2 || data.market!==market || !Array.isArray(data.dateRange) || data.dateRange.length!==2 ||
+      !Array.isArray(data.rows) || !data.rows.length || !data.rows.every(r=>Array.isArray(r)&&r.length===9&&
       series(r[0],0,2)&&series(r[1],0,3)&&series(r[2],-1,lastStep)&&series(r[3],-1,lastStep)&&
-      distance(r[4])&&distance(r[5])&&Array.isArray(r[6])&&r[6].length===2&&r[6].every(evening))) {
+      distance(r[4])&&distance(r[5])&&Array.isArray(r[6])&&r[6].length===2&&r[6].every(evening)&&
+      Array.isArray(r[7])&&r[7].length===2&&r[7].every(path)&&distance(r[8]))) {
     throw Error('Historical study data could not be verified.');
   }
   return data;
@@ -55,6 +59,7 @@ export function prepareScenario(data, options) {
   if (options.mode==='evening') {
     const side = options.edge==='lower'?1:0;
     const first = options.anchor==='first';
+    const exactSignal = /^bar-(?:[1-9]|1[0-8])$/.test(options.signalBar) ? Number(options.signalBar.slice(4)) : null;
     const paths = data.rows.flatMap(r=>{
       const observation = r[6][side];
       if (!observation) return [];
@@ -63,21 +68,29 @@ export function prepareScenario(data, options) {
       if (options.eveningOpen==='opposite' && r[0][0]!==2-side) return [];
       if (options.signalBar==='first'&&observation[0]!==1) return [];
       if (options.signalBar==='later'&&observation[0]===1) return [];
+      if (exactSignal!==null&&observation[0]!==exactSignal) return [];
       const [hit,distance] = observation[first?1:2];
       const start = first?observation[0]:18;
       return [{start,hit,distance:step=>Number(distance[step])}];
     });
-    return {start:first?1:18,end:lastStep,paths};
+    return {start:first?(exactSignal ?? (options.signalBar==='later'?2:1)):18,end:lastStep,paths};
   }
   const {window:index, startPosition, history, pattern, edge} = options;
   const {start,end}=windows[index];
   const paths=data.rows.flatMap(r=>{
-    const [open,flags,upper,lower,uDistances,dDistances]=r;
+    const [open,flags,upper,lower,uDistances,dDistances,,edgePaths,closePositions]=r;
     if (startPosition!=='any'&&open[index]!==Number(startPosition)) return [];
     const earlier = flags.slice(0,index);
     if (index&&history==='none'&&earlier.some(Boolean)) return [];
     if (index&&history==='breach'&&!earlier.some(Boolean)) return [];
     if (history==='custom'&&!earlier.every((value,j)=>matches(value,pattern[j]??'any'))) return [];
+    if (index && Object.hasOwn(pathStage,options.priorPath)) {
+      const [stages,repeats] = edgePaths[options.traceEdge==='lower'?1:0];
+      if (stages[index-1]!==pathStage[options.priorPath]) return [];
+      const required=options.repeatWindow;
+      if (options.priorPath==='returned-repeat' && Number.isInteger(required) &&
+          (required<0 || required>=index || !(repeats & (1<<required)))) return [];
+    }
     const u=upper[index], d=lower[index];
     const hit=edge==='upper'?u:edge==='lower'?d:edge==='both'?u===-1||d===-1?-1:Math.max(u,d):earliest(u,d);
     const progress=step=>Number(!pending(step,u))+2*Number(!pending(step,d));
@@ -89,7 +102,8 @@ export function prepareScenario(data, options) {
       if (visited===2) return Number(uDistances[step]);
       return Math.min(Number(uDistances[step]),Number(dDistances[step]));
     };
-    return [{start,hit,distance,progress}];
+    const position=step=>step===start?open[index]:Number(closePositions[step]);
+    return [{start,hit,distance,progress,position}];
   });
   return {start,end,paths};
 }
@@ -101,12 +115,13 @@ function estimate(k,n) {
   return {k,n,p,lo:Math.max(0,mid-width),hi:Math.min(1,mid+width)};
 }
 
-export function remaining(scenario, step, {distance='any',progress='any'}={}) {
+export function remaining(scenario, step, {distance='any',progress='any',position='any'}={}) {
   let n=0,k=0;
   for (const path of scenario.paths) {
     if (path.start>step || !pending(step,path.hit)) continue;
     if (distance!=='any' && path.distance(step)!==Number(distance)) continue;
     if (progress!=='any' && path.progress?.(step)!==Number(progress)) continue;
+    if (position!=='any' && path.position?.(step)!==Number(position)) continue;
     n++;
     if (path.hit!==-1 && path.hit<=scenario.end) k++;
   }
