@@ -217,3 +217,18 @@ body.session-board-active[data-device-view="mobile"] .topbar nav {
 @media (max-width: 420px) {
   .session-board #session-cards { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The temporary spans keep the existing font, colours and line wrapping. */
+.forecast-text-word, .forecast-text-char { display: inline-block; white-space: nowrap; }
+.forecast-text-readable {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.motion-paused .forecast-text-char { transform: none !important; filter: none !important; opacity: 1 !important; }
+@media (prefers-reduced-motion: reduce) {
+  .forecast-text-char { transform: none !important; filter: none !important; opacity: 1 !important; }
+}

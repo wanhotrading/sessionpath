@@ -1,3 +1,5 @@
+import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=text-blur-20261118';
+
 const windows = [
   { cutoff: '03:00', end: '05:00', minute: 180, endMinute: 300 },
   { cutoff: '05:00', end: '08:30', minute: 300, endMinute: 510 },
@@ -69,7 +71,11 @@ function newCard(window) {
 
 function showContainment(card, result) {
   const hasCases = result?.n > 0 && Number.isFinite(result.coverage);
-  card.containmentValue.textContent = hasCases ? (100 * result.coverage).toFixed(1) + '%' : '—';
+  const value = hasCases ? (100 * result.coverage).toFixed(1) + '%' : '—';
+  if (card.containmentValue.dataset.value !== value) {
+    card.containmentValue.dataset.value = value;
+    card.containmentValue.textContent = value;
+  }
   card.containmentSample.textContent = hasCases ? result.inside + '/' + result.n + ' historical windows' : '';
 }
 
@@ -182,7 +188,10 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     if (activeKey !== active || cards[selected].panel.hidden) {
       active = activeKey;
       board.dataset.cutoff = windows[selected].cutoff;
-      cards.forEach((card, index) => { card.panel.hidden = index !== selected; });
+      cards.forEach((card, index) => {
+        card.panel.hidden = index !== selected;
+        if (card.panel.hidden) cancelForecastTextMotion(card.panel);
+      });
       activeWindowChanged(latest >= 0 ? windows[selected].minute : null, date);
     }
     {
@@ -194,6 +203,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
       const pending = !replay && clock.date === date && clock.minute < window.minute;
       const key = JSON.stringify([date, replay, record, settings, ready, pending]);
       if (card.key === key) { refreshNYCode(); return; }
+      cancelForecastTextMotion(card.panel);
       card.key = key;
       card.record = record;
       card.code = '';
@@ -215,7 +225,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
       card.avr.textContent = Number(s.avr.toFixed(4)).toString();
       card.status.textContent = (replay ? 'Archive' : 'TradingView') + ' · ' + record.contract + ' · ' + window.cutoff + ' NY';
       const q = snapshotFields(s, window, date, settings, mainInputPlan(s));
-      void renderContext(card.context, q);
+      void renderContext(card.context, q, { reveal: () => revealForecastText(card.panel) });
       if (index < 2) {
         try {
           const result = estimate(q);

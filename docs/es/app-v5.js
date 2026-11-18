@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard} from '../session-board.mjs?v=quiet-ui-20261118';
+import {mountSessionBoard} from '../session-board.mjs?v=text-blur-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -9,7 +9,7 @@ import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs?v=advance-transition-20261113';
 import {setupDeviceView} from './device-view.mjs';
 import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=three-states-20261023';
-import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
+import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace} from './workspace-v7.mjs?v=quiet-ui-20261118';

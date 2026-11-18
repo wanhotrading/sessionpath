@@ -25,7 +25,7 @@ export function mountForecastContext(){
  clearForecastContext(aside,'Enter frozen AVR and printed range in Session inputs. This reading updates with your forecast.');
  
 }
-export async function renderForecastContext(host,q,{endMinute=q?.endMinute,year=q?.year||''}={}){
+export async function renderForecastContext(host,q,{endMinute=q?.endMinute,year=q?.year||'',reveal=revealContext}={}){
  if(!host)return;
  const rev=(revisions.get(host)||0)+1;revisions.set(host,rev);
  const cutoff={180:'p03',300:'p05',510:'p0830'}[q?.minute];
@@ -49,7 +49,7 @@ export async function renderForecastContext(host,q,{endMinute=q?.endMinute,year=
    else tint(el,vals[i],refs[i],'Earlier same-window history; range values × AVR, probabilities 0–1',i===2);
   });
   [.75,1].forEach((target,i)=>{if(q.printed>=target-1e-8)return;const a=s.matched.filter(r=>r[cutoff]<target-1e-8),b=baseline.filter(r=>r[cutoff]<target-1e-8);tint(host.querySelectorAll('.context-target>b')[i],rate(a.filter(r=>r[s.to]>=target-1e-8).length,a.length).p,rate(b.filter(r=>r[s.to]>=target-1e-8).length,b.length).p,'Earlier same-window target probability, conditional on target not yet reached');});
-  moveMarker(host,finite(s.percentile)?100*s.percentile:50);revealContext(host);
+  moveMarker(host,finite(s.percentile)?100*s.percentile:50);reveal(host);
  }catch(e){fail(e.message);}
 }
 
