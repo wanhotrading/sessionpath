@@ -1,4 +1,4 @@
-import { mountFeedWatermark } from './board-feed-watermark.mjs?v=feed-watermark-20261118';
+import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 
 const windows = [
@@ -42,7 +42,8 @@ function newCard(window) {
   panel.id = 'window-' + window.cutoff.replace(':', '');
   const heading = node('h2', '', window.cutoff + '–' + window.end);
   const windowHeading = node('div', 'session-board-window-heading');
-  windowHeading.append(heading);
+  const windowTitle = node('div', 'session-board-window-title');
+  windowTitle.append(heading);
   const status = node('p', 'session-board-source', 'Awaiting checkpoint');
   status.setAttribute('role', 'status');
   const checks = node('dl', 'session-board-check');
@@ -53,9 +54,10 @@ function newCard(window) {
     group.append(node('dt', '', label), value);
     checks.append(group);
   }
+  windowHeading.append(windowTitle, checks);
   const context = node('aside', 'forecast-context');
   const containment = node('dl', 'session-board-containment');
-  const containmentLabel = node('dt', '', 'Stayed within the mean U/D box');
+  const containmentLabel = node('dt', '', 'Stayed within the SessionPath box');
   const containmentValue = node('dd', '', '—');
   const containmentSample = node('small', '');
   containmentValue.setAttribute('aria-live', 'polite');
@@ -72,9 +74,9 @@ function newCard(window) {
   fallback.readOnly = true;
   fallback.setAttribute('aria-label', heading.textContent + ' TradingView code');
   exportRow.append(copy, count, info, fallback);
-  panel.append(windowHeading, status, checks, containment, context, exportRow);
+  panel.append(windowHeading, status, containment, context, exportRow);
   panel.hidden = true;
-  return { window, panel, windowHeading, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
+  return { window, panel, windowTitle, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
 }
 
 function showContainment(card, result) {
@@ -203,7 +205,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     if (activeKey !== active || cards[selected].panel.hidden) {
       active = activeKey;
       board.dataset.cutoff = windows[selected].cutoff;
-      cards[selected].windowHeading.prepend(marketPicker);
+      cards[selected].windowTitle.prepend(marketPicker);
       cards.forEach((card, index) => {
         card.panel.hidden = index !== selected;
         if (card.panel.hidden) cancelForecastTextMotion(card.panel);

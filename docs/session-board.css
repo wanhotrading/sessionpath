@@ -154,10 +154,20 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 .session-board-window[hidden] { display: none !important; }
 .session-board-window h2 { margin: 0; font-size: clamp(18px, 1.7vw, 24px); letter-spacing: -.024em; }
 .session-board-source { min-height: 1.3em; margin: 0; color: #bfcae5; font-size: 12px; }
-.session-board-check { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 0; }
-.session-board-check > div { min-width: 0; display: grid; gap: 2px; padding: 6px 9px; border: 1px solid #b4c7fa2e; border-radius: 8px; background: #070d203d; }
-.session-board-check dt { font-size: 11px; color: #b8c7e4; }
-.session-board-check dd { margin: 0; color: #edf2ff; font: 650 15px/1.2 ui-monospace, monospace; }
+.session-board-check {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: start;
+  gap: 4px 13px;
+  margin: 0;
+  text-align: right;
+}
+.session-board-check > div { min-width: 0; display: grid; gap: 1px; }
+.session-board-check dt { font-size: 10px; line-height: 1.2; color: #b8c7e4; }
+.session-board-check dd { margin: 0; color: #edf2ff; font: 650 13px/1.2 ui-monospace, monospace; white-space: nowrap; }
+@media (max-width: 540px) {
+  .session-board-check { grid-template-columns: auto; }
+}
 .session-board-containment {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -260,7 +270,8 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 }
 
 .session-board-window { overflow: clip; }
-.session-board-window-heading { display: flex; align-items: center; gap: 8px 14px; }
+.session-board-window-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 5px 12px; }
+.session-board-window-title { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; min-width: 0; }
 .session-board-window-heading h2 { white-space: nowrap; }
 .session-board .session-board-market {
   display: inline-flex;
@@ -289,7 +300,7 @@ span.session-board-market-emblem {
   font-weight: 750;
 }
 @media (max-width: 420px) {
-  .session-board-window-heading { gap: 7px; }
+  .session-board-window-title { gap: 5px 7px; }
   .session-board-market-emblem { flex-basis: 23px; width: 23px; height: 23px; }
   .session-board .session-board-market select { padding-inline: 5px; font-size: 12px; }
 }

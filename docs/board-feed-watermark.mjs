@@ -1,6 +1,3 @@
-import { createNewsPoller } from './news-poller.mjs?v=juice-paused-20261022';
-import { NEWS_SOURCES, loadNewsSource } from './news-feed.mjs?v=discord-topics-20261023';
-
 const descriptions = {
   checking: 'Checking',
   connected: 'Connected',
@@ -32,7 +29,6 @@ function makeIndicator(label, host) {
 export function mountFeedWatermark(header) {
   const doc = header.ownerDocument;
   const view = doc.defaultView;
-  const mobile = view.matchMedia('(max-width: 800px)');
   const feeds = doc.createElement('div');
   feeds.className = 'watermark-feeds';
   header.append(feeds);
@@ -53,29 +49,9 @@ export function mountFeedWatermark(header) {
   doc.getElementById('replay-toggle')?.addEventListener('change', refreshData);
   refreshData();
 
-  // Use the existing public publisher connections at a low polling rate.
-  const sources = NEWS_SOURCES.filter(source => !source.paused).map(source => ({ ...source, pollMs: 120_000 }));
-  const reachable = new Map();
-  const news = createNewsPoller({
-    sources,
-    loadSource: loadNewsSource,
-    onResult: ({ source }) => {
-      reachable.set(source.id, source.status === 'ok');
-      setNews([...reachable.values()].includes(true) ? 'connected' :
-        reachable.size === sources.length ? 'unavailable' : 'checking');
-    },
+  const newsStatus = doc.querySelector('.sp-news-ticker')?.dataset.feedState;
+  if (Object.hasOwn(descriptions, newsStatus)) setNews(newsStatus);
+  doc.addEventListener('sessionpath:news-connection', event => {
+    if (Object.hasOwn(descriptions, event.detail)) setNews(event.detail);
   });
-  function updateNews() {
-    if (!mobile.matches && !doc.hidden) {
-      if (news.snapshot().running) return;
-      reachable.clear();
-      setNews('checking');
-      news.start();
-    } else news.stop();
-  }
-  doc.addEventListener('visibilitychange', updateNews);
-  mobile.addEventListener('change', updateNews);
-  view.addEventListener('pagehide', () => news.stop());
-  view.addEventListener('pageshow', updateNews);
-  updateNews();
 }

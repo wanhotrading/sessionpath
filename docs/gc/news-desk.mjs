@@ -1,3 +1,4 @@
+import {mountNewsTicker} from '../news-ticker.mjs?v=news-ticker-20261118';
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
 import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=discord-topics-20261023';
@@ -64,8 +65,7 @@ function newsTime(value) {
 
 export function setupNewsDesk() {
   if (document.getElementById('news-desk-toggle')) return;
-  const host = document.querySelector('.top-actions');
-  if (!host) return;
+  const ticker = mountNewsTicker();
 
   const filters = readFilters();
   const savedPreferences = storedJSON(ALERT_PREFS_KEY);
@@ -89,14 +89,11 @@ export function setupNewsDesk() {
   let discordState = 'disconnected';
   try {discordReadKey=sessionStorage.getItem(DISCORD_SESSION_KEY) || '';}catch{}
 
-  const trigger = element('button', 'quiet news-desk-toggle', 'News');
-  trigger.id = 'news-desk-toggle';
-  trigger.type = 'button';
+  const {trigger} = ticker;
   trigger.setAttribute('aria-haspopup', 'dialog');
   trigger.setAttribute('aria-controls', 'news-desk');
   trigger.setAttribute('aria-expanded', 'false');
   trigger.title = 'Gold, dollar, rates and geopolitical headlines';
-  host.prepend(trigger);
 
   const dialog = element('dialog', 'news-desk');
   dialog.id = 'news-desk';
@@ -206,7 +203,7 @@ export function setupNewsDesk() {
       if(feed){feed.items=feed.items.filter(item=>item.transport!=='discord');feed.sources=feed.sources.filter(source=>source.transport!=='discord');}
       queuedAlerts=queuedAlerts.filter(item=>item.transport!=='discord');
       if(activeItem?.transport==='discord'){activeItem=null;hideToast();nextQueuedAlert();}
-      renderAlertControls();if(dialog.open)render();return;
+      updateTicker(true);renderAlertControls();if(dialog.open)render();return;
     }
     discordForm.hidden=!discordForm.hidden;discordToggle.setAttribute('aria-expanded',String(!discordForm.hidden));
     if(!discordForm.hidden)discordKey.focus();
@@ -400,12 +397,32 @@ export function setupNewsDesk() {
   modalObserver.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['open']});
   renderAlertControls();
 
+  let tickerStory = null;
+  const releaseOrder = (a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt) || a.id.localeCompare(b.id);
+  function updateTicker(reset = false) {
+    if (reset) tickerStory = null;
+    const reports = feed?.sources || [];
+    const connected = reports.some(source => source.status === 'ok');
+    const checked = NEWS_SOURCES.filter(source => !source.paused)
+      .every(source => reports.some(report => report.id === source.id));
+    const newest = filterDisplayNews(feed?.items || [], filters).reduce((current, item) =>
+      !current || releaseOrder(item, current) > 0 ? item : current, null);
+    if (newest && (!tickerStory || releaseOrder(newest, tickerStory) >= 0)) tickerStory = newest;
+    const latest = tickerStory;
+    const headline = latest ? traditionalNewsText(latest) : '';
+    const source = latest && (latest.source === 'wallstreetcn' ? 'WallstreetCN' :
+      latest.source === 'cnbc' ? 'CNBC' : latest.source === 'abcnews' ? 'ABC News' : SOURCE_NAMES[latest.source]);
+    ticker.update(headline ? (source ? source + ' · ' : '') + headline : '',
+      connected ? 'connected' : checked ? 'unavailable' : 'checking');
+  }
+
   function saveFilters() {
+    updateTicker(true);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
   }
 
   function scheduleRefresh() {
-    if (preferences.alerts || !document.hidden && dialog.open) poller?.start();
+    if (preferences.alerts || !document.hidden) poller?.start();
     else poller?.stop();
     syncDiscord();
   }
@@ -417,10 +434,10 @@ export function setupNewsDesk() {
       source.status=state==='connected'?'ok':'error';source.fetchedAt=new Date().toISOString();
       source.error=state==='connected'?null:discordConnectionView({state,hasKey:Boolean(discordReadKey),source}).help;
     }
-    renderAlertControls();if(dialog.open)renderSources();
+    updateTicker();renderAlertControls();if(dialog.open)renderSources();
   }
   function syncDiscord(){
-    const wanted=discordReadKey && (preferences.alerts || dialog.open && !document.hidden);
+    const wanted=discordReadKey && (preferences.alerts || !document.hidden);
     if(!wanted){stopDiscord();return;}
     if(discord)return;
     discordState='connecting';renderAlertControls();
@@ -582,10 +599,11 @@ export function setupNewsDesk() {
       audit.push({story_id:item.id,headline:item.title,recorded_at_utc:new Date().toISOString(),analysis:item.analysis,popup_eligible:preferences.alerts && eligible.has(item.id),decision:eligible.has(item.id)?'Eligible for popup':'Silent baseline, duplicate, stale, feed-only or filtered'});
     }
     audit=audit.slice(-300);try{localStorage.setItem('sessionpath-news-audit-v1',JSON.stringify(audit));}catch{}
+    updateTicker();
     if(dialog.open) render(); showAlert(matchedAlerts);
   }
   function refreshNews() {
-    if (!preferences.alerts && (!dialog.open || document.hidden)) return;
+    if (!preferences.alerts && document.hidden) return;
     lastAttempt=Date.now(); poller?.start(); poller?.refresh();syncDiscord();
   }
   function openNews() {
@@ -603,7 +621,7 @@ export function setupNewsDesk() {
   dialog.addEventListener('close', () => {
     trigger.setAttribute('aria-expanded', 'false');
     positionToast();
-    if (preferences.alerts) scheduleRefresh(); else interruptRefresh();
+    scheduleRefresh();
   });
   // The backdrop's event target is the dialog itself. Use its rectangle so a
   // click on the drawer's padding does not accidentally close the drawer.
@@ -625,7 +643,7 @@ export function setupNewsDesk() {
       if(activeItem) queuedAlerts=[...new Map([activeItem,...queuedAlerts].map(item=>[item.id,item])).values()].slice(-50);
       activeItem=null;hideToast();if(!preferences.alerts)interruptRefresh();
     }
-    else if (dialog.open || preferences.alerts) {
+    else {
       if(dialog.open)render();
       if(queuedAlerts.length) nextQueuedAlert();
       if (!feed || Date.now() - lastAttempt >= REFRESH_MS) refreshNews();
@@ -634,14 +652,14 @@ export function setupNewsDesk() {
   });
   window.addEventListener('pagehide', () => { hideToast(); interruptRefresh(); saveSeen(); });
   window.addEventListener('pageshow', event => {
-    if (event.persisted && (dialog.open || preferences.alerts)) refreshNews();
+    if (event.persisted) refreshNews();
   });
   poller = createNewsPoller({sources:NEWS_SOURCES,loadSource:async (source,options) => prepareTraditionalNews(await loadNewsSource(source,options)),onResult:receiveSource,onActivity:pending=>{
     loading=pending.length>0;
     refresh.disabled=pending.length===ACTIVE_SOURCE_COUNT; refresh.textContent=refresh.disabled?'Checking…':'Refresh';
     listArea.setAttribute('aria-busy',String(loading));
   }});
-  if (preferences.alerts) refreshNews();
+  refreshNews();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupNewsDesk, {once: true});
