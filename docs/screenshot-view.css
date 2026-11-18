@@ -1,0 +1,35 @@
+.screenshot-view-exit[hidden] { display: none !important; }
+
+body.session-board-active.session-board-capture {
+  padding-bottom: 0 !important;
+}
+
+body.session-board-capture > :is(.topbar, .sp-assistant, #toast, #workspace-tools-toggle, #news-alert-toast),
+.session-board-capture #workspace > :is(#projection, #sessions-section),
+.session-board-capture :is(.session-board-actions, .session-board-export) {
+  display: none !important;
+}
+
+body.session-board-active.session-board-capture main#workspace {
+  padding: 9px 0 0 !important;
+  gap: 0 !important;
+  min-height: 0 !important;
+}
+
+body.session-board-capture #workspace > #session-board {
+  width: var(--screenshot-board-width, 1080px) !important;
+  justify-self: center;
+  zoom: var(--screenshot-board-scale, 1);
+}
+
+.session-board-capture .session-board-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.screenshot-view-exit {
+  position: fixed;
+  z-index: 42;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(9px, env(safe-area-inset-bottom, 0px));
+  min-height: 36px;
+  background: #141a33;
+  border-color: #b9b3e677;
+}
