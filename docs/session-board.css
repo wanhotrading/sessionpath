@@ -9,7 +9,7 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 
 .session-board-active .topbar {
   position: fixed;
-  inset: max(5px, env(safe-area-inset-top, 0px)) auto auto max(12px, env(safe-area-inset-left, 0px));
+  inset: auto auto max(5px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
   z-index: 35;
   display: flex;
   width: max-content;
@@ -76,7 +76,7 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   overflow: visible !important;
   box-sizing: border-box;
   margin: 0 auto !important;
-  padding: 49px clamp(13px, 2.8vw, 38px) 0 !important;
+  padding: 13px clamp(13px, 2.8vw, 38px) 0 !important;
 }
 
 .session-board-active #workspace > :is(#conditions, #ny-reference, #comparison) { display: none !important; }
@@ -304,3 +304,25 @@ span.session-board-market-emblem {
 }
 .session-board-tools-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 14px; }
 body.session-board-active[data-device-view="mobile"] .sp-assistant { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+
+@media (min-width: 801px) and (max-width: 1140px) {
+  .session-board-active .sp-assistant { left: auto; right: 14px; width: min(720px, calc(100vw - 235px)); transform: none; }
+}
+.session-board-active #bbox-return-details.bbox-check-panel { width: min(590px, 100%); box-sizing: border-box; }
+.bbox-check-header { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; }
+.bbox-check-header h2 { margin: 0; margin-right: auto; font-size: 16px; }
+.bbox-check-clock { color: #c6d4ec; font: 650 11px/1.2 ui-monospace, monospace; white-space: nowrap; }
+.bbox-check-button { min-height: 34px; }
+.bbox-check-note { margin: 7px 0 0; color: #bac9e5; font-size: 12px; }
+.bbox-check-note:empty, .bbox-check-result:empty { display: none; }
+.bbox-check-classification { margin: 9px 0 4px; font-weight: 650; font-size: 13px; }
+.bbox-check-boxes { display: flex; flex-wrap: wrap; gap: 5px; }
+.bbox-check-boxes span { padding: 3px 6px; border: 1px solid #c4d3f037; border-radius: 6px; font-size: 12px; }
+.bbox-check-curve.br-decay { margin: 9px 0 0; padding: 5px 9px 10px; }
+.bbox-check-curve svg { display: block; width: 100%; cursor: crosshair; }
+.bbox-check-cursor line { stroke: #f0d4a2; stroke-dasharray: 3 3; }
+.bbox-check-cursor circle { fill: #f0d4a2; }
+.bbox-curve-readout { display: block; margin: 0 2px 3px; font: 650 12px/1.4 ui-monospace, monospace; }
+.bbox-curve-scrub { display: block; width: 100%; margin: 0; accent-color: #bda7ff; }
+.bbox-check-transfer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.bbox-check-code { width: 100%; min-height: 36px; }

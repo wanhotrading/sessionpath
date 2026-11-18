@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard} from './session-board.mjs?v=feed-watermark-20261118';
+import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=automatic-bbox-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -8,7 +8,8 @@ import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs?v=advance-transition-20261113';
 import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
-import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=three-states-20261023';
+import {mountLiveBBoxCheck} from './bbox-live-check.mjs?v=automatic-bbox-20261118';
+import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
@@ -26,10 +27,11 @@ const windows={'1930-0500':[-270,300],'1930-0830':[-270,510]};
 const fields=['open1930','ud-units','window','asof','trading-date','price','avr','printed','range-high','range-low','range-position','prior-high','prior-low','location','up','down','behavior','tag-mode','sample-size','year'];
 const state={sessionChoices:{},sessionChoiceSources:{},sessionChoiceDate:null,sessionPathCutoff:null,box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};
 mountScreenshotReview(state);
-mountForecastContext();mountBBoxReturn();
-const returnDetails=document.createElement('details');returnDetails.id='bbox-return-details';returnDetails.className='session-note bbox-return-details';returnDetails.innerHTML='<summary>Closed outside BBOX? Check % of return</summary>';
-$('projection').querySelector('.forecast-main').append(returnDetails);returnDetails.append($('bbox-return'));
-returnDetails.addEventListener('toggle',()=>{if(returnDetails.open)renderBBoxReturn();});
+mountForecastContext();
+const bboxCheckPanel=document.createElement('section');
+bboxCheckPanel.id='bbox-return-details';
+bboxCheckPanel.className='bbox-check-panel';
+$('projection').querySelector('.forecast-main').append(bboxCheckPanel);
 const storageKey=marketStorageKey('session-path-checkpoints-v2');
 const val=id=>$(id).value===''?null:Number($(id).value);
 const friendly=t=>String(t).replace(/RALLY_FADE/g,'TREND UP → FADE').replace(/DROP_RECOVERY/g,'TREND DOWN → RECOVER');
@@ -150,7 +152,7 @@ function showViewer(index){if(!state.matches.length)return;state.viewer=(index+s
  if(!$('chart-dialog').open)$('chart-dialog').showModal();
 }
 function clearResults(message){clearForecastContext($('forecast-context'),undefined,!(val('avr')>0)||val('range-high')===null&&val('range-low')===null&&val('printed')===null);state.box=null;state.pine=null;renderBoxEmpty('Update valid planning inputs to estimate the box.');state.matches=[];state.pool=[];state.summary=null;$('comparison-results').innerHTML='<p class="notice">Update valid planning inputs to compare cases.</p>';$('result-header').innerHTML='';$('forecast').innerHTML=`<div class="panel empty">${message}</div>`;$('range-assessment').innerHTML='';$('cohort-note').textContent='';renderGallery();}
-function analyze(){if(!state.ready)return;renderBBoxReturn();state.request++;$('form-error').textContent='';syncInputs();renderTags();renderCheckpoints();renderSessions();state.page=0;let q;try{q=state.library?{minute:clockMinute($('asof').value),date:$('trading-date').value,tags:[...state.selected],tagMode:$('tag-mode').value,year:$('year').value,observations:[]}:readQuery();}catch(e){$('form-error').textContent=e.message;state.query=null;clearResults('<b>Update your inputs</b>Correct the input message above to calculate a new estimate.');return;}state.query=q;
+function analyze(){if(!state.ready)return;state.request++;$('form-error').textContent='';syncInputs();renderTags();renderCheckpoints();renderSessions();state.page=0;let q;try{q=state.library?{minute:clockMinute($('asof').value),date:$('trading-date').value,tags:[...state.selected],tagMode:$('tag-mode').value,year:$('year').value,observations:[]}:readQuery();}catch(e){$('form-error').textContent=e.message;state.query=null;clearResults('<b>Update your inputs</b>Correct the input message above to calculate a new estimate.');return;}state.query=q;
  if(state.library){clearForecastContext($('forecast-context'),'Return to planning for compression and expansion.');state.box=null;state.pine=null;renderBoxEmpty('Return to planning to estimate future movement.');const matches=state.days.filter(d=>(!q.year||d.date.startsWith(q.year))&&hasTags(d,q.tags,q.tagMode,q.minute,true)).sort((a,b)=>b.date.localeCompare(a.date)).map(day=>({day}));state.matches=matches;state.pool=matches;state.summary=null;resultHeader(q,{matches,pool:matches,numericCount:0,observationCount:0});$('forecast').innerHTML='<div class="panel"><h2>Completed-day chart research</h2><div class="notice">All dictionary tags are enabled. This mode reveals outcomes and does not produce movement estimates. Only the selected tags and year filter apply.</div></div>';$('range-assessment').innerHTML='';$('cohort-note').textContent=`${matches.length} dates · ${q.tagMode.toUpperCase()} tag matching · full-day hindsight`;renderGallery();if(!document.body.classList.contains('session-board-active'))renderComparison(state);return;}
  const blocked=q.tags.filter(id=>{const tag=state.tags.find(t=>t.id===id);return !tag||tag.earliestMinute==null||tag.earliestMinute>q.minute;});if(blocked.length){clearResults(`<b>Some tags are only known later</b>Remove ${blocked.map(t=>esc(friendly(t))).join(', ')} or browse completed-day tags. These cannot be used at ${clockLabel(q.minute)}.`);return;}
  if(q.behavior&&q.minute< -210){clearResults('<b>The last-hour condition needs a full prior hour</b>Clear that condition or choose 20:30 ET or later.');return;}
@@ -361,15 +363,30 @@ mountAssistantForecastAdapter({
  },
  readForecast:({request})=>request.minute===510?null:({query:state.query,box:state.box,code:state.box&&state.query?makeForecastCode(state.box,state.query):'',conditions:{tags:[...state.selected],tagMode:state.query?.tagMode,year:state.query?.year,nearestCaseLimit:state.query?.limit,bboxLocation:state.query?.location,lastHourBehavior:state.query?.behavior,earlierCheckpointCount:state.query?.observations?.length||0}})
 });
-mountSessionBoard({
- market:instrument.id,nyClock,mainInputPlan,
- archive:request=>archivedForecastRecord(state.days,state.timeline,request),
- preferences:(minute,date)=>({
+function forecastPreferences(minute,date){
+ return {
   tags:[...state.selected].filter(id=>state.tags.some(tag=>tag.id===id&&Number.isFinite(tag.earliestMinute)&&tag.earliestMinute<=minute)),
   tagMode:$('tag-mode').value,limit:$('sample-size').value==='ALL'?'ALL':50,
   year:minute===510?$('ny-year')?.value||'':$('year').value,
   observations:minute!==510&&$('use-checkpoints').checked?state.checkpoints.filter(c=>c.date===date&&c.minute<minute).sort((a,b)=>a.minute-b.minute).slice(-8).map(c=>c.condition):[],
- }),
+ };
+}
+mountLiveBBoxCheck(bboxCheckPanel,{
+ market:instrument.id,
+ archiveURL:assetPath('bbox-return-v2.json'),
+ feedURL:new URL('/api/autofill',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href,
+ estimate:(snapshot,window,date)=>{
+  const query=snapshotFields(snapshot,window,date,forecastPreferences(window.minute,date),mainInputPlan(snapshot));
+  const box=boxEstimate(state.days,state.timeline,query,window.endMinute,state.rowCache.get(window.minute+':'+window.endMinute));
+  return box?{low:query.price-box.downPoints,high:query.price+box.upPoints}:null;
+ },
+ stats:bboxReturnStats,makeCode:makeBBoxReturnCode,
+ year:()=>$('year').value,isReplay:()=>$('replay-toggle').checked,ready:()=>state.ready,
+});
+mountSessionBoard({
+ market:instrument.id,nyClock,mainInputPlan,
+ archive:request=>archivedForecastRecord(state.days,state.timeline,request),
+ preferences:forecastPreferences,
  estimate:q=>{
   const box=boxEstimate(state.days,state.timeline,q,q.endMinute);
   return {code:box?makeForecastCode(box,q):'',count:box?.n||0,n:box?.n||0,coverage:box?.coverage,inside:box?.inside};

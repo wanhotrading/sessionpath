@@ -21,7 +21,7 @@ function node(tag, className, text) {
   return element;
 }
 
-function snapshotFields(snapshot, window, date, preferences, plan) {
+export function snapshotFields(snapshot, window, date, preferences, plan) {
   const up = (snapshot.range_high - snapshot.open_1930) / snapshot.avr;
   const down = (snapshot.open_1930 - snapshot.range_low) / snapshot.avr;
   const range = snapshot.range_high - snapshot.range_low;
