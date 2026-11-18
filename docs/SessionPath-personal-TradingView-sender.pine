@@ -330,6 +330,19 @@ if sourceConfirmed
             bboxLowerUnarmed := nextLowerUnarmed
             bboxLowerArmed := nextLowerArmed
 
+// Rolling H/L/C in integer ticks, indexed by the opening minute from 03:00 NY.
+// Null triplets preserve gaps; TradingView never substitutes a neighbouring bar.
+var array<string> researchBars = array.new<string>(468, "null")
+var int researchDay = na
+if sourceConfirmed and weekdayTarget and clockMinute >= 180 and clockMinute < 960
+    if na(researchDay) or researchDay != targetDay
+        array.fill(researchBars, "null")
+        researchDay := targetDay
+    int offset = 3 * int((clockMinute - 180) / 5)
+    array.set(researchBars, offset, str.tostring(int(math.round(sourceHigh / syminfo.mintick))))
+    array.set(researchBars, offset + 1, str.tostring(int(math.round(sourceLow / syminfo.mintick))))
+    array.set(researchBars, offset + 2, str.tostring(int(math.round(sourceClose / syminfo.mintick))))
+
 f_packet(string first, string second, string third, int observedAt, float lastPrice, bool decisionOpen) =>
     string snapshots = "[" + first
     snapshots += (first != "" and second != "" ? "," : "") + second
@@ -337,7 +350,15 @@ f_packet(string first, string second, string third, int observedAt, float lastPr
     string packet = "{\"schema\":\"sessionpath.personal.tradingview.v1\",\"token\":\"" + senderToken + "\",\"market\":\"" + syminfo.root + "\",\"source_symbol\":\"" + syminfo.ticker + "\",\"timeframe\":\"5\",\"timezone\":\"America/New_York\",\"confirmed\":true"
     packet += ",\"observed_at\":\"" + f_utc(observedAt) + "\",\"sent_at\":\"" + f_utc(timenow) + "\",\"session_date\":\"" + f_date(targetDay) + "\",\"last_price\":" + f_number(lastPrice)
     packet += ",\"feed_type\":\"continuous_front_contract\",\"backadjustment\":\"off\",\"avr_profile\":\"" + AVR_PROFILE + "\",\"snapshots\":" + snapshots
-    packet += (decisionOpen ? ",\"checkpoint_timing\":\"decision_open_v1\"" : "") + "}"
+    packet += decisionOpen ? ",\"checkpoint_timing\":\"decision_open_v1\"" : ""
+    if researchDay == targetDay
+        int observedMinute = hour(observedAt, TZ) * 60 + minute(observedAt, TZ)
+        int length = 3 * int((math.min(observedMinute, 960) - 180) / 5)
+        if length > 0
+            string bars = ",\"research_bars\":[" + array.join(array.slice(researchBars, 0, length), ",") + "]"
+            if str.length(packet) + str.length(bars) + 1 <= 8192
+                packet += bars
+    packet += "}"
     if str.length(packet) > 8192
         runtime.error("Personal snapshot packet exceeds the 8192-character safety bound.")
     packet

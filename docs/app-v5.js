@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=saved-forecast-replay-20261118';
+import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=automatic-followup-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -16,7 +16,7 @@ import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './
 import {setupWorkspace} from './workspace-v7.mjs?v=quiet-ui-20261118';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=saved-forecast-20261118';
-import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
+import {observedUD,makeForecastCode,parseForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
 import {parseSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
@@ -324,8 +324,6 @@ async function startResearch(){
   }
  }
  void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();},$('evidence'));
- // Follow-up research is optional and lazy: it never gates the existing forecast.
- void import('./research-followup.mjs?v=ny-timing-20261102').then(m=>m.mountResearchFollowup(state)).catch(error=>console.warn('Research follow-up unavailable:',error));
  for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation()]){
   await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}
  }
@@ -392,9 +390,15 @@ mountSessionBoard({
  historyURL:new URL('/api/history',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href,
  parseSaved:historicalFeedRecord,
  preferences:forecastPreferences,
+ followup:{state,
+  bounds:code=>{const box=parseForecastCode(code);return {upper:box.price+box.up,lower:box.price-box.down};},
+  loadResearch:()=>Promise.all([getJSON('data/research-probabilities-v1.json'),import('./research-probability-core.mjs'),import('./research-followup-code.mjs')]),
+ },
  estimate:q=>{
   const box=boxEstimate(state.days,state.timeline,q,q.endMinute);
-  return {code:box?makeForecastCode(box,q):'',count:box?.n||0,n:box?.n||0,coverage:box?.coverage,inside:box?.inside};
+  const code=box?makeForecastCode(box,q):'', exact=code?parseForecastCode(code):null;
+  return {code,count:box?.n||0,n:box?.n||0,coverage:box?.coverage,inside:box?.inside,
+   bounds:exact?{upper:exact.price+exact.up,lower:exact.price-exact.down}:null};
  },
  applyArchivedNY:(snapshot,date,{verified=false,saved=false}={})=>{
   const nyDate=$('ny-date');

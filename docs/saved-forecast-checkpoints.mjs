@@ -26,28 +26,31 @@ export function createSavedCheckpointReader({endpoint, market, parse, windows, f
       const response = await fetchImpl(url, {
         credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(7000)
       });
-      if (!response.ok) return [];
+      if (!response.ok) return {records: [], packet: null};
       const payload = await response.json();
-      return windows.map(window => {
+      const records = windows.map(window => {
         try {
           const record = parse(payload, {...window, date, market});
           return record ? {...record, saved: true} : null;
         } catch { return null; }
       });
-    })().catch(() => []);
+      return {records, packet: records.some(Boolean) ? payload.packet : null};
+    })().catch(() => ({records: [], packet: null}));
     cache.delete(date);
     cache.set(date, {at:now(),promise});
     if (cache.size > 5) cache.delete(cache.keys().next().value);
     return promise;
   }
 
-  return async function findSavedCheckpoint({date, minute}) {
+  async function findSavedCheckpoint({date, minute}) {
     for (const session of weekdayDates(date, 3)) {
       if (session === date && minute < windows[0].minute) continue;
-      const records = await load(session);
+      const {records, packet} = await load(session);
       const index = records.findLastIndex((record, i) => record && (session !== date || windows[i].minute <= minute));
-      if (index >= 0) return {date:session, index, record:records[index]};
+      if (index >= 0) return {date:session, index, record:records[index], records, packet};
     }
     return null;
-  };
+  }
+  findSavedCheckpoint.forDate = load;
+  return findSavedCheckpoint;
 }

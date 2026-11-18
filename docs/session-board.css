@@ -107,8 +107,7 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 
 .session-board-active #indicator-section[hidden] { display: none !important; }
 
-.session-board-active #bbox-return-details,
-.session-board-active #research-followup {
+.session-board-active #bbox-return-details {
   width: auto;
   margin: 0 0 10px;
   padding: 12px 16px;
@@ -118,8 +117,6 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   scroll-margin-top: 85px;
 }
 
-.session-board-active #research-followup[open] { padding-bottom: 17px; }
-
 .session-board-actions {
   display: flex;
   align-items: center;
@@ -128,8 +125,10 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   gap: 8px 12px;
   margin-top: 10px;
 }
-.session-board-actions label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #e2eafa; }
-.session-board-actions select { min-width: 105px; padding: 6px 8px; font-size: 13px; }
+.session-board-actions:not(:has(button:not([hidden]))) { display: none; }
+.session-board .session-board-sample { margin: 0; }
+.session-board .session-board-sample select { min-width: 94px; margin: 0; padding: 6px 8px; font-size: 12px; }
+.session-board-window-period { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 
 .session-board-grid {
   display: grid;
@@ -137,6 +136,32 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   align-items: start;
   gap: 12px;
 }
+
+.session-board-right { display: grid; min-width: 0; gap: 12px; }
+.session-board #research-followup {
+  margin: 0;
+  padding: clamp(10px, 1.25vw, 17px);
+  border: 1px solid #b4c7fa40;
+  border-radius: 16px;
+  background: #101a30ed;
+  color: #ebf1fb;
+  scroll-margin-top: 85px;
+}
+.session-board #research-followup h2 { margin: 0; font-size: 18px; }
+.followup-reading { margin-top: 12px; }
+.followup-reading + .followup-reading { border-top: 1px solid #b4c7fa26; padding-top: 12px; }
+.followup-reading h3 { margin: 0 0 5px; font-size: 13px; color: #e2eafa; }
+.followup-reading :is(.research-state, .compact-note, .followup-status) { margin: 0; }
+.followup-reading :is(.compact-note, .followup-status) { font-size: 12px; color: #bac9e0; }
+.session-board .followup-reading .research-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+  margin: 8px 0 0;
+  gap: 7px;
+}
+.session-board .followup-reading .research-stat { padding: 8px 10px; border-radius: 9px; }
+.followup-reading .research-stat span { font-size: 12px; }
+.session-board .followup-reading .research-stat strong { margin: 3px 0; font-size: clamp(16px, 1.6vw, 23px); }
+.session-board .followup-reading .research-stat small { line-height: 1.35; }
 
 .session-board-window {
   min-width: 0;

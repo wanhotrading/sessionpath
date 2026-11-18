@@ -1,6 +1,8 @@
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
-import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=1';
+import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
+import { archivedResearchBar } from './followup-observations.mjs';
+import { mountSessionFollowup } from './session-followup.mjs';
 
 const windows = [
   { cutoff: '03:00', end: '05:00', minute: 180, endMinute: 300 },
@@ -44,7 +46,9 @@ function newCard(window) {
   const heading = node('h2', '', window.cutoff + '–' + window.end);
   const windowHeading = node('div', 'session-board-window-heading');
   const windowTitle = node('div', 'session-board-window-title');
-  windowTitle.append(heading);
+  const period = node('div', 'session-board-window-period');
+  period.append(heading);
+  windowTitle.append(period);
   const status = node('p', 'session-board-source', 'Awaiting checkpoint');
   status.setAttribute('role', 'status');
   const checks = node('dl', 'session-board-check');
@@ -77,7 +81,7 @@ function newCard(window) {
   exportRow.append(copy, count, info, fallback);
   panel.append(windowHeading, status, containment, context, exportRow);
   panel.hidden = true;
-  return { window, panel, windowTitle, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
+  return { window, panel, windowTitle, period, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
 }
 
 function showContainment(card, result) {
@@ -90,7 +94,7 @@ function showContainment(card, result) {
   card.containmentSample.textContent = hasCases ? result.inside + '/' + result.n + ' historical windows' : '';
 }
 
-export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute }) {
+export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute, followup }) {
   const board = node('section', 'session-board');
   board.id = 'session-board';
   board.setAttribute('aria-label', 'Forecast workspace');
@@ -104,14 +108,21 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   });
   const sample = $('sample-size');
   const label = sample.closest('label');
-  label.firstChild.textContent = 'Overnight sample';
-  actions.append(backToday, label);
+  label.firstChild.remove();
+  label.classList.add('session-board-sample');
+  sample.setAttribute('aria-label', 'Overnight sample');
+  actions.append(backToday);
   const grid = node('div', 'session-board-grid');
   const cards = windows.map(newCard);
   const paths = $('sessions-section');
-  grid.append(...cards.map(card => card.panel), paths);
+  const right = node('div', 'session-board-right');
+  const followupPanel = node('section', 'research-followup');
+  followupPanel.id = 'research-followup';
+  right.append(paths, followupPanel);
+  grid.append(...cards.map(card => card.panel), right);
   board.append(grid, actions);
   $('workspace').prepend(board);
+  const renderFollowup = mountSessionFollowup(followupPanel, {market, loadResearch: followup.loadResearch, historyURL});
 
   const topbar = document.querySelector('.topbar');
   const brand = topbar.querySelector('.brand');
@@ -161,6 +172,9 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   let queued = false;
   let archiveDate = '';
   let archiveRecords = [];
+  let livePacket;
+  let exactCloses = new Map();
+  let replayFeed;
   let requestedReplay = null;
   let appliedNY = '';
   let nyModel;
@@ -175,7 +189,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     if (lookup || (lastLookup.key === key && Date.now() - lastLookup.at < 60_000) || document.hidden) return;
     lastLookup = {key, at:Date.now()};
     lookup = findSaved(clock).then(result => {
-      if (newer(result, saved)) saved = result;
+      if (newer(result, saved) || result && result.date === saved?.date && result.index === saved.index) saved = result;
     }).finally(() => {
       lookup = null;
       scheduleUpdate();
@@ -186,6 +200,51 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     return $('ny-date')?.value === date && $('ny-end')?.value === '960' &&
       [['ny-price', snapshot.reference_price], ['ny-avr', snapshot.avr], ['ny-range-high', snapshot.range_high], ['ny-range-low', snapshot.range_low]]
         .every(([id, value]) => $(id)?.value !== '' && Math.abs(Number($(id)?.value) - value) < 1e-7);
+  }
+  const estimates = new Map();
+  function overnightEstimate(record, index, date) {
+    const { snapshot } = record;
+    const window = windows[index];
+    const settings = preferences(window.minute, date);
+    const key = JSON.stringify([date, record.contract, snapshot, settings]);
+    if (!estimates.has(key)) {
+      const q = snapshotFields(snapshot, window, date, settings, mainInputPlan(snapshot));
+      if (estimates.size >= 12) estimates.delete(estimates.keys().next().value);
+      estimates.set(key, estimate(q));
+    }
+    return estimates.get(key);
+  }
+  function updateFollowup(record, records, index, date, clock, replay) {
+    const window = windows[index];
+    if (!record) {
+      void renderFollowup({record});
+      return;
+    }
+    if (replay && record.contract.endsWith('1!') && replayFeed?.date !== date) {
+      const pending = {date};
+      replayFeed = pending;
+      void findSaved.forDate(date).then(result => {
+        Object.assign(pending, result);
+        if (replayFeed === pending) scheduleUpdate();
+      });
+    }
+    const historicalFeed = replay ? (replayFeed?.date === date ? replayFeed : null) : (saved?.date === date ? saved : null);
+    const knownFeed = historicalFeed?.packet?.source_symbol === record.contract ? historicalFeed.packet : null;
+    const packet = !replay && livePacket?.session_date === date && livePacket?.source_symbol === record.contract ? livePacket : knownFeed;
+    const prior = [records[index - 1], historicalFeed?.records?.[index - 1]].find(item => item?.contract === record.contract);
+    const barAt = record.contract.endsWith('1!') ? null : archivedResearchBar(followup.state.days, followup.state.timeline, {date, contract:record.contract});
+    const confirmed = Date.parse(record.snapshot.as_of);
+    const exactClose = packet?.endpoint_closes?.[window.cutoff] ?? (!replay ? exactCloses.get(confirmed) : undefined) ??
+      (Date.parse(packet?.observed_at) === confirmed ? packet.last_price : null);
+    const through = barAt ? (date === clock.date ? clock.minute : window.endMinute) : packet ? nyClock(Date.parse(packet.observed_at)).minute :
+      date === clock.date ? clock.minute : window.endMinute;
+    let bounds = null, priorBounds = null;
+    try {
+      if (prior) priorBounds = overnightEstimate(prior, index - 1, date)?.bounds;
+      bounds = index < 2 ? overnightEstimate(record, index, date)?.bounds :
+        cards[index].code ? followup.bounds(cards[index].code) : null;
+    } catch { /* No valid box geometry for this checkpoint. */ }
+    void renderFollowup({date, window, record, bounds, priorBounds, through, remoteThrough:packet?.research_through, barAt, exactClose, replay});
   }
   function refreshNYCode() {
     if (nyCard.panel.hidden || !nyCard.key || !nyCard.record) return;
@@ -233,6 +292,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       active = activeKey;
       board.dataset.cutoff = windows[selected].cutoff;
       cards[selected].windowTitle.prepend(marketPicker);
+      cards[selected].period.append(label);
       cards.forEach((card, index) => {
         card.panel.hidden = index !== selected;
         if (card.panel.hidden) cancelForecastTextMotion(card.panel);
@@ -248,7 +308,11 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       const pending = !replay && clock.date === date && clock.minute < window.minute;
       const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, !record && Boolean(lookup)]);
       const needsNYInputs = index === 2 && record && !sameNYInputs(record.snapshot,forecastDate);
-      if (card.key === key && !needsNYInputs) { refreshNYCode(); return; }
+      if (card.key === key && !needsNYInputs) {
+        refreshNYCode();
+        updateFollowup(record, records, index, forecastDate, clock, replay);
+        return;
+      }
       cancelForecastTextMotion(card.panel);
       card.key = key;
       card.record = record ? {...record, date:forecastDate} : null;
@@ -264,6 +328,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
         card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' : lookup ? 'Loading saved checkpoint…' :
           pending ? 'Opens at ' + window.cutoff + ' NY' : 'Awaiting verified ' + window.cutoff + ' checkpoint';
         clearContext(card.context, !ready ? 'Loading historical observations…' : 'Compression & expansion will appear with this checkpoint.');
+        updateFollowup(record, records, index, forecastDate, clock, replay);
         return;
       }
       const s = record.snapshot;
@@ -275,7 +340,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       void renderContext(card.context, q, { reveal: () => revealForecastText(card.panel) });
       if (index < 2) {
         try {
-          const result = estimate(q);
+          const result = overnightEstimate(record, index, forecastDate);
           card.code = result.code;
           if (result.count) card.count.textContent = result.count.toLocaleString() + ' matched cases';
           showContainment(card, result);
@@ -290,6 +355,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       }
     }
     refreshNYCode();
+    updateFollowup(choice?.record, records, selected, forecastDate, clock, replay);
   }
 
   function scheduleUpdate() {
@@ -300,6 +366,12 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
 
   document.addEventListener('sessionpath:verified-checkpoints', event => {
     if (event.detail.market !== market) return;
+    livePacket = event.detail;
+    const stamp = Date.parse(livePacket.observed_at);
+    if (livePacket.snapshots.some(s => Date.parse(s.as_of) === stamp) && Number.isFinite(livePacket.last_price)) {
+      exactCloses.set(stamp, livePacket.last_price);
+      if (exactCloses.size > 6) exactCloses.delete(exactCloses.keys().next().value);
+    }
     if (verifiedDate !== event.detail.session_date) {
       const index = windows.findLastIndex(window => verifiedSnapshots.has(window.cutoff));
       if (index >= 0 && verifiedDate < event.detail.session_date) {
@@ -325,6 +397,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     if (event.detail?.model?.query?.minute !== 510) return;
     nyModel = event.detail.model;
     refreshNYCode();
+    scheduleUpdate();
   });
   document.addEventListener('change', scheduleUpdate, true);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleUpdate(); });
