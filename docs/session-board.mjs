@@ -247,7 +247,8 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       const settings = preferences(window.minute, forecastDate);
       const pending = !replay && clock.date === date && clock.minute < window.minute;
       const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, !record && Boolean(lookup)]);
-      if (card.key === key) { refreshNYCode(); return; }
+      const needsNYInputs = index === 2 && record && !sameNYInputs(record.snapshot,forecastDate);
+      if (card.key === key && !needsNYInputs) { refreshNYCode(); return; }
       cancelForecastTextMotion(card.panel);
       card.key = key;
       card.record = record ? {...record, date:forecastDate} : null;
@@ -280,7 +281,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
           showContainment(card, result);
         } catch { card.info.textContent = 'Forecast code unavailable'; }
         card.copy.disabled = !card.code;
-      } else if (record.forwarded ? !sameNYInputs(s,forecastDate) : replay || record.saved || !sameNYInputs(s,forecastDate)) {
+      } else if (needsNYInputs || !record.forwarded && (replay || record.saved)) {
         const nyKey = JSON.stringify([forecastDate, replay, Boolean(record.saved), s]);
         if (nyKey !== appliedNY || !sameNYInputs(s,forecastDate)) {
           appliedNY = nyKey;

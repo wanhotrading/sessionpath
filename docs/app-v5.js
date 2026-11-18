@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=saved-forecast-20261118';
+import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=saved-forecast-replay-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
