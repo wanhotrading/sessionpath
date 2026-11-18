@@ -1,6 +1,6 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=news-ticker-20261118';
-import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
+import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=saved-forecast-20261118';
+import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
 import {loadAsset,yieldToBrowser} from './startup-load.mjs';
@@ -15,7 +15,7 @@ import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-2026
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace} from './workspace-v7.mjs?v=quiet-ui-20261118';
 import {mountReplayTools} from './replay-tools.mjs';
-import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=tables-20261105';
+import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=saved-forecast-20261118';
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
 import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
@@ -361,6 +361,9 @@ mountAssistantForecastAdapter({
    const updates=mainInputPlan(snapshot,$('ud-units').value);if(request.historical&&snapshot.last_hour_behavior)updates.behavior=snapshot.last_hour_behavior;
    put(updates);analyze();
   }
+  if(request.historical)document.dispatchEvent(new CustomEvent('sessionpath:verified-replay-checkpoint',{
+   detail:{market:instrument.id,date:packet.session_date,contract:packet.source_symbol,snapshot}
+  }));
  },
  readForecast:({request})=>request.minute===510?null:({query:state.query,box:state.box,code:state.box&&state.query?makeForecastCode(state.box,state.query):'',conditions:{tags:[...state.selected],tagMode:state.query?.tagMode,year:state.query?.year,nearestCaseLimit:state.query?.limit,bboxLocation:state.query?.location,lastHourBehavior:state.query?.behavior,earlierCheckpointCount:state.query?.observations?.length||0}})
 });
@@ -387,16 +390,33 @@ mountLiveBBoxCheck(bboxCheckPanel,{
 mountSessionBoard({
  market:instrument.id,nyClock,mainInputPlan,
  archive:request=>archivedForecastRecord(state.days,state.timeline,request),
+ historyURL:new URL('/api/history',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href,
+ parseSaved:historicalFeedRecord,
  preferences:forecastPreferences,
  estimate:q=>{
   const box=boxEstimate(state.days,state.timeline,q,q.endMinute);
   return {code:box?makeForecastCode(box,q):'',count:box?.n||0,n:box?.n||0,coverage:box?.coverage,inside:box?.inside};
  },
- applyArchivedNY:(snapshot,date)=>{
-  for(const [id,value] of Object.entries(nyInputPlan(snapshot)))$(id).value=String(value);
+ applyArchivedNY:(snapshot,date,{verified=false,saved=false}={})=>{
+  const nyDate=$('ny-date');
+  nyDate.value=date;
+  if(saved)nyDate.dataset.savedCheckpoint=date;
+  else delete nyDate.dataset.savedCheckpoint;
   $('ny-end').value='960';
-  const day=state.days.find(day=>day.date===date);
-  if(day)fillNYPositionHelper(day,state.timeline,510);
+  for(const [id,value] of Object.entries(nyInputPlan(snapshot)))$(id).value=String(value);
+  if(verified){
+   const positions=sessionPositions(snapshot,$('ny-basis').value);
+   if(positions){
+    for(const [id,value] of Object.entries(positions)){
+     $(id).value=String(value);
+     $(id).dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    $('ny-position-apply').click();
+   }
+  }else{
+   const day=state.days.find(day=>day.date===date);
+   if(day)fillNYPositionHelper(day,state.timeline,510);
+  }
   $('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
  },
  renderContext:renderForecastContext,clearContext:clearForecastContext,

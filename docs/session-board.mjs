@@ -1,5 +1,6 @@
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
+import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=1';
 
 const windows = [
   { cutoff: '03:00', end: '05:00', minute: 180, endMinute: 300 },
@@ -89,7 +90,7 @@ function showContainment(card, result) {
   card.containmentSample.textContent = hasCases ? result.inside + '/' + result.n + ' historical windows' : '';
 }
 
-export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute }) {
+export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute }) {
   const board = node('section', 'session-board');
   board.id = 'session-board';
   board.setAttribute('aria-label', 'Forecast workspace');
@@ -160,16 +161,36 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   let queued = false;
   let archiveDate = '';
   let archiveRecords = [];
+  let requestedReplay = null;
   let appliedNY = '';
   let nyModel;
   let active;
+  let saved = null;
+  let lookup = null;
+  let lastLookup = {key:'', at:0};
+  const findSaved = createSavedCheckpointReader({endpoint:historyURL, market, parse:parseSaved, windows});
+  const newer = (a, b) => Boolean(a && (!b || a.date > b.date || a.date === b.date && a.index > b.index));
+  function readSaved(clock, expected) {
+    const key = clock.date + ':' + expected;
+    if (lookup || (lastLookup.key === key && Date.now() - lastLookup.at < 60_000) || document.hidden) return;
+    lastLookup = {key, at:Date.now()};
+    lookup = findSaved(clock).then(result => {
+      if (newer(result, saved)) saved = result;
+    }).finally(() => {
+      lookup = null;
+      scheduleUpdate();
+    });
+  }
   const nyCard = cards.at(-1);
+  function sameNYInputs(snapshot,date) {
+    return $('ny-date')?.value === date && $('ny-end')?.value === '960' &&
+      [['ny-price', snapshot.reference_price], ['ny-avr', snapshot.avr], ['ny-range-high', snapshot.range_high], ['ny-range-low', snapshot.range_low]]
+        .every(([id, value]) => $(id)?.value !== '' && Math.abs(Number($(id)?.value) - value) < 1e-7);
+  }
   function refreshNYCode() {
     if (nyCard.panel.hidden || !nyCard.key || !nyCard.record) return;
     const snapshot = nyCard.record.snapshot;
-    const verifiedInputs = $('ny-date')?.value === $('trading-date').value && $('ny-end')?.value === '960' &&
-      [['ny-price', snapshot.reference_price], ['ny-avr', snapshot.avr], ['ny-range-high', snapshot.range_high], ['ny-range-low', snapshot.range_low]]
-        .every(([id, value]) => Math.abs(Number($(id)?.value) - value) < 1e-7);
+    const verifiedInputs = sameNYInputs(snapshot,nyCard.record.date);
     nyCard.code = verifiedInputs && !$('ny-copy')?.disabled ? $('ny-code')?.value || '' : '';
     nyCard.copy.disabled = !nyCard.code;
     const cohortDisplay = $('ny-results')?.querySelector('.ny-cohort strong');
@@ -183,25 +204,31 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
 
   function update() {
     queued = false;
-    const date = $('trading-date').value;
     const replay = $('replay-toggle').checked;
     const clock = nyClock();
+    const date = replay ? $('trading-date').value : clock.date;
     const ready = document.documentElement.dataset.startup === 'ready';
-    const live = !replay && verifiedDate === date;
     backToday.hidden = !replay;
     if (ready && replay && archiveDate !== date) {
       archiveDate = date;
       archiveRecords = windows.map(window => archive({ ...window, market, date }));
     }
-    const records = replay ? (archiveDate === date ? archiveRecords : []) : windows.map(({ cutoff }) => {
-      const snapshot = live ? verifiedSnapshots.get(cutoff) : null;
-      return snapshot ? { snapshot, contract: verifiedContract } : null;
+    const records = replay ? windows.map((window,index) =>
+      requestedReplay?.date === date && requestedReplay.snapshot.cutoff === window.cutoff ? requestedReplay :
+        archiveDate === date ? archiveRecords[index] : null) : windows.map(window => {
+      const eligible = verifiedDate && (verifiedDate < date || verifiedDate === date && window.minute <= clock.minute);
+      const snapshot = eligible ? verifiedSnapshots.get(window.cutoff) : null;
+      return snapshot ? { snapshot, contract: verifiedContract, date: verifiedDate, saved: verifiedDate !== date } : null;
     });
     const requested = replay ? windows.findIndex(window => window.minute === replayMinute(date)) : -1;
     const latest = requested >= 0 && records[requested] ? requested : records.findLastIndex(record => Boolean(record));
     const expected = Math.max(0, windows.findLastIndex(window => clock.date === date && clock.minute >= window.minute));
-    const selected = latest >= 0 ? latest : expected;
-    const activeKey = date + ':' + selected + ':' + (latest >= 0);
+    let choice = latest >= 0 ? {index:latest,date:records[latest].date||date,record:records[latest]} : null;
+    if (!replay && saved && (saved.date < date || saved.date === date && windows[saved.index].minute <= clock.minute) && newer(saved, choice)) choice = saved;
+    if (ready && !replay && (!choice || choice.date !== date || choice.index < expected)) readSaved(clock, expected);
+    const selected = choice?.index ?? expected;
+    const forecastDate = choice?.date ?? date;
+    const activeKey = forecastDate + ':' + selected + ':' + Boolean(choice);
     if (activeKey !== active || cards[selected].panel.hidden) {
       active = activeKey;
       board.dataset.cutoff = windows[selected].cutoff;
@@ -210,20 +237,20 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
         card.panel.hidden = index !== selected;
         if (card.panel.hidden) cancelForecastTextMotion(card.panel);
       });
-      activeWindowChanged(latest >= 0 ? windows[selected].minute : null, date);
+      activeWindowChanged(choice ? windows[selected].minute : null, forecastDate);
     }
     {
       const index = selected;
       const card = cards[index];
       const { window } = card;
-      const record = records[index];
-      const settings = preferences(window.minute, date);
+      const record = choice?.record;
+      const settings = preferences(window.minute, forecastDate);
       const pending = !replay && clock.date === date && clock.minute < window.minute;
-      const key = JSON.stringify([date, replay, record, settings, ready, pending]);
+      const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, !record && Boolean(lookup)]);
       if (card.key === key) { refreshNYCode(); return; }
       cancelForecastTextMotion(card.panel);
       card.key = key;
-      card.record = record;
+      card.record = record ? {...record, date:forecastDate} : null;
       card.code = '';
       card.copy.disabled = true;
       card.fallback.hidden = true;
@@ -233,7 +260,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
       card.avr.textContent = '—';
       showContainment(card, null);
       if (!record) {
-        card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' :
+        card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' : lookup ? 'Loading saved checkpoint…' :
           pending ? 'Opens at ' + window.cutoff + ' NY' : 'Awaiting verified ' + window.cutoff + ' checkpoint';
         clearContext(card.context, !ready ? 'Loading historical observations…' : 'Compression & expansion will appear with this checkpoint.');
         return;
@@ -241,8 +268,9 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
       const s = record.snapshot;
       card.price.textContent = String(s.reference_price);
       card.avr.textContent = Number(s.avr.toFixed(4)).toString();
-      card.status.textContent = (replay ? 'Archive' : 'TradingView') + ' · ' + record.contract + ' · ' + window.cutoff + ' NY';
-      const q = snapshotFields(s, window, date, settings, mainInputPlan(s));
+      card.status.textContent = (replay ? 'Archive' : record.saved ? 'Saved TradingView' : 'TradingView') + ' · ' + record.contract +
+        ' · ' + window.cutoff + ' NY' + (record.saved ? ' · ' + forecastDate : '');
+      const q = snapshotFields(s, window, forecastDate, settings, mainInputPlan(s));
       void renderContext(card.context, q, { reveal: () => revealForecastText(card.panel) });
       if (index < 2) {
         try {
@@ -252,12 +280,14 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
           showContainment(card, result);
         } catch { card.info.textContent = 'Forecast code unavailable'; }
         card.copy.disabled = !card.code;
-      } else if (replay && date !== appliedNY) {
-        appliedNY = date;
-        applyArchivedNY(s, date);
+      } else if (record.forwarded ? !sameNYInputs(s,forecastDate) : replay || record.saved || !sameNYInputs(s,forecastDate)) {
+        const nyKey = JSON.stringify([forecastDate, replay, Boolean(record.saved), s]);
+        if (nyKey !== appliedNY || !sameNYInputs(s,forecastDate)) {
+          appliedNY = nyKey;
+          applyArchivedNY(s, forecastDate, {verified:!replay || record.forwarded, saved:Boolean(record.saved)});
+        }
       }
     }
-    if (!replay) appliedNY = '';
     refreshNYCode();
   }
 
@@ -270,11 +300,24 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   document.addEventListener('sessionpath:verified-checkpoints', event => {
     if (event.detail.market !== market) return;
     if (verifiedDate !== event.detail.session_date) {
+      const index = windows.findLastIndex(window => verifiedSnapshots.has(window.cutoff));
+      if (index >= 0 && verifiedDate < event.detail.session_date) {
+        const previous = {index,date:verifiedDate,record:{date:verifiedDate,contract:verifiedContract,
+          snapshot:verifiedSnapshots.get(windows[index].cutoff),saved:true}};
+        if (newer(previous,saved)) saved = previous;
+      }
       verifiedDate = event.detail.session_date;
       verifiedSnapshots.clear();
     }
     verifiedContract = event.detail.source_symbol;
     for (const snapshot of event.detail.snapshots) verifiedSnapshots.set(snapshot.cutoff, snapshot);
+    scheduleUpdate();
+  });
+  document.addEventListener('sessionpath:verified-replay-checkpoint', event => {
+    const {date,contract,snapshot} = event.detail || {};
+    if (event.detail?.market !== market || !$('replay-toggle').checked || $('trading-date').value !== date ||
+        !windows.some(window => window.cutoff === snapshot?.cutoff)) return;
+    requestedReplay = {date,contract,snapshot,forwarded:true};
     scheduleUpdate();
   });
   document.addEventListener('sessionpath:forecast-export', event => {
@@ -283,6 +326,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     refreshNYCode();
   });
   document.addEventListener('change', scheduleUpdate, true);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleUpdate(); });
   new MutationObserver(scheduleUpdate).observe(document.documentElement, { attributes: true, attributeFilter: ['data-startup'] });
   new MutationObserver(refreshNYCode).observe($('ny-reference'), { subtree: true, childList: true });
   const clockTimer = setInterval(scheduleUpdate, 30_000);

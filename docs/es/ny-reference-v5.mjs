@@ -118,7 +118,11 @@ export function mountNYReference(days,timeline) {
  }
  function read(){return {asia:[...host.querySelectorAll('[data-ny-session="asia"]:checked')].map(x=>x.value),london:[...host.querySelectorAll('[data-ny-session="london"]:checked')].map(x=>x.value),year:$('ny-year').value,asiaShape:$('ny-asia-shape').value,londonShape:$('ny-london-shape').value};}
  function render(){
-  $('ny-date').value=$('trading-date')?.value||$('ny-date').value;
+  const dateField=$('ny-date');
+  if($('replay-toggle')?.checked||dateField.dataset.savedCheckpoint!==dateField.value){
+   delete dateField.dataset.savedCheckpoint;
+   dateField.value=$('trading-date')?.value||dateField.value;
+  }
   if(livePosition&&livePosition.date!==$('ny-date').value){
    livePosition=null;appliedPosition=null;for(const id of ['ny-position-asia','ny-position-london'])$(id).value='';
    for(const input of host.querySelectorAll('[data-ny-session]'))input.checked=false;
@@ -132,7 +136,7 @@ export function mountNYReference(days,timeline) {
   }
   const basis=$('ny-basis').value,end=Number($('ny-end').value),key=basis+end;
   if(!cache.has(key))cache.set(key,buildNYRows(days,timeline,end,basis));
-  const rows=cache.get(key).filter(r=>r.day.date<($('trading-date')?.value||$('ny-date').value)),filters=read(),s=nySummary(rows,filters),baseline=nySummary(rows,{year:filters.year});
+  const rows=cache.get(key).filter(r=>r.day.date<dateField.value),filters=read(),s=nySummary(rows,filters),baseline=nySummary(rows,{year:filters.year});
   const rawAvr=$('ny-avr').value,rawPrice=$('ny-price').value,avr=rawAvr!==''?Number(rawAvr):null,price=rawPrice!==''?Number(rawPrice):null;
   renderForecastContext($('ny-forecast-context'),{date:$('ny-date').value,minute:510,endMinute:end,avr,printed:readNYPrinted(),year:$('ny-year').value});renderNYStrength();
   const validAvr=Number.isFinite(avr)&&avr>0,validPrice=Number.isFinite(price),scale=validAvr?avr:1,unit=validAvr?'pt':'× AVR';
