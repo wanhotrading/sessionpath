@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101829">
+  <title>Overnight breach timing · SessionPath</title>
+  <link rel="stylesheet" href="./timing.css?v=1">
+  <script type="module" src="./timing.mjs?v=1"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="site-heading">
+      <a href="../" id="back">‹ SessionPath</a>
+      <p id="ny-clock">New York time</p>
+    </header>
+    <h1>Overnight breach timing</h1>
+    <p class="intro">See the chance a level still breaks before the window ends, given that price has left it unbroken so far.</p>
+    <section class="controls card" aria-label="Forecast inputs">
+      <div class="tabs" aria-label="Forecast type">
+        <button id="bbox-mode" type="button" aria-pressed="true">BBOX breach</button>
+        <button id="evening-mode" type="button" aria-pressed="false">Evening high or low</button>
+      </div>
+      <div class="fields">
+        <label>Market
+          <select id="market"><option>CL</option><option>NQ</option><option>ES</option></select>
+        </label>
+        <label id="window-label">Target window
+          <select id="window"><option value="0">18:00–19:30 · Evening reopen</option><option value="1">19:30–03:00 · Overnight</option><option value="2">03:00–05:00 · Early London</option><option value="3" selected>05:00–08:30 · Late London</option></select>
+        </label>
+        <label id="anchor-label" hidden>Evening level
+          <select id="anchor"><option value="first">First breach candle</option><option value="extreme">Full 18:00–19:30 extreme</option></select>
+        </label>
+        <label>Target
+          <select id="edge"><option value="either">Either edge</option><option value="upper">Upper edge</option><option value="lower">Lower edge</option><option value="both">Both edges</option></select>
+        </label>
+      </div>
+      <div class="fields secondary" id="bbox-fields">
+        <label>Window open
+          <select id="start-position"><option value="0">Inside BBOX</option><option value="any">Any opening position</option><option value="1">Above BBOX</option><option value="2">Below BBOX</option></select>
+        </label>
+        <label id="history-label">Previous windows
+          <select id="history"><option value="any">All histories</option><option value="none">No earlier breach</option><option value="breach">At least one earlier breach</option><option value="custom" selected>Choose by window</option></select>
+        </label>
+      </div>
+      <div class="fields" id="patterns"></div>
+      <div class="fields secondary" id="evening-fields" hidden>
+        <label>18:00 opening position
+          <select id="evening-open"><option value="any">Any opening position</option><option value="inside">Inside BBOX</option><option value="past-edge">Beyond the breached edge</option><option value="opposite">Beyond the opposite edge</option></select>
+        </label>
+        <label>First breach timing
+          <select id="signal-bar"><option value="any">Any evening candle</option><option value="first">18:00–18:05 candle</option><option value="later">18:05–19:30 candles</option></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="result card" aria-labelledby="result-title">
+      <div class="result-head">
+        <div><h2 id="result-title">Chance still remaining</h2><p id="scenario-caption"></p></div>
+        <label class="check"><input type="checkbox" id="follow"> Follow NY time</label>
+      </div>
+      <p id="error" role="status" hidden></p>
+      <button id="retry" type="button" hidden>Retry</button>
+      <div id="result-body" hidden>
+        <div class="readouts">
+          <div class="main-readout">
+            <p id="headline-label"></p><output id="headline" class="probability"></output>
+            <p id="sample" class="sample"></p>
+          </div>
+          <div class="reference-readout">
+            <p id="reference-label"></p><span id="reference-value"></span>
+            <p id="reference-sample" class="sample"></p>
+          </div>
+        </div>
+        <p id="observed-state" class="notice" role="status" hidden></p>
+        <svg id="graph" viewBox="0 0 720 226" role="img" aria-label="Chance of a future breach at each five-minute observation"></svg>
+        <div class="scrub">
+          <label for="asof">Observation time <output id="point-time"></output></label>
+          <input type="range" id="asof" aria-label="Observation time in New York">
+          <div id="checkpoints" class="checkpoints" aria-label="Jump to checkpoint"></div>
+        </div>
+        <p id="curve-note" class="muted"></p>
+        <label class="check confirm"><input type="checkbox" id="reached"> The target has already been breached</label>
+        <p class="muted manual-note">Use your chart to confirm wick history. The clock advances the estimate every five minutes.</p>
+        <details id="more">
+          <summary>Match where price is now</summary>
+          <div class="fields secondary">
+            <label>Distance from the pending level
+              <select id="distance">
+                <option value="any">Any distance</option><option value="0">0–10% of BBOX width</option>
+                <option value="1">Over 10% to 25% of BBOX width</option><option value="2">Over 25% of BBOX width</option>
+              </select>
+            </label>
+            <label id="progress-label" hidden>Already breached in this window
+              <select id="progress"><option value="any">Any progress</option><option value="0">Neither edge</option>
+                <option value="1">Upper edge only</option><option value="2">Lower edge only</option>
+              </select>
+            </label>
+          </div>
+          <p id="distance-result" class="distance-result"></p>
+          <p class="muted">This comparison uses the selected observation time. The curve keeps its original time-only cohort.</p>
+        </details>
+      </div>
+    </section>
+    <details class="card method">
+      <summary>How these probabilities are calculated</summary>
+      <p>At each New York checkpoint, the denominator is the set of matching historical nights when the target was still pending. The numerator is the subset that breached the target in the remaining time. A touch at the same price leaves the target pending. For either edge, the first edge reached finishes the event. For both edges, the second edge reached finishes it.</p>
+      <p>Each window includes the five-minute candle ending at its deadline. A signal becomes known when its five-minute candle completes. A BBOX window that opens past the selected edge has breached it at the opening print. “Holds” means the selected evening price is never exceeded in the specified direction through 08:30.</p>
+      <p>Prior NY BBOX uses the same-contract 09:30–16:00 high and low. Rates use complete nights from January 2022 to October 15, 2026. Small samples are marked below 30 cases. The intervals are 95% Wilson reference intervals. These rates describe historical price events. A trading result also depends on entry, adverse movement, and execution.</p>
+    </details>
+  </main>
+</body>
+</html>
