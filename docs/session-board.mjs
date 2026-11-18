@@ -44,6 +44,12 @@ function newCard(window) {
     checks.append(group);
   }
   const context = node('aside', 'forecast-context');
+  const containment = node('dl', 'session-board-containment');
+  const containmentLabel = node('dt', '', 'Stayed within the mean U/D box');
+  const containmentValue = node('dd', '', '—');
+  const containmentSample = node('small', '');
+  containmentValue.setAttribute('aria-live', 'polite');
+  containment.append(containmentLabel, containmentValue, containmentSample);
   const exportRow = node('div', 'session-board-export');
   const copy = node('button', 'quiet', 'Copy forecast code');
   copy.type = 'button';
@@ -56,11 +62,18 @@ function newCard(window) {
   fallback.readOnly = true;
   fallback.setAttribute('aria-label', heading.textContent + ' TradingView code');
   exportRow.append(copy, count, info, fallback);
-  panel.append(heading, status, checks, context, exportRow);
-  return { window, panel, status, price, avr, context, copy, count, info, fallback, code: '', key: '' };
+  panel.append(heading, status, checks, containment, context, exportRow);
+  panel.hidden = true;
+  return { window, panel, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
 }
 
-export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, preferences, estimate, applyArchivedNY, renderContext, clearContext }) {
+function showContainment(card, result) {
+  const hasCases = result?.n > 0 && Number.isFinite(result.coverage);
+  card.containmentValue.textContent = hasCases ? (100 * result.coverage).toFixed(1) + '%' : '—';
+  card.containmentSample.textContent = hasCases ? result.inside + '/' + result.n + ' historical windows' : '';
+}
+
+export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute }) {
   const board = node('section', 'session-board');
   board.id = 'session-board';
   board.setAttribute('aria-labelledby', 'session-board-title');
@@ -85,7 +98,8 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   header.append(intro, actions);
   const grid = node('div', 'session-board-grid');
   const cards = windows.map(newCard);
-  grid.append(...cards.map(card => card.panel));
+  const paths = $('sessions-section');
+  grid.append(...cards.map(card => card.panel), paths);
   board.append(header, grid);
   $('workspace').prepend(board);
 
@@ -123,22 +137,31 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   scriptDetails.append(...[...exportPanel.children].filter(element => element !== heading));
   exportPanel.append(scriptDetails);
 
-  let verified = null;
+  let verifiedDate = '';
+  let verifiedContract = '';
+  const verifiedSnapshots = new Map();
   let queued = false;
   let archiveDate = '';
   let archiveRecords = [];
   let appliedNY = '';
+  let nyModel;
+  let active;
   const nyCard = cards.at(-1);
   function refreshNYCode() {
-    if (!nyCard.key || !nyCard.record) return;
+    if (nyCard.panel.hidden || !nyCard.key || !nyCard.record) return;
     const snapshot = nyCard.record.snapshot;
     const verifiedInputs = $('ny-date')?.value === $('trading-date').value && $('ny-end')?.value === '960' &&
-      !$('ny-copy')?.disabled &&
       [['ny-price', snapshot.reference_price], ['ny-avr', snapshot.avr], ['ny-range-high', snapshot.range_high], ['ny-range-low', snapshot.range_low]]
         .every(([id, value]) => Math.abs(Number($(id)?.value) - value) < 1e-7);
-    nyCard.code = verifiedInputs ? $('ny-code')?.value || '' : '';
+    nyCard.code = verifiedInputs && !$('ny-copy')?.disabled ? $('ny-code')?.value || '' : '';
     nyCard.copy.disabled = !nyCard.code;
-    nyCard.count.textContent = verifiedInputs ? $('ny-results')?.querySelector('.ny-cohort strong')?.textContent || '' : '';
+    const cohortDisplay = $('ny-results')?.querySelector('.ny-cohort strong');
+    nyCard.count.textContent = verifiedInputs ? cohortDisplay?.textContent || '' : '';
+    const q = nyModel?.query;
+    const matchingModel = verifiedInputs && cohortDisplay && q?.date === $('trading-date').value && q.minute === 510 && q.endMinute === 960 &&
+      [['price', snapshot.reference_price], ['avr', snapshot.avr], ['rangeHigh', snapshot.range_high], ['rangeLow', snapshot.range_low]]
+        .every(([key, value]) => Math.abs(q[key] - value) < 1e-7);
+    showContainment(nyCard, matchingModel ? nyModel.box : null);
   }
 
   function update() {
@@ -147,21 +170,37 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     const replay = $('replay-toggle').checked;
     const clock = nyClock();
     const ready = document.documentElement.dataset.startup === 'ready';
-    const live = !replay && verified?.session_date === date;
+    const live = !replay && verifiedDate === date;
     backToday.hidden = !replay;
     dateLabel.textContent = [market, date, 'New York time', replay ? 'Replay' : 'Today'].filter(Boolean).join(' · ');
     if (ready && replay && archiveDate !== date) {
       archiveDate = date;
       archiveRecords = windows.map(window => archive({ ...window, market, date }));
     }
-    for (const [index, card] of cards.entries()) {
+    const records = replay ? (archiveDate === date ? archiveRecords : []) : windows.map(({ cutoff }) => {
+      const snapshot = live ? verifiedSnapshots.get(cutoff) : null;
+      return snapshot ? { snapshot, contract: verifiedContract } : null;
+    });
+    const requested = replay ? windows.findIndex(window => window.minute === replayMinute(date)) : -1;
+    const latest = requested >= 0 && records[requested] ? requested : records.findLastIndex(record => Boolean(record));
+    const expected = Math.max(0, windows.findLastIndex(window => clock.date === date && clock.minute >= window.minute));
+    const selected = latest >= 0 ? latest : expected;
+    const activeKey = date + ':' + selected + ':' + (latest >= 0);
+    if (activeKey !== active || cards[selected].panel.hidden) {
+      active = activeKey;
+      board.dataset.cutoff = windows[selected].cutoff;
+      cards.forEach((card, index) => { card.panel.hidden = index !== selected; });
+      activeWindowChanged(latest >= 0 ? windows[selected].minute : null, date);
+    }
+    {
+      const index = selected;
+      const card = cards[index];
       const { window } = card;
-      const liveSnapshot = live ? verified.snapshots.find(s => s.cutoff === window.cutoff) : null;
-      const record = replay ? archiveRecords[index] : liveSnapshot ? { snapshot: liveSnapshot, contract: verified.source_symbol } : null;
+      const record = records[index];
       const settings = preferences(window.minute, date);
       const pending = !replay && clock.date === date && clock.minute < window.minute;
       const key = JSON.stringify([date, replay, record, settings, ready, pending]);
-      if (card.key === key) continue;
+      if (card.key === key) { refreshNYCode(); return; }
       card.key = key;
       card.record = record;
       card.code = '';
@@ -171,11 +210,12 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
       card.count.textContent = '';
       card.price.textContent = '—';
       card.avr.textContent = '—';
+      showContainment(card, null);
       if (!record) {
         card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' :
           pending ? 'Opens at ' + window.cutoff + ' NY' : 'Awaiting verified ' + window.cutoff + ' checkpoint';
         clearContext(card.context, !ready ? 'Loading historical observations…' : 'Compression & expansion will appear with this checkpoint.');
-        continue;
+        return;
       }
       const s = record.snapshot;
       card.price.textContent = String(s.reference_price);
@@ -188,6 +228,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
           const result = estimate(q);
           card.code = result.code;
           if (result.count) card.count.textContent = result.count.toLocaleString() + ' matched cases';
+          showContainment(card, result);
         } catch { card.info.textContent = 'Forecast code unavailable'; }
         card.copy.disabled = !card.code;
       } else if (replay && date !== appliedNY) {
@@ -207,8 +248,18 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
 
   document.addEventListener('sessionpath:verified-checkpoints', event => {
     if (event.detail.market !== market) return;
-    verified = event.detail;
+    if (verifiedDate !== event.detail.session_date) {
+      verifiedDate = event.detail.session_date;
+      verifiedSnapshots.clear();
+    }
+    verifiedContract = event.detail.source_symbol;
+    for (const snapshot of event.detail.snapshots) verifiedSnapshots.set(snapshot.cutoff, snapshot);
     scheduleUpdate();
+  });
+  document.addEventListener('sessionpath:forecast-export', event => {
+    if (event.detail?.model?.query?.minute !== 510) return;
+    nyModel = event.detail.model;
+    refreshNYCode();
   });
   document.addEventListener('change', scheduleUpdate, true);
   new MutationObserver(scheduleUpdate).observe(document.documentElement, { attributes: true, attributeFilter: ['data-startup'] });

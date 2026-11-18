@@ -1,3 +1,4 @@
+import {chartPathOutcomes} from './session-path-summary.mjs?v=single-session-20261118';
 import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=visual-tags-20261108b';
 import {makeChartSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
 import {readChartResponse} from './chart-event-stream.mjs?v=grok-stream-20261108';
@@ -231,7 +232,13 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   }catch(error){if(!destroyed&&version===attachmentVersion)status.textContent=plain(error?.message,400)?error.message:'The screenshot could not be prepared.';return false;}
   finally{if(!destroyed&&version===attachmentVersion){const message=status.textContent;preparingImage=false;setBusy(false,prepared?'Screenshot ready. Press Send when you are ready.':message);}filePicker.value='';}
  }
- function contextNow(){const cutoff=doc.getElementById('asof')?.value;return {market:instrument.id,window:lastWindow===WINDOWS[2]?lastWindow:cutoff==='05:00'?WINDOWS[1]:cutoff==='03:00'?WINDOWS[0]:lastWindow,date:lastDate??null};}
+ function contextNow(){
+  const board=doc.getElementById('session-board');
+  if(!board){const cutoff=doc.getElementById('asof')?.value;return {market:instrument.id,window:lastWindow===WINDOWS[2]?lastWindow:cutoff==='05:00'?WINDOWS[1]:cutoff==='03:00'?WINDOWS[0]:lastWindow,date:lastDate??null};}
+  const active=WINDOWS.find(window=>window.startsWith(board.dataset.cutoff+'-'));
+  const date=doc.getElementById('replay-toggle')?.checked?doc.getElementById('trading-date')?.value||null:null;
+  return {market:instrument.id,window:active||lastWindow,date};
+ }
  function failure(error,query,{chart=false}={}){if(error?.name==='AbortError'||destroyed)return;bubble('assistant',plain(error?.message,400)?error.message:'Failed to fetch. Please try again.',{remember:!chart});const retry=element('button','sp-chat-retry','Try again'),retryAttachmentVersion=attachmentVersion;retry.type='button';retry.addEventListener('click',()=>{if(chart&&(!attachment||attachmentVersion!==retryAttachmentVersion)){open();status.textContent='Attach the original screenshot again, or press Send to read the current one.';return;}submit(query);});history.lastElementChild.append(retry);scroll();}
  function renderChart(body,query,context){
   const item=bubble('assistant','Chart reading',{remember:false});item.classList.add('sp-chat-chart-reading');
@@ -258,6 +265,9 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    }else if(asksForPath){panel.append(element('p','sp-chat-note','A path code needs archive matches for NTA, Asia and London. Use a five-minute chart after 08:30 NY and include its market, trading date, completed-close time, prior NY high/low and 19:30 open if the labels are hard to read.'));}
    calculated.append(panel);
   }else{calculated.append(element('p','sp-chat-note','No calculated classification is available. Readable session high, low and close values or matching archive data are needed.'));if(asksForPath)calculated.append(element('p','sp-chat-note','No verified path code is available for this screenshot.'));}
+  const paths={reading:chartPathOutcomes(body),result:null};
+  doc.dispatchEvent(new win.CustomEvent('sessionpath:chart-path-outcomes',{detail:paths}));
+  if(paths.result?.message)item.append(element('p','sp-chat-note',paths.result.message));
   item.append(calculated);
   const copy=element('button','sp-chat-comparison-copy','Copy comparison prompt'),feedback=element('span','sp-chat-copy-feedback','Copied!');copy.type='button';feedback.hidden=true;feedback.setAttribute('role','status');let timer,fallback;
   copy.addEventListener('click',async()=>{const prompt=chartComparisonPrompt(query,context,observation);try{await win.navigator.clipboard.writeText(prompt);clearTimeout(timer);copyTimers.delete(timer);feedback.hidden=false;feedback.classList.remove('sp-chat-faded');timer=setTimeout(()=>{feedback.classList.add('sp-chat-faded');copyTimers.delete(timer);},2000);copyTimers.add(timer);}catch{if(!fallback){fallback=element('textarea','sp-chat-code');fallback.readOnly=true;fallback.value=prompt;fallback.setAttribute('aria-label','Comparison prompt to copy');item.append(fallback);}fallback.focus();fallback.select();}});item.append(copy,feedback);scroll();
