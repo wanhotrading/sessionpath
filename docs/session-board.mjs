@@ -128,14 +128,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   }), tools);
   document.querySelector('.topbar .brand').href = '#session-board';
   document.body.classList.add('session-board-active');
-  const exportPanel = $('indicator-section');
-  const scriptDetails = node('details', 'session-note');
-  scriptDetails.append(node('summary', '', 'Advanced script export'));
-  const heading = exportPanel.querySelector('.section-heading');
-  const exportTitle = heading.querySelector('h2');
-  exportTitle.textContent = 'TradingView indicator';
-  scriptDetails.append(...[...exportPanel.children].filter(element => element !== heading));
-  exportPanel.append(scriptDetails);
+  $('indicator-section').hidden = true;
 
   let verifiedDate = '';
   let verifiedContract = '';

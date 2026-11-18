@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard} from '../session-board.mjs?v=single-session-20261118';
+import {mountSessionBoard} from '../session-board.mjs?v=quiet-ui-20261118';
 import {mountMarketEmblem} from './market-emblem.mjs';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
@@ -11,10 +11,9 @@ import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstru
 import {setupDeviceView} from './device-view.mjs';
 import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=three-states-20261023';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs';
-import {mountLocalImporter} from './local-import-ui.mjs?v=gc-release-20261102';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
-import {setupWorkspace,mountReader} from './workspace-v7.mjs?v=gc-release-20261102';
+import {setupWorkspace} from './workspace-v7.mjs?v=quiet-ui-20261118';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=tables-20261105';
 import {observedUD,makeForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
@@ -22,7 +21,7 @@ import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimat
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(v)?v.toFixed(2):'—',pct=v=>Number.isFinite(v)?`${Math.round(v*100)}%`:'—',pt=v=>Number.isFinite(v)?`${v.toFixed(2)} pt`:'Add AVR';
-setupWorkspace();mountInstrumentSelector();mountMarketEmblem(instrument.id);setupDeviceView();
+setupWorkspace({chartReader:false});mountInstrumentSelector();mountMarketEmblem(instrument.id);setupDeviceView();
 const windows={'1930-0500':[-270,300],'1930-0830':[-270,510]};
 const fields=['open1930','ud-units','window','asof','trading-date','price','avr','printed','range-high','range-low','range-position','prior-high','prior-low','location','up','down','behavior','tag-mode','sample-size','year'];
 const state={sessionChoices:{},sessionChoiceSources:{},box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};
@@ -297,11 +296,9 @@ async function startResearch(){
   }
  }
  void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();},$('evidence'));
- void optionalAsset(instrument.indicatorFile,value=>{state.pineTemplate=value;renderBox();},$('indicator-section'));
  // Follow-up research is optional and lazy: it never gates the existing forecast.
  void import('./research-followup.mjs?v=ny-timing-20261102').then(m=>m.mountResearchFollowup(state)).catch(error=>console.warn('Research follow-up unavailable:',error));
- const applyReaderChoices=choices=>{for(const c of choices){if(c.kind==='tag')state.selected.add(c.value);if(c.kind==='behavior')$('behavior').value=c.value;if(c.kind==='value'){const [id,value]=c.value.split('=');if($(id))$(id).value=value;}}state.library=false;analyze();};
- for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation(),()=>mountReader(state,applyReaderChoices),()=>mountLocalImporter(state,applyReaderChoices)]){
+ for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation()]){
   await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}
  }
  for(const id of ['compare-a','compare-b'])$(id).addEventListener('change',()=>renderComparison(state));

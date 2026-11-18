@@ -7,11 +7,6 @@ body.session-board-active {
 
 html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto !important; }
 
-body.session-board-active::before {
-  background: linear-gradient(180deg, #110a23a3, #10172e35 40%, #070c20b5),
-    url("assets/backgrounds/snowy-sunset-dither.webp") center 40% / cover no-repeat;
-}
-
 .session-board-active .topbar {
   position: sticky;
   top: 0;
@@ -78,13 +73,7 @@ body.session-board-active::before {
   box-shadow: none;
 }
 
-.session-board-active #projection > #indicator-section {
-  margin: 0;
-  padding: 17px;
-  border: 1px solid #b4c7fa33;
-  border-radius: 16px;
-  background: #101a30f0;
-}
+.session-board-active #indicator-section[hidden] { display: none !important; }
 
 .session-board-active #bbox-return-details,
 .session-board-active #research-followup {
