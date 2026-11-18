@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard} from '../session-board.mjs?v=text-blur-20261118';
+import {mountSessionBoard} from '../session-board.mjs?v=market-row-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -7,7 +7,7 @@ import {loadAsset,yieldToBrowser} from './startup-load.mjs';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs?v=advance-transition-20261113';
-import {setupDeviceView} from './device-view.mjs';
+import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
 import {mountBBoxReturn,renderBBoxReturn} from './bbox-return.mjs?v=three-states-20261023';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
@@ -21,7 +21,7 @@ import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize
 import {parseSessionPathCode} from '../session-path-code.mjs?v=session-path-code-20261106';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(v)?v.toFixed(2):'—',pct=v=>Number.isFinite(v)?`${Math.round(v*100)}%`:'—',pt=v=>Number.isFinite(v)?`${v.toFixed(2)} pt`:'Add AVR';
-setupWorkspace({chartReader:false});mountInstrumentSelector();setupDeviceView();
+setupWorkspace({chartReader:false});mountInstrumentSelector();setupDeviceView({showControl:false});
 const windows={'1930-0500':[-270,300],'1930-0830':[-270,510]};
 const fields=['open1930','ud-units','window','asof','trading-date','price','avr','printed','range-high','range-low','range-position','prior-high','prior-low','location','up','down','behavior','tag-mode','sample-size','year'];
 const state={sessionChoices:{},sessionChoiceSources:{},sessionChoiceDate:null,sessionPathCutoff:null,box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};

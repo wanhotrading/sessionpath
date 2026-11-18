@@ -11,7 +11,7 @@ export function resolveDeviceView(preference, narrowScreen) {
 }
 
 /** Call after setupWorkspace, once the shared header and workspace exist. */
-export function setupDeviceView() {
+export function setupDeviceView({ showControl = true } = {}) {
   const existing = document.getElementById('device-view');
   if (existing) return;
 
@@ -33,11 +33,13 @@ export function setupDeviceView() {
     select.append(option);
   }
   label.append(caption, select);
-  host.prepend(label);
+  if (showControl) host.prepend(label);
 
   const media = window.matchMedia('(max-width: 800px)');
   let preference = 'auto';
-  try { preference = normalizeDevicePreference(localStorage.getItem(STORAGE_KEY)); } catch {}
+  if (showControl) {
+    try { preference = normalizeDevicePreference(localStorage.getItem(STORAGE_KEY)); } catch {}
+  }
   select.value = preference;
 
   const apply = () => {

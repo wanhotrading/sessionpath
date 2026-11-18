@@ -23,10 +23,12 @@ function readableText(target) {
 
 function wrapCharacters(text, doc) {
   const wrapper = doc.createElement('span');
+  wrapper.className = 'forecast-text-run';
   const accessible = doc.createElement('span');
   accessible.className = 'forecast-text-readable';
   accessible.textContent = text;
   const visual = doc.createElement('span');
+  visual.className = 'forecast-text-visual';
   visual.setAttribute('aria-hidden', 'true');
   const chars = [];
   for (const token of text.split(/(\s+)/u).filter(Boolean)) {
@@ -91,7 +93,13 @@ export function revealForecastText(panel) {
         replacements.push([wrapper, source]);
         for (const char of chars) {
           const delay = group * 110 + index++ * characterGap;
-          animations.push(char.animate(keyframes, { duration, delay, fill: 'backwards', easing: 'ease' }));
+          try {
+            animations.push(char.animate(keyframes, { duration, delay, fill: 'backwards', easing: 'ease' }));
+          } catch {
+            for (const animation of animations) animation.cancel();
+            for (const [wrapped, original] of replacements) wrapped.replaceWith(original);
+            return;
+          }
           total = Math.max(total, delay + duration);
         }
       }

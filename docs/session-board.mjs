@@ -1,4 +1,4 @@
-import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=text-blur-20261118';
+import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 
 const windows = [
   { cutoff: '03:00', end: '05:00', minute: 180, endMinute: 300 },
@@ -7,6 +7,11 @@ const windows = [
 ];
 
 const $ = id => document.getElementById(id);
+const marketEmblems = {
+  CL: './assets/emblems/cl-acrylic-v1.webp',
+  NQ: './assets/emblems/nq-acrylic-v1.webp',
+  ES: './assets/emblems/es-acrylic-staging.svg',
+};
 
 function node(tag, className, text) {
   const element = document.createElement(tag);
@@ -35,6 +40,8 @@ function newCard(window) {
   const panel = node('article', 'session-board-window forecast-context-grid');
   panel.id = 'window-' + window.cutoff.replace(':', '');
   const heading = node('h2', '', window.cutoff + '–' + window.end);
+  const windowHeading = node('div', 'session-board-window-heading');
+  windowHeading.append(heading);
   const status = node('p', 'session-board-source', 'Awaiting checkpoint');
   status.setAttribute('role', 'status');
   const checks = node('dl', 'session-board-check');
@@ -64,9 +71,9 @@ function newCard(window) {
   fallback.readOnly = true;
   fallback.setAttribute('aria-label', heading.textContent + ' TradingView code');
   exportRow.append(copy, count, info, fallback);
-  panel.append(heading, status, checks, containment, context, exportRow);
+  panel.append(windowHeading, status, checks, containment, context, exportRow);
   panel.hidden = true;
-  return { window, panel, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
+  return { window, panel, windowHeading, status, price, avr, context, copy, count, info, fallback, containmentValue, containmentSample, code: '', key: '' };
 }
 
 function showContainment(card, result) {
@@ -123,16 +130,44 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     observer.observe($('scenario-form'), { childList: true });
   }
 
-  const nav = document.querySelector('.topbar nav');
-  const tools = $('workspace-tools-toggle');
-  tools.textContent = 'Tools';
-  nav.replaceChildren(...[['Forecasts', 'session-board'], ['BBOX return', 'bbox-return-details'], ['Paths', 'sessions-section']].map(([text, id]) => {
-    const link = node('a', '', text);
-    link.href = '#' + id;
-    if (id === 'bbox-return-details') link.addEventListener('click', () => { $(id).open = true; });
-    return link;
-  }), tools);
-  document.querySelector('.topbar .brand').href = '#session-board';
+  const topbar = document.querySelector('.topbar');
+  const brand = topbar.querySelector('.brand');
+  brand.href = '#session-board';
+
+  const marketSelect = $('instrument-select');
+  const marketPicker = marketSelect.closest('label');
+  marketPicker.firstChild.remove();
+  marketPicker.classList.add('session-board-market');
+  // The picker switches pages and must stay out of the saved analysis inputs.
+  marketSelect.removeAttribute('id');
+  let emblem = node('span', 'session-board-market-emblem', 'Au');
+  if (marketEmblems[market]) {
+    emblem = node('img', 'session-board-market-emblem');
+    emblem.src = new URL(marketEmblems[market], import.meta.url).href;
+    emblem.alt = '';
+  }
+  emblem.setAttribute('aria-hidden', 'true');
+  marketPicker.prepend(emblem);
+
+  const toolsButton = $('workspace-tools-toggle');
+  toolsButton.textContent = 'Tools';
+  const lowerTools = node('div', 'session-board-utilities');
+  lowerTools.append(toolsButton);
+  $('projection').append(lowerTools);
+  const toolSettings = node('div', 'session-board-tools-settings');
+  const playbook = topbar.querySelector('.top-actions a');
+  const help = $('method-btn');
+  help.textContent = 'Help';
+  const showToolsAfterHelp = () => {
+    const helpDialog = $('method-dialog');
+    helpDialog.addEventListener('close', () => $('workspace-tools-dialog').showModal(), { once: true });
+    $('workspace-tools-dialog').close();
+  };
+  help.addEventListener('click', showToolsAfterHelp, { capture: true });
+  toolSettings.append($('motion-toggle'), help);
+  if (playbook) toolSettings.append(playbook);
+  $('workspace-tools-dialog').append(toolSettings);
+  topbar.replaceChildren(brand);
   document.body.classList.add('session-board-active');
   $('indicator-section').hidden = true;
 
@@ -188,6 +223,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     if (activeKey !== active || cards[selected].panel.hidden) {
       active = activeKey;
       board.dataset.cutoff = windows[selected].cutoff;
+      cards[selected].windowHeading.prepend(marketPicker);
       cards.forEach((card, index) => {
         card.panel.hidden = index !== selected;
         if (card.panel.hidden) cancelForecastTextMotion(card.panel);
