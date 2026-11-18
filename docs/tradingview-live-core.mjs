@@ -82,7 +82,7 @@ export function sessionPositions(s,basis='bbox'){
  return result;
 }
 
-export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
+export function mountPersonalTradingView({instrument,endpoint,managedReadURL,automaticOnly=false}){
  const document=globalThis.document,window=document.defaultView;
  const $=id=>document.getElementById(id),form=$('scenario-form');
  if(!form||$('personal-auto-fill-row'))return;
@@ -94,8 +94,8 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  if(managedReadURL){try{managedURL=new URL(managedReadURL,window.location.href);if(managedURL.protocol!=='https:'||managedURL.username||managedURL.password||managedURL.search||managedURL.hash)throw Error();}catch{return;}}
  const row=document.createElement('div');row.id='personal-auto-fill-row';row.className='context-auto-fill-row planning-auto-fill-row';
  const fillButton=document.createElement('button');fillButton.type='button';fillButton.id='personal-auto-fill';fillButton.className='quiet';fillButton.textContent='Auto-fill';fillButton.setAttribute('aria-describedby','personal-auto-fill-status');
- const fillStatus=document.createElement('p');fillStatus.id='personal-auto-fill-status';fillStatus.className='compact-note';fillStatus.setAttribute('role','status');fillStatus.setAttribute('aria-live','polite');fillStatus.textContent='Failed to fetch';
- row.append(fillButton,fillStatus);const planning=form.querySelector('.planning-bar');if(planning)planning.after(row);else form.prepend(row);
+ const fillStatus=document.createElement('p');fillStatus.id='personal-auto-fill-status';fillStatus.className='compact-note';fillStatus.setAttribute('role','status');fillStatus.setAttribute('aria-live','polite');fillStatus.textContent='Checking';fillStatus.dataset.connection='checking';
+ if(!automaticOnly)row.append(fillButton);row.append(fillStatus);const planning=form.querySelector('.planning-bar');if(planning)planning.after(row);else form.prepend(row);
  const mainBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'bbox-breakout-history',()=> $('bbox-return-details')||$('range-assessment')||row);
  const nyBBoxHistory=makeBBoxBreakoutHistory(document,instrument.id,'ny-bbox-breakout-history',()=>
   $('ny-reference')?.querySelector('.ny-numeric-inputs, .ny-price-inputs')||$('ny-reference')?.querySelector('.section-heading'));
@@ -112,10 +112,13 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
   nyBBoxHistory?.update({snapshot:match(nyDate,'08:30'),cutoff:'08:30',message:note(nyDate)});
  }
  showBBoxHistory();
- let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='',followLatest=true;
+ let active=false,busy=false,controller=null,timer=null,appliedMain='',appliedNY='',applying=false,sequence=0,savedReadKey='',followLatest=true,resumePending=false;
  const autoPositions=true;
  try{if(managedURL){sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}else savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
- function say(message,state){fillStatus.textContent=state==='Connected'?'Connected':'Failed to fetch';}
+ function say(message,state){
+  fillStatus.dataset.connection=state.toLowerCase();
+  fillStatus.textContent=state==='Connected'?'Connected':'Failed to fetch';
+ }
  function setBusy(value){fillButton.disabled=value;fillButton.setAttribute('aria-busy',String(value));}
  function mountPrivateNotes(){
   if(!sourceOnly)return true;
@@ -208,7 +211,7 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
     if(followLatest&&clock.minute<300)watched.push('05:00');
     if($('ny-date')?.value===clock.date)watched.push('08:30');
     const delay=snapshots&&!$('replay-toggle')?.checked?checkpointPollDelay(now,watched,snapshots):POLL_INTERVAL;
-    timer=setTimeout(read,delay);
+    timer=setTimeout(read,resumePending?0:delay);resumePending=false;
    }
   }
  }
@@ -226,7 +229,21 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL}){
  document.addEventListener('click',e=>{if(active&&!applying&&e.isTrusted&&e.target.closest?.('#context-auto-fill,#ny-auto-fill,#reset-btn,#ny-clear,#local-review-apply,.checkpoint'))pause('Paused while you use another input source or reset the form. Resume to fill from TradingView.');},true);
  const bboxContextFields=new Set(['asof','trading-date','ny-date','replay-toggle']);
  const contextFields=new Set([...bboxContextFields,'ny-basis','ny-position-mode','ud-units']);
- document.addEventListener('change',e=>{if(!applying&&contextFields.has(e.target.id)){if(e.target.id==='asof')followLatest=false;if(bboxContextFields.has(e.target.id))showBBoxHistory();resetApplied();sequence++;if(active)void read();}});
+ function resumeManaged(){
+  followLatest=true;
+  say('Checking the managed TradingView feed.','Checking');
+  if(!busy){start();return;}
+  active=true;resumePending=true;controller?.abort();
+ }
+ document.addEventListener('change',e=>{
+  if(applying||!contextFields.has(e.target.id))return;
+  if(e.target.id==='asof')followLatest=false;
+  if(bboxContextFields.has(e.target.id))showBBoxHistory();
+  resetApplied();sequence++;
+  if(managedURL&&e.target.id==='replay-toggle'&&!e.target.checked){resumeManaged();return;}
+  if(active)void read();
+ });
+ window.addEventListener('pageshow',event=>{if(event.persisted&&managedURL)resumeManaged();});
  document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
  // An explicit chat forecast pins its selected decision checkpoint just like a
  // manual Decision time change, so later background polls cannot replace it.

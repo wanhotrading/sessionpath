@@ -1,3 +1,4 @@
+import { mountFeedWatermark } from './board-feed-watermark.mjs?v=feed-watermark-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 
 const windows = [
@@ -89,13 +90,7 @@ function showContainment(card, result) {
 export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute }) {
   const board = node('section', 'session-board');
   board.id = 'session-board';
-  board.setAttribute('aria-labelledby', 'session-board-title');
-  const header = node('div', 'session-board-header');
-  const intro = node('div');
-  const title = node('h1', '', 'Session forecasts');
-  title.id = 'session-board-title';
-  const dateLabel = node('p', 'session-board-date');
-  intro.append(title, dateLabel);
+  board.setAttribute('aria-label', 'Forecast workspace');
   const actions = node('div', 'session-board-actions');
   const backToday = node('button', 'quiet', 'Back to today');
   backToday.type = 'button';
@@ -108,27 +103,12 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   const label = sample.closest('label');
   label.firstChild.textContent = 'Overnight sample';
   actions.append(backToday, label);
-  header.append(intro, actions);
   const grid = node('div', 'session-board-grid');
   const cards = windows.map(newCard);
   const paths = $('sessions-section');
   grid.append(...cards.map(card => card.panel), paths);
-  board.append(header, grid);
+  board.append(grid, actions);
   $('workspace').prepend(board);
-
-  // Keep the original Auto-fill action and feedback connected to its existing handlers.
-  const placeAutoFill = () => {
-    const row = $('personal-auto-fill-row');
-    if (!row) return false;
-    actions.prepend(row);
-    return true;
-  };
-  if (!placeAutoFill()) {
-    const observer = new MutationObserver(() => {
-      if (placeAutoFill()) observer.disconnect();
-    });
-    observer.observe($('scenario-form'), { childList: true });
-  }
 
   const topbar = document.querySelector('.topbar');
   const brand = topbar.querySelector('.brand');
@@ -168,6 +148,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
   if (playbook) toolSettings.append(playbook);
   $('workspace-tools-dialog').append(toolSettings);
   topbar.replaceChildren(brand);
+  mountFeedWatermark(topbar);
   document.body.classList.add('session-board-active');
   $('indicator-section').hidden = true;
 
@@ -206,7 +187,6 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, pre
     const ready = document.documentElement.dataset.startup === 'ready';
     const live = !replay && verifiedDate === date;
     backToday.hidden = !replay;
-    dateLabel.textContent = [market, date, 'New York time', replay ? 'Replay' : 'Today'].filter(Boolean).join(' · ');
     if (ready && replay && archiveDate !== date) {
       archiveDate = date;
       archiveRecords = windows.map(window => archive({ ...window, market, date }));

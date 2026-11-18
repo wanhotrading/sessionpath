@@ -8,18 +8,61 @@ body.session-board-active {
 html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto !important; }
 
 .session-board-active .topbar {
-  position: relative;
-  justify-content: flex-start;
+  position: fixed;
+  inset: max(5px, env(safe-area-inset-top, 0px)) auto auto max(12px, env(safe-area-inset-left, 0px));
+  z-index: 35;
+  display: flex;
+  width: max-content;
+  height: 41px;
   min-height: 0;
-  height: auto;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  gap: 9px;
+  pointer-events: none;
   border: 0;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
 }
-.session-board-active .topbar .site-brand-logo { width: 148px; height: 49px; }
+.session-board-active .topbar .brand { pointer-events: auto; }
+.session-board-active .topbar .brand small { display: none; }
+.session-board-active .topbar .site-brand-logo { width: 125px; height: 40px; }
+.watermark-feeds { display: flex; align-items: center; gap: 8px; }
+.watermark-feed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 29px;
+  color: #f1f4ff;
+  font: 650 10px/1.2 system-ui, sans-serif;
+  text-shadow: 0 1px 4px #071222, 0 0 5px #071222;
+  pointer-events: auto;
+}
+.watermark-feed::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cfad66;
+  box-shadow: 0 0 0 2px #0b182ba0;
+}
+.watermark-feed[data-feed-state="connected"]::before {
+  background: #7ee2a6;
+  box-shadow: 0 0 5px #67d99d87, 0 0 0 2px #0b182ba0;
+}
+.watermark-feed[data-feed-state="unavailable"]::before { background: #f08c8c; }
+.watermark-feed:is([data-feed-state="paused"], [data-feed-state="replay"])::before { background: #8c9bb2; }
+.watermark-feed-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .session-board-active :is(#edge-left, #edge-right, .ambient-footer, .bbox-breakout-history) { display: none !important; }
 
 .session-board-active main#workspace {
@@ -33,7 +76,7 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   overflow: visible !important;
   box-sizing: border-box;
   margin: 0 auto !important;
-  padding: 13px clamp(13px, 2.8vw, 38px) 0 !important;
+  padding: 49px clamp(13px, 2.8vw, 38px) 0 !important;
 }
 
 .session-board-active #workspace > :is(#conditions, #ny-reference, #comparison) { display: none !important; }
@@ -77,28 +120,16 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 
 .session-board-active #research-followup[open] { padding-bottom: 17px; }
 
-.session-board-header {
+.session-board-actions {
   display: flex;
-  align-items: end;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 12px 20px;
-  padding: 12px 16px 15px;
-  margin-bottom: 10px;
-  border: 1px solid #c2b5f84b;
-  border-radius: 15px;
-  background: #141a33f2;
-  color: #eff3ff;
+  gap: 8px 12px;
+  margin-top: 10px;
 }
-
-.session-board-header h1 { margin: 0; font-size: clamp(21px, 2.3vw, 31px); line-height: 1.16; letter-spacing: -.025em; }
-.session-board-date { margin: 5px 0 0; font-size: 13px; color: #bac9e1; }
-.session-board-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 22px; }
-.session-board-actions label { display: grid; gap: 4px; font-size: 12px; color: #c7d3e8; }
-.session-board-actions select { min-width: 128px; padding: 6px 9px; font-size: 13px; }
-.session-board-actions #personal-auto-fill-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0; }
-.session-board-actions #personal-auto-fill { color: #f2f5ff; background: #3d3872; border-color: #b8a5f477; }
-.session-board-actions #personal-auto-fill:hover { background: #51478c; }
+.session-board-actions label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #e2eafa; }
+.session-board-actions select { min-width: 105px; padding: 6px 8px; font-size: 13px; }
 
 .session-board-grid {
   display: grid;
@@ -192,7 +223,8 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 
 @media (max-width: 800px) {
   body.session-board-active { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
-  .session-board-active .topbar { position: relative; }
+  .session-board-active .topbar { display: none !important; }
+  .session-board-active main#workspace { padding-top: 8px !important; }
   .session-board-active #workspace > :is(#projection, #sessions-section, #session-board),
   .session-board-active #bbox-return-details { scroll-margin-top: 10px; }
   .session-board-window .forecast-context { margin: 0; }
