@@ -1,8 +1,10 @@
 const EPS = 1e-8;
 const BAR_MINUTES = 5;
 
+export const contractSymbol = contract => contract?.split(':').at(-1);
+
 export function archivedResearchBar(days, timeline, {date, contract}) {
-  const day = days.find(day => day.date === date && day.contract === contract);
+  const day = days.find(day => day.date === date && contractSymbol(day.contract) === contractSymbol(contract));
   const row = day && (Array.isArray(timeline) ? timeline : timeline.rows)?.find(row => row[0] === day.index);
   if (!row) return null;
   const start = timeline.startMinute ?? -270;

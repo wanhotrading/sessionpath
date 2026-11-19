@@ -1,8 +1,8 @@
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
-import { archivedResearchBar } from './followup-observations.mjs';
-import { mountSessionFollowup } from './session-followup.mjs';
+import { archivedResearchBar, contractSymbol } from './followup-observations.mjs?v=2';
+import { mountSessionFollowup } from './session-followup.mjs?v=2';
 
 const windows = [
   { cutoff: '03:00', end: '05:00', minute: 180, endMinute: 300 },
@@ -175,6 +175,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   let livePacket;
   let exactCloses = new Map();
   let replayFeed;
+  let replayPrior;
   let requestedReplay = null;
   let appliedNY = '';
   let nyModel;
@@ -231,7 +232,17 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     const historicalFeed = replay ? (replayFeed?.date === date ? replayFeed : null) : (saved?.date === date ? saved : null);
     const knownFeed = historicalFeed?.packet?.source_symbol === record.contract ? historicalFeed.packet : null;
     const packet = !replay && livePacket?.session_date === date && livePacket?.source_symbol === record.contract ? livePacket : knownFeed;
-    const prior = [records[index - 1], historicalFeed?.records?.[index - 1]].find(item => item?.contract === record.contract);
+    const matchContract = item => contractSymbol(item?.contract) === contractSymbol(record.contract);
+    const priorKey = date + ':' + window.cutoff + ':' + record.contract;
+    const prior = [records[index - 1], historicalFeed?.records?.[index - 1], replayPrior?.key === priorKey ? replayPrior.record : null].find(matchContract);
+    if (replay && index > 0 && !prior && !record.contract.endsWith('1!') && replayPrior?.key !== priorKey) {
+      const pending = {key:priorKey};
+      replayPrior = pending;
+      void followup.loadPrior({...windows[index - 1], market, date}).then(result => {
+        pending.record = result;
+        if (replayPrior === pending) scheduleUpdate();
+      }).catch(() => {});
+    }
     const barAt = record.contract.endsWith('1!') ? null : archivedResearchBar(followup.state.days, followup.state.timeline, {date, contract:record.contract});
     const confirmed = Date.parse(record.snapshot.as_of);
     const exactClose = packet?.endpoint_closes?.[window.cutoff] ?? (!replay ? exactCloses.get(confirmed) : undefined) ??

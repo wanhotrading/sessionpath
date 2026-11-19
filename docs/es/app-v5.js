@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=automatic-followup-20261118';
+import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=automatic-followup-archive-20261118';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -393,6 +393,7 @@ mountSessionBoard({
  preferences:forecastPreferences,
  followup:{state,
   bounds:code=>{const box=parseForecastCode(code);return {upper:box.price+box.up,lower:box.price-box.down};},
+  loadPrior:request=>loadHistoricalForecast({request,loadSupplement:()=>loadAsset(ASSISTANT_HISTORY_URL,{timeout:6000,attempts:1})}),
   loadResearch:()=>Promise.all([getJSON('data/es/research-probabilities-v1.json'),import('./research-probability-core.mjs'),import('./research-followup-code.mjs')]),
  },
  estimate:q=>{

@@ -1,4 +1,4 @@
-import {completedEndpointClose, firstCompletedBreach} from './followup-observations.mjs';
+import {completedEndpointClose, firstCompletedBreach} from './followup-observations.mjs?v=2';
 
 const endpointMetrics = [['hh', 'New running high'], ['ll', 'New running low'], ['both', 'Both new extremes'], ['neither', 'Neither new extreme']];
 const breachMetrics = [['return20', 'Close back inside within 20 minutes'], ['reach120', 'Later reach 1.20×'], ['reach130', 'Later reach 1.30×']];
@@ -37,7 +37,7 @@ function show(group, label, meta = '', metrics = [], outcomes = {}, reached = {}
     if (metric?.available) {
       stat.append(element('strong', '', pc(metric.probability)));
       const interval = metric.rawInterval?.map(pc).join('–');
-      const sample = metric.n > 0 ? `${metric.successes}/${metric.n} observed · 95% ${interval}` : `${metric.prior.n} broader cases`;
+      const sample = metric.n > 0 ? `${metric.successes}/${metric.n} observed · 95% raw interval ${interval}` : `${metric.prior.n} broader cases`;
       stat.append(element('small', '', sample));
     } else {
       stat.dataset.status = 'unavailable';
@@ -121,7 +121,8 @@ export function mountSessionFollowup(host, {market, loadResearch, historyURL}) {
       if (canReadEndpoint) {
         const state = classifyEndpoint(close, priorBounds.upper, priorBounds.lower);
         const result = selectEndpointProbability(data, {market, window: id, state, asOf: date});
-        show(endpoint, endpointTitle[state], `${date} · ${clock(minute)}–${clock(endMinute)} NY`, endpointMetrics, result.outcomes);
+        const training = result.sample.trainingThrough;
+        show(endpoint, endpointTitle[state], `${date} · ${clock(minute)}–${clock(endMinute)} NY${training ? ' · Training through ' + training : ''}`, endpointMetrics, result.outcomes);
       }
       if (canReadBreach) {
         const observation = signal.observation || observeFirstBreach({window: id, minute: signal.minute, ...bounds, ...signal.bar});
