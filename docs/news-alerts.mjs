@@ -1,4 +1,4 @@
-import {safeNewsURL, newsURLKey, NEWS_SOURCES} from './news-feed.mjs?v=discord-20261023';
+import {safeNewsURL, newsURLKey, NEWS_SOURCES} from './news-feed.mjs?v=grok-watch-1';
 
 export const NEWS_ALERT_MAX_AGE_MS = 10 * 60_000;
 export const NEWS_ALERT_MAX_SEEN = 600;
@@ -32,7 +32,7 @@ function validSeenEntry(value, now) {
 }
 
 function seenForItem(item, now) {
-  if (!item || !Array.isArray(item.categories) || !item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category))) return null;
+  if (!item || !Array.isArray(item.categories) || !item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump', 'rates', 'gold'].includes(category))) return null;
   return validSeenEntry({...item, titleKey: item.title, priority: item.analysis?.priority}, now);
 }
 

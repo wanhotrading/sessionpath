@@ -1,8 +1,8 @@
 import {mountNewsTicker} from '../news-ticker.mjs?v=news-ticker-20261118';
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
-import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=discord-topics-20261023';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=discord-20261023';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=grok-watch-1';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=grok-watch-1';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
 import {connectDiscordNews,discordConnectionView,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-recovery-20261030';
@@ -229,7 +229,7 @@ export function setupNewsDesk() {
   notice.hidden = true;
   const listArea = element('div', 'news-desk-list-area');
   listArea.setAttribute('aria-label', 'Filtered headlines');
-  const footer = element('p', 'news-desk-footer', 'Rule-based interpretation · not a trading signal. Original statements and live speech are not independently monitored.');
+  const footer = element('p', 'news-desk-footer', 'Rule-based interpretation · not a trading signal. Grok checks selected X accounts hourly.');
   dialog.append(header, controls, sourceStatus, toolbar, notice, listArea, footer);
   document.body.append(dialog);
 
@@ -409,7 +409,7 @@ export function setupNewsDesk() {
       !current || releaseOrder(item, current) > 0 ? item : current, null);
     if (newest && (!tickerStory || releaseOrder(newest, tickerStory) >= 0)) tickerStory = newest;
     const latest = tickerStory;
-    const headline = latest ? traditionalNewsText(latest) : '';
+    const headline = latest?.source==='grok' ? [latest.markets.join(' / '),newsTime(latest.publishedAt),latest.title].join(' · ') : latest ? traditionalNewsText(latest) : '';
     const source = latest && (latest.source === 'wallstreetcn' ? 'WallstreetCN' :
       latest.source === 'cnbc' ? 'CNBC' : latest.source === 'abcnews' ? 'ABC News' : SOURCE_NAMES[latest.source]);
     ticker.update(headline ? (source ? source + ' · ' : '') + headline : '',
@@ -464,6 +464,7 @@ export function setupNewsDesk() {
       else if (push && source.status==='ok') label='Connected · Discord';
       else if (push) label=discordState==='connecting'?'Connecting…':'Reconnecting';
       else if (paused) label = discordReadKey?'Connecting…':'Connect Discord';
+      else if (id==='grok' && unavailable) label=source.error;
       else if (unavailable || failed) label = 'Refresh unavailable';
       else if (!source) label = loading ? 'Checking…' : 'Not checked yet';
       else if (old) label = 'Last checked over 20 min ago';
@@ -505,7 +506,7 @@ export function setupNewsDesk() {
       : 'Some sources are unavailable. Headlines from connected sources are still shown.';
 
     const rawItems = (Array.isArray(feed?.items) ? feed.items : []).filter(item => item.source !== 'abcnews' || Date.parse(item.publishedAt) >= Date.now()-7*86400000);
-    const relevantItems = rawItems.filter(item => Array.isArray(item.categories) && item.categories.some(category => ['gold', 'rates', 'geopolitics', 'trump'].includes(category)));
+    const relevantItems = rawItems.filter(item => item.source==='grok' || Array.isArray(item.categories) && item.categories.some(category => ['gold', 'rates', 'geopolitics', 'trump'].includes(category)));
     const items = filterDisplayNews(relevantItems, filters)
       .filter(item => safeHeadlineUrl(item.url))
       .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
@@ -564,6 +565,17 @@ export function setupNewsDesk() {
         categories.append(element('span', 'news-category news-category-' + category, ({gold:'Gold / metals',rates:'USD & rates',geopolitics:'Geopolitics',trump:'Trump policy'})[category]));
       }
       row.append(meta, link, categories);
+      if (item.source==='grok') {
+        meta.append(element('span','news-headline-source',item.markets.join(' / ')));
+        row.append(element('p','news-event-summary',item.analysis.rationale));
+        const evidence=element('div','news-headline-categories');
+        for (const src of item.sources) {
+          const a=element('a','news-category','@'+src.author);
+          a.href=src.url; a.target='_blank'; a.rel='noopener noreferrer';
+          evidence.append(a);
+        }
+        row.append(evidence); list.append(row); continue;
+      }
       const a = item.analysis;
       if (a) {
         const summary = element('div', 'news-event-summary');
