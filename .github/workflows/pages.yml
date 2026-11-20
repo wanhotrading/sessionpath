@@ -4,6 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
+  actions: read
   contents: write
   pages: write
   id-token: write
@@ -149,10 +150,24 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload website
+        id: upload
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
           name: github-pages-${{ github.run_attempt }}
+      - name: Wait for the published artifact to be indexed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            sleep 10
+            ids=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" --jq '.artifacts[] | select(.expired == false) | .id') || continue
+            if grep -Fxq "$ARTIFACT_ID" <<< "$ids"; then exit 0; fi
+          done
+          echo "::error::The uploaded website is still missing from the artifact index."
+          exit 1
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
