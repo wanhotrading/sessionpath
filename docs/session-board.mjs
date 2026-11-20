@@ -1,3 +1,4 @@
+import { mountQuickComparison } from './quick-comparison.mjs?v=quick-comparison-20261119';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
@@ -94,7 +95,7 @@ function showContainment(card, result) {
   card.containmentSample.textContent = hasCases ? result.inside + '/' + result.n + ' historical windows' : '';
 }
 
-export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute, followup }) {
+export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute, followup, comparison }) {
   const board = node('section', 'session-board');
   board.id = 'session-board';
   board.setAttribute('aria-label', 'Forecast workspace');
@@ -119,6 +120,8 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   const followupPanel = node('section', 'research-followup');
   followupPanel.id = 'research-followup';
   right.append(paths, followupPanel);
+  const quickComparison = mountQuickComparison(paths, comparison);
+  paths.addEventListener('sessionpath:comparison-filters', quickComparison.refresh);
   grid.append(...cards.map(card => card.panel), right);
   board.append(grid, actions);
   $('workspace').prepend(board);
@@ -266,10 +269,11 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     const cohortDisplay = $('ny-results')?.querySelector('.ny-cohort strong');
     nyCard.count.textContent = verifiedInputs ? cohortDisplay?.textContent || '' : '';
     const q = nyModel?.query;
-    const matchingModel = verifiedInputs && cohortDisplay && q?.date === $('trading-date').value && q.minute === 510 && q.endMinute === 960 &&
+    const matchesSnapshot = verifiedInputs && cohortDisplay && q?.date === nyCard.record.date && q.minute === 510 && q.endMinute === 960 &&
       [['price', snapshot.reference_price], ['avr', snapshot.avr], ['rangeHigh', snapshot.range_high], ['rangeLow', snapshot.range_low]]
         .every(([key, value]) => Math.abs(q[key] - value) < 1e-7);
-    showContainment(nyCard, matchingModel ? nyModel.box : null);
+    showContainment(nyCard, matchesSnapshot && q.date === $('trading-date').value ? nyModel.box : null);
+    quickComparison.setForecast({ date: nyCard.record.date, minute: 510, dates: matchesSnapshot ? nyModel.box.dates : null });
   }
 
   function update() {
@@ -326,6 +330,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       }
       cancelForecastTextMotion(card.panel);
       card.key = key;
+      quickComparison.setForecast({ date: forecastDate, minute: window.minute, dates: null });
       card.record = record ? {...record, date:forecastDate} : null;
       card.code = '';
       card.copy.disabled = true;
@@ -353,6 +358,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
         try {
           const result = overnightEstimate(record, index, forecastDate);
           card.code = result.code;
+          quickComparison.setForecast({ date: forecastDate, minute: window.minute, dates: result.dates });
           if (result.count) card.count.textContent = result.count.toLocaleString() + ' matched cases';
           showContainment(card, result);
         } catch { card.info.textContent = 'Forecast code unavailable'; }

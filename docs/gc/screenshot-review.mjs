@@ -316,4 +316,8 @@ export function mountScreenshotReview(research) {
     stage.addEventListener('wheel', event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); stepZoom(event.deltaY < 0 ? 1 : -1); } }, { passive: false });
     for (const name of ['dragover', 'drop']) stage.addEventListener(name, event => { event.preventDefault(); if (name === 'drop') chooseFiles(event.dataTransfer.files); });
   }
+  return { loadArchive: async () => {
+    await ensurePublicArchive();
+    return archiveItems;
+  } };
 }

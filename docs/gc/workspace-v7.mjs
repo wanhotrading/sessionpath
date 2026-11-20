@@ -1,6 +1,6 @@
 import {instrument} from './instrument.mjs';
 const $=id=>document.getElementById(id);
-export function setupWorkspace({chartReader=true}={}){
+export function setupWorkspace({chartReader=true,comparison=true}={}){
  const nav=document.querySelector('.topbar nav');
  nav.innerHTML='<a href="#conditions">Session</a><a href="#projection">Outlook</a><a href="#ny-reference">New York</a><a href="#comparison">Compare</a><a href="#sessions-section">Paths</a>';
  $('projection').append($('indicator-section'));
@@ -35,7 +35,9 @@ export function setupWorkspace({chartReader=true}={}){
  tools.addEventListener('click',e=>{if(backdropStart&&outsideTools(e))tools.close();backdropStart=false;});
  $('workspace-tools-close').onclick=()=>tools.close();
  if(chartReader)$('tools-open-reader').onclick=()=>openDialog(reader);
- $('evidence-btn').onclick=()=>openDialog($('evidence-dialog'));
+ const comparisonButton=$('evidence-btn');
+ if(comparison)comparisonButton.onclick=()=>openDialog($('evidence-dialog'));
+ else comparisonButton.closest('.workflow-tool-card').remove();
  if(chartReader){$('choose-tags').onclick=()=>openDialog($('tags-dialog'));$('assistant-dictionary').onclick=()=>$('dictionary-btn').click();}
  // Dictionary and replay callbacks are mounted later. Close this drawer (or
  // the reader) before those existing callbacks open their own dialogs.

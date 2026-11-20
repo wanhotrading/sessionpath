@@ -1,0 +1,114 @@
+.quick-comparison {
+  min-width: 0;
+}
+
+.quick-comparison-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: #d9e9ff;
+}
+
+.quick-comparison-toggle span {
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.quick-comparison-toggle[aria-expanded="true"] span { transform: rotate(180deg); }
+
+.quick-comparison-results {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #303f5c;
+  border-radius: 14px;
+  background: #10192d;
+  color: #e3edff;
+  transform-origin: top left;
+}
+
+.quick-comparison-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.quick-comparison-coverage {
+  margin: 0;
+  font-size: .82rem;
+  color: #c4d4ed;
+}
+
+.quick-comparison-navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-comparison-position {
+  min-width: 4ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: .8rem;
+}
+
+.quick-comparison-frame { margin-top: 10px; }
+
+.quick-comparison-track {
+  --carousel-fade: 14px;
+  --carousel-left: #000;
+  --carousel-right: #000;
+  display: flex;
+  position: relative;
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: #697da7 #152139;
+  mask-image: linear-gradient(to right, var(--carousel-left), #000 var(--carousel-fade), #000 calc(100% - var(--carousel-fade)), var(--carousel-right));
+}
+
+.quick-comparison-frame.has-prev .quick-comparison-track { --carousel-left: transparent; }
+.quick-comparison-frame.has-next .quick-comparison-track { --carousel-right: transparent; }
+
+.quick-comparison-track:has(> article:nth-child(2))::after {
+  content: "";
+  flex: 0 0 max(0px, calc(16% - 12px), calc(100% - 632px));
+}
+
+.quick-comparison-slide {
+  flex: 0 0 min(84%, 620px);
+  min-width: 0;
+  scroll-snap-align: start;
+  overflow: hidden;
+  border: 1px solid #334663;
+  border-radius: 11px;
+  background: #17243b;
+}
+
+.quick-comparison-slide:only-child { flex-basis: min(100%, 620px); }
+
+.quick-comparison-slide h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 9px 14px;
+  font-size: .88rem;
+}
+
+.quick-comparison-slide h3 span { color: #a5b8d7; font-size: .75rem; }
+.quick-comparison-slide a { display: block; background: #0d1628; color: inherit; }
+.quick-comparison-slide a:focus-visible { outline: 2px solid #ffdf72; outline-offset: -3px; }
+
+.quick-comparison-slide img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+
+.quick-comparison [hidden] { display: none !important; }

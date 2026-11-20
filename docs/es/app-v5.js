@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=midnight-elf-20261119';
+import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=quick-comparison-20261119';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -11,9 +11,9 @@ import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
 import {mountLiveBBoxCheck} from '../bbox-live-check.mjs?v=automatic-bbox-20261118';
 import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
-import {mountScreenshotReview} from './screenshot-review.mjs?v=matched-days-20261023';
+import {mountScreenshotReview} from './screenshot-review.mjs?v=quick-comparison-20261119';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
-import {setupWorkspace} from './workspace-v7.mjs?v=quiet-ui-20261118';
+import {setupWorkspace} from './workspace-v7.mjs?v=quick-comparison-20261119';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=saved-forecast-20261118';
 import {observedUD,makeForecastCode,parseForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
@@ -22,11 +22,11 @@ import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize
 import {parseSessionPathCode} from '../session-path-code.mjs?v=session-path-code-20261106';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(v)?v.toFixed(2):'—',pct=v=>Number.isFinite(v)?`${Math.round(v*100)}%`:'—',pt=v=>Number.isFinite(v)?`${v.toFixed(2)} pt`:'Add AVR';
-setupWorkspace({chartReader:false});mountInstrumentSelector();setupDeviceView({showControl:false});
+setupWorkspace({chartReader:false, comparison:false});mountInstrumentSelector();setupDeviceView({showControl:false});
 const windows={'1930-0500':[-270,300],'1930-0830':[-270,510]};
 const fields=['open1930','ud-units','window','asof','trading-date','price','avr','printed','range-high','range-low','range-position','prior-high','prior-low','location','up','down','behavior','tag-mode','sample-size','year'];
 const state={sessionChoices:{},sessionChoiceSources:{},sessionChoiceDate:null,sessionPathCutoff:null,box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};
-mountScreenshotReview(state);
+const screenshotReview = mountScreenshotReview(state);
 mountForecastContext();
 const bboxCheckPanel=document.createElement('section');
 bboxCheckPanel.id='bbox-return-details';
@@ -124,7 +124,7 @@ function resultHeader(q,selection){const n=selection.matches.length;const label=
 function metricCard(title,m,color,description){return `<div class="metric"><div class="metric-title">${title}</div><div class="metric-value ${color}">${m.meanPoints==null?'—':num(m.meanPoints)} <small>points</small></div><div class="metric-sub">${description}<br>Median <b>${pt(m.medianPoints)}</b> · middle 50% <b>${num(m.p25Points)}–${num(m.p75Points)}</b></div></div>`;}
 function renderProjection(q,selection){renderForecastContext($('forecast-context'),q);resultHeader(q,selection);state.summary=renderOutlook(q,selection);if(!document.body.classList.contains('session-board-active'))renderComparison(state);}
 function eligibleTags(day,q){return state.library?day.tags:day.knownTags.filter(t=>Number.isFinite(t.minute)&&t.minute<=q.minute).map(t=>t.tag);}
-function renderGallery(){const size=Number($('gallery-size').value),total=state.matches.length,pages=Math.max(1,Math.ceil(total/size));state.page=Math.min(state.page,pages-1);const start=state.page*size,items=state.matches.slice(start,start+size);
+function renderGallery(){if(document.body.classList.contains('session-board-active'))return;const size=Number($('gallery-size').value),total=state.matches.length,pages=Math.max(1,Math.ceil(total/size));state.page=Math.min(state.page,pages-1);const start=state.page*size,items=state.matches.slice(start,start+size);
  let coverage=$('gallery-coverage');
  if(!coverage){
   coverage=document.createElement('div');coverage.id='gallery-coverage';coverage.className='compact-note';coverage.setAttribute('role','status');
@@ -236,6 +236,7 @@ function renderSessions(){
  for(const s of sessions)if(!explore&&s.end>minute){delete state.sessionChoices[s.id];delete state.sessionChoiceSources[s.id];}
  const results=sessionProbabilities(state.days.filter(day=>day.date<date),state.sessionChoices,$('year').value);
  compactPathCards($('session-cards'),results,{choices:state.sessionChoices,choiceSources:state.sessionChoiceSources,shapes,minute,explore,formatTime:clockLabel});
+ $('sessions-section').dispatchEvent(new Event('sessionpath:comparison-filters'));
 }
 document.addEventListener('sessionpath:chart-path-outcomes',event=>{
  const detail=event.detail;
@@ -324,7 +325,7 @@ async function startResearch(){
    retry.onclick=()=>{note.remove();optionalAsset(file,apply,target);};note.append(retry);target.append(note);
   }
  }
- void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();},$('evidence'));
+ void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();$('sessions-section').dispatchEvent(new Event('sessionpath:comparison-filters'));},$('evidence'));
  for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation()]){
   await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}
  }
@@ -399,7 +400,7 @@ mountSessionBoard({
  estimate:q=>{
   const box=boxEstimate(state.days,state.timeline,q,q.endMinute);
   const code=box?makeForecastCode(box,q):'', exact=code?parseForecastCode(code):null;
-  return {code,count:box?.n||0,n:box?.n||0,coverage:box?.coverage,inside:box?.inside,
+  return {code,count:box?.n||0,n:box?.n||0,dates:box?.dates||[],coverage:box?.coverage,inside:box?.inside,
    bounds:exact?{upper:exact.price+exact.up,lower:exact.price-exact.down}:null};
  },
  applyArchivedNY:(snapshot,date,{verified=false,saved=false}={})=>{
@@ -423,6 +424,11 @@ mountSessionBoard({
    if(day)fillNYPositionHelper(day,state.timeline,510);
   }
   $('ny-range-low').dispatchEvent(new Event('change',{bubbles:true}));
+ },
+ comparison:{
+  loadArchive:screenshotReview.loadArchive,
+  getDays:()=>state.ready?state.days:null,
+  getChoices:()=>state.sessionChoices,
  },
  renderContext:renderForecastContext,clearContext:clearForecastContext,
  activeWindowChanged:(minute,date)=>{state.boardMinute={minute,date};renderSessions();},
