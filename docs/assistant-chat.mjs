@@ -1,4 +1,4 @@
-import {chartPathOutcomes} from './session-path-summary.mjs?v=single-session-20261118';
+import {chartPathOutcomes,validPathReading} from './session-path-summary.mjs?v=elf-fill-20261120';
 import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=visual-tags-20261108b';
 import {makeChartSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
 import {readChartResponse} from './chart-event-stream.mjs?v=grok-stream-20261108';
@@ -8,6 +8,7 @@ const MARKETS=['CL','NQ','ES','GC'];
 const WINDOWS=['03:00-05:00','05:00-08:30','08:30-16:00'];
 const CONCEPTS=['mean_box','containment','avr_expansion','extension'];
 const STORAGE='sessionpath-assistant-chat-v1';
+const PATH_HANDOFF='sessionpath-assistant-path-handoff';
 const ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chat';
 const CHART_ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chart';
 const CHART_HEALTH_URL=new URL('/health',CHART_ENDPOINT).href;
@@ -17,7 +18,7 @@ const CHART_READERS=Object.freeze({
 });
 const CHART_IMAGE_DISCLOSURE='Send shares this screenshot with the active chart service, OpenAI or OpenRouter/xAI. Crop out account details.';
 const MAX_IMAGE_BYTES=10*1024*1024,MAX_IMAGE_PIXELS=16000000,MAX_IMAGE_URL=1572864;
-const DEFAULT_CHART_QUESTION='Describe the visible price movement so far.';
+const DEFAULT_CHART_QUESTION='Identify the market, New York trading date and latest completed five-minute close from the chart. Classify the completed NTA, Asia and London sessions for the Session paths panel and describe the visible move.';
 const DEFINITIONS={
  mean_box:'The mean box shows average historical upside and downside from the decision open. Its edges are average excursions, not guaranteed boundaries.',
  containment:'Containment is the share of historical full-window paths that stayed inside the fitted mean box. It is different from a final close inside or a return after a breach, and is not a trade win rate.',
@@ -165,7 +166,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const observationFields=element('div','sp-chat-historical-fields');observationFields.hidden=true;
  const chartDateLabel=element('label','','Chart trading date · NY'),chartDate=element('input','sp-chat-chart-date');chartDate.type='date';chartDate.max=nyDate(now());chartDateLabel.append(chartDate);
  const chartCloseLabel=element('label','','Last completed close · NY'),chartClose=element('input','sp-chat-chart-close');chartClose.type='time';chartClose.step='300';chartCloseLabel.append(chartClose,element('small','','Optional · five-minute close'));
- observationFields.append(chartDateLabel,chartCloseLabel);attachmentBox.append(preview,attachmentInfo,removeAttachment,historicalLabel,observationFields,disclosure);
+ observationFields.append(chartDateLabel,chartCloseLabel);attachmentBox.append(preview,attachmentInfo,removeAttachment,historicalLabel,observationFields,disclosure,element('p','sp-chat-note','Send the chart to fill completed Session paths. A message is optional.'));
  panel.append(header,history,attachmentBox,examples,status);
  const form=element('form','sp-chat-composer');form.noValidate=true;form.tabIndex=-1;
  const input=element('input','sp-chat-input');input.type='text';input.placeholder='Ask Session elf…';input.maxLength=600;input.setAttribute('aria-label','Ask Session elf');input.autocomplete='off';
@@ -240,8 +241,88 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   return {market:instrument.id,window:active||lastWindow,date};
  }
  function failure(error,query,{chart=false}={}){if(error?.name==='AbortError'||destroyed)return;bubble('assistant',plain(error?.message,400)?error.message:'Failed to fetch. Please try again.',{remember:!chart});const retry=element('button','sp-chat-retry','Try again'),retryAttachmentVersion=attachmentVersion;retry.type='button';retry.addEventListener('click',()=>{if(chart&&(!attachment||attachmentVersion!==retryAttachmentVersion)){open();status.textContent='Attach the original screenshot again, or press Send to read the current one.';return;}submit(query);});history.lastElementChild.append(retry);scroll();}
+ const tradingDate=()=>doc.getElementById('trading-date')?.value;
+ function showSessionPaths(){
+  collapse();
+  const section=doc.getElementById('sessions-section');
+  if(!section)return;
+  section.tabIndex=-1;
+  section.focus({preventScroll:true});
+  section.scrollIntoView?.({block:'start',behavior:motionOff()?'instant':'smooth'});
+ }
+ function applyReading(reading,{openMatching=false}={}){
+  if(openMatching&&doc.documentElement.dataset.startup!=='ready')return {message:'Session paths is still loading. Try again in a moment.'};
+  if(openMatching&&reading.market!==instrument.id){
+   try{storage.setItem(PATH_HANDOFF,JSON.stringify({reading,createdAt:now()}));}
+   catch{return {message:'This browser could not carry the chart outcomes to another market.'};}
+   navigate(assistantMarketURL(reading.market,rootURL));
+   return {message:`Opening ${reading.market} · ${reading.date}…`};
+  }
+  if(openMatching&&reading.date!==tradingDate()){
+   const replay=doc.getElementById('replay-toggle'),date=doc.getElementById('replay-date');
+   if(!replay||!date)return {message:'The chart date could not be opened.'};
+   replay.checked=reading.date!==nyDate(now());date.value=reading.date;
+   replay.dispatchEvent(new win.Event('change',{bubbles:true}));
+  }
+  const detail={reading,result:null};
+  doc.dispatchEvent(new win.CustomEvent('sessionpath:chart-path-outcomes',{detail}));
+  return detail.result??{message:'Session paths is still loading. Try again in a moment.'};
+ }
+ function renderPathFill(body){
+  const reading=chartPathOutcomes(body);
+  const section=element('section','sp-chat-shapes');section.setAttribute('aria-label','Session paths fill');
+  const feedback=element('p','sp-chat-note');feedback.setAttribute('role','status');
+  section.append(element('strong','','Session paths'),feedback);
+  if(!reading||!reading.outcomes.length){
+   feedback.textContent=reading?'No complete NTA, Asia or London outcome could be identified.':
+    'To fill Session paths, include the market, New York chart date and completed five-minute close in the screenshot.';
+   return section;
+  }
+  const sameContext=instrument.id===reading.market&&tradingDate()===reading.date;
+  const exploring=doc.getElementById('sequence-explore')?.checked;
+  const automatic=reading.outcomes.filter(row=>row.source!=='tentative');
+  const suggestions=reading.outcomes.filter(row=>row.source==='tentative');
+  const outcomeText=reading.outcomes.map(row=>`${chartShapeSessions[row.session]} · ${chartShapeNames[row.tag]}${row.source==='tentative'?' (review)':''}`).join(' / ');
+  section.append(element('p','sp-chat-note',`${reading.market} · ${reading.date} · through ${reading.cutoff.slice(11)} NY`),
+    element('p','sp-chat-note',outcomeText));
+  const actions=element('div','sp-chat-path-actions');
+  const action=(label,click)=>{const button=element('button','sp-chat-copy',label);button.type='button';button.addEventListener('click',click);actions.append(button);return button;};
+  const result=sameContext&&!exploring&&automatic.length?applyReading({...reading,outcomes:automatic}):null;
+  feedback.textContent=result?.message??(sameContext&&suggestions.length===reading.outcomes.length?'Review the AI suggestions before filling.':'Chart outcomes are ready to fill.');
+  if(result?.applied?.length||result?.unchanged?.length)action('View Session paths',showSessionPaths);
+  if((!result?.applied?.length&&!result?.unchanged?.length)||suggestions.length){
+   const label=!sameContext?`Open ${reading.market} · ${reading.date} and fill`:
+    suggestions.length?(result?.applied?.length?'Apply remaining suggestions':'Apply chart suggestions'):'Fill Session paths';
+   const apply=action(label,()=>{
+    // Evaluate the current view again so a result left open in chat can be used after changing Replay.
+    const applied=applyReading(reading,{openMatching:true});
+    feedback.textContent=applied.message;
+    if(applied.applied?.length||applied.unchanged?.length){apply.disabled=true;showSessionPaths();}
+   });
+  }
+  section.append(actions);return section;
+ }
+ async function resumePathFill(){
+  let pendingPath;
+  try{
+   pendingPath=JSON.parse(storage.getItem(PATH_HANDOFF));
+   if(!pendingPath||pendingPath.reading?.market!==instrument.id)return;
+   storage.removeItem(PATH_HANDOFF);
+  }catch{return;}
+  const {reading,createdAt}=pendingPath;
+  if(!validPathReading(reading)||!Number.isFinite(createdAt)||now()-createdAt<0||now()-createdAt>5*60_000)return;
+  const signal=new AbortController().signal;
+  try{
+   await waitForReady(doc,signal,requestTimeout);
+   if(destroyed)return;
+   const result=applyReading(reading,{openMatching:true});
+   bubble('assistant',result.message,{remember:false});
+   if(result.applied?.length||result.unchanged?.length)showSessionPaths();else open();
+  }catch(error){if(!destroyed){bubble('assistant',error.message,{remember:false});open();}}
+ }
  function renderChart(body,query,context){
   const item=bubble('assistant','Chart reading',{remember:false});item.classList.add('sp-chat-chart-reading');
+  item.append(renderPathFill(body));
   const observation=body.observationContext;
   const contextLabel=observation?`Historical screenshot · chart date ${observation.date} · NY${observation.cutoff?` · last completed close ${observation.cutoff.slice(11)}`:''}. Selected context: ${context.market} · ${context.window} NY${context.date?` · ${context.date}`:''}.`:`Selected context: ${context.market} · ${context.window} NY · ${context.date??'live / today'}.`;
   item.append(element('p','sp-chat-note',`${contextLabel} This selection does not verify the screenshot’s market, date or timeframe.`));
@@ -265,12 +346,11 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    }else if(asksForPath){panel.append(element('p','sp-chat-note','A path code needs archive matches for NTA, Asia and London. Use a five-minute chart after 08:30 NY and include its market, trading date, completed-close time, prior NY high/low and 19:30 open if the labels are hard to read.'));}
    calculated.append(panel);
   }else{calculated.append(element('p','sp-chat-note','No calculated classification is available. Readable session high, low and close values or matching archive data are needed.'));if(asksForPath)calculated.append(element('p','sp-chat-note','No verified path code is available for this screenshot.'));}
-  const paths={reading:chartPathOutcomes(body),result:null};
-  doc.dispatchEvent(new win.CustomEvent('sessionpath:chart-path-outcomes',{detail:paths}));
-  if(paths.result?.message)item.append(element('p','sp-chat-note',paths.result.message));
   item.append(calculated);
   const copy=element('button','sp-chat-comparison-copy','Copy comparison prompt'),feedback=element('span','sp-chat-copy-feedback','Copied!');copy.type='button';feedback.hidden=true;feedback.setAttribute('role','status');let timer,fallback;
-  copy.addEventListener('click',async()=>{const prompt=chartComparisonPrompt(query,context,observation);try{await win.navigator.clipboard.writeText(prompt);clearTimeout(timer);copyTimers.delete(timer);feedback.hidden=false;feedback.classList.remove('sp-chat-faded');timer=setTimeout(()=>{feedback.classList.add('sp-chat-faded');copyTimers.delete(timer);},2000);copyTimers.add(timer);}catch{if(!fallback){fallback=element('textarea','sp-chat-code');fallback.readOnly=true;fallback.value=prompt;fallback.setAttribute('aria-label','Comparison prompt to copy');item.append(fallback);}fallback.focus();fallback.select();}});item.append(copy,feedback);scroll();
+  copy.addEventListener('click',async()=>{const prompt=chartComparisonPrompt(query,context,observation);try{await win.navigator.clipboard.writeText(prompt);clearTimeout(timer);copyTimers.delete(timer);feedback.hidden=false;feedback.classList.remove('sp-chat-faded');timer=setTimeout(()=>{feedback.classList.add('sp-chat-faded');copyTimers.delete(timer);},2000);copyTimers.add(timer);}catch{if(!fallback){fallback=element('textarea','sp-chat-code');fallback.readOnly=true;fallback.value=prompt;fallback.setAttribute('aria-label','Comparison prompt to copy');item.append(fallback);}fallback.focus();fallback.select();}});
+  item.append(copy,feedback);
+  history.scrollTop+=item.getBoundingClientRect().top-history.getBoundingClientRect().top;
  }
  function renderForecast(result,intent){
   const fmt=value=>value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),heading=`${result.market} · ${result.window.replace('-', ' → ')} NY`;
@@ -345,5 +425,6 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  function onPageHide(event){if(!event.persisted)destroy();}
  win.addEventListener('pagehide',onPageHide);
  if(pending){const continuation=pending;pending=null;save();if(continuation.intent.market===instrument.id)submit(continuation.query,continuation.intent);}
+ void resumePathFill();
  return {submit,attachImage:stageImage,clearAttachment,destroy,element:host};
 }
