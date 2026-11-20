@@ -1,8 +1,9 @@
+import {mountUnreadNews} from '../news-queue.mjs?v=unread-carousel-1';
 import {mountNewsTicker} from '../news-ticker.mjs?v=news-ticker-20261118';
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
 import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=grok-watch-1';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=grok-watch-1';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=unread-carousel-1';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
 import {connectDiscordNews,discordConnectionView,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-recovery-20261030';
@@ -72,12 +73,11 @@ export function setupNewsDesk() {
   const preferences = {alerts: savedPreferences?.alerts !== false, sound: savedPreferences?.sound !== false, context: savedPreferences?.context !== false};
   let alertState = createNewsAlertState(storedJSON(ALERT_STATE_KEY), {resume:true});
   const whistle = createNewsWhistle();
-  let queuedAlerts = [];
+  let reopenUnread = false;
   const storedAudit = storedJSON('sessionpath-news-audit-v1');
   let audit = Array.isArray(storedAudit) ? storedAudit.filter(entry => entry.analysis?.source_name !== 'abcnews').slice(-300) : [];
   let feed = null;
   let poller = null;
-  let activeItem = null;
   let lastWhistleAt = 0;
   let lastListSignature = null;
   let lastAttempt = 0;
@@ -201,8 +201,7 @@ export function setupNewsDesk() {
     if(discordReadKey){
       stopDiscord();discordReadKey='';try{sessionStorage.removeItem(DISCORD_SESSION_KEY);}catch{}
       if(feed){feed.items=feed.items.filter(item=>item.transport!=='discord');feed.sources=feed.sources.filter(source=>source.transport!=='discord');}
-      queuedAlerts=queuedAlerts.filter(item=>item.transport!=='discord');
-      if(activeItem?.transport==='discord'){activeItem=null;hideToast();nextQueuedAlert();}
+      unreadQueue.discard(item => item.transport === 'discord');
       updateTicker(true);renderAlertControls();if(dialog.open)render();return;
     }
     discordForm.hidden=!discordForm.hidden;discordToggle.setAttribute('aria-expanded',String(!discordForm.hidden));
@@ -224,7 +223,10 @@ export function setupNewsDesk() {
   status.setAttribute('aria-live', 'polite');
   const refresh = element('button', 'quiet news-refresh', 'Refresh');
   refresh.type = 'button';
-  toolbar.append(status, refresh);
+  const unreadButton = element('button', 'news-unread-open', 'Unread');
+  unreadButton.type = 'button';
+  unreadButton.hidden = true;
+  toolbar.append(status, unreadButton, refresh);
   const notice = element('p', 'news-desk-notice');
   notice.hidden = true;
   const listArea = element('div', 'news-desk-list-area');
@@ -243,10 +245,7 @@ export function setupNewsDesk() {
   toastMessage.setAttribute('aria-live', 'polite');
   toastMessage.setAttribute('aria-atomic', 'true');
   const toastHeading = element('strong', 'news-alert-heading');
-  const toastHeadline = element('a', 'news-alert-headline');
-  toastHeadline.target = '_blank';
-  toastHeadline.rel = 'noopener noreferrer';
-  toastHeadline.dir = 'auto';
+  const toastHeadline = element('strong', 'news-alert-headline');
   const toastDetail = element('p', 'news-alert-detail');
   toastMessage.append(toastHeading, toastHeadline, toastDetail);
   const toastActions = element('div', 'news-alert-actions');
@@ -259,6 +258,11 @@ export function setupNewsDesk() {
   toast.append(toastMessage, toastActions);
   document.body.append(toast);
   const modalOrder = [...document.querySelectorAll('dialog[open]')];
+  const unreadQueue = mountUnreadNews({
+    toast, heading: toastHeading, summary: toastHeadline, detail: toastDetail, trigger, unreadButton,
+    newsTime, textFor: traditionalNewsText, sourceNames: SOURCE_NAMES, safeUrl: safeHeadlineUrl,
+    onEmpty: () => { reopenUnread = false; hideToast(); }
+  });
 
   function savePreferences() {
     try { localStorage.setItem(ALERT_PREFS_KEY, JSON.stringify(preferences)); } catch {}
@@ -287,7 +291,7 @@ export function setupNewsDesk() {
     discordRetry.hidden=!connection.canRetry;
     const discordHint=' FinancialJuice: '+connection.help;
     alertHelp.textContent = preferences.alerts
-      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Popups stay until you close them. New headlines are kept when you switch tabs; background checks may be slowed by your browser.' + discordHint + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
+      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Browse unread headlines with the up and down arrows. New headlines are kept when you switch tabs; background checks may be slowed by your browser.' + discordHint + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -319,51 +323,38 @@ export function setupNewsDesk() {
     }
   }
 
-  function nextQueuedAlert() {
-    hideToast(); activeItem = null;
-    if (queuedAlerts.length) { const pending = queuedAlerts; queuedAlerts = []; showAlert(pending, {replay:true}); }
-  }
-  function showAlert(items, {test = false, replay = false} = {}) {
-    if (!test && (!preferences.alerts || !items.length)) return;
-    if (!test && document.hidden) {
-      queuedAlerts=[...new Map([...queuedAlerts,...items].map(item=>[item.id,item])).values()].slice(-50);
-      if (preferences.sound && Date.now()-lastWhistleAt>=3000 && whistle.play()) lastWhistleAt=Date.now();
-      trigger.textContent='News · '+queuedAlerts.length;
-      return;
-    }
-    trigger.textContent='News';
-    const ordered = replay ? [...items] : [...items].sort((a,b) => (a.analysis?.priority || 'P2').localeCompare(b.analysis?.priority || 'P2'));
-    const item = ordered[0];
-    if (!test) {
-      // Never replace an unread popup. Its Close button advances the queue.
-      if (!replay && !toast.hidden && activeItem && activeItem.id !== item.id) {
-        queuedAlerts=[...new Map([...queuedAlerts,...ordered].filter(v=>v.id!==activeItem.id).map(v=>[v.id,v])).values()].slice(-50);
-        toastHeading.textContent=`${activeItem.analysis?.priority || 'P2'} · ${activeItem.analysis?.event_type || 'New matching headline'} · ${queuedAlerts.length} queued`;
-        if(preferences.sound && Date.now()-lastWhistleAt>=3000 && whistle.play()) lastWhistleAt=Date.now();
-        return;
-      }
-      queuedAlerts.push(...ordered.slice(1));
-      queuedAlerts=[...new Map(queuedAlerts.filter(previous=>previous.id!==item.id).map(previous=>[previous.id,previous])).values()].slice(-50);
-      activeItem = item;
-    }
-    toastHeading.textContent = test ? 'Test news alert' : `${item.analysis?.priority || 'P2'} · ${item.analysis?.event_type || 'New matching headline'}${queuedAlerts.length ? ` · ${queuedAlerts.length} queued` : ''}`;
-    toastHeadline.textContent = test ? 'Your market catalyst alerts are ready.' : traditionalNewsText(item);
-    const url = test ? null : safeHeadlineUrl(item.url);
-    if (url) toastHeadline.href = url; else toastHeadline.removeAttribute('href');
-    toastDetail.textContent = test
-      ? (whistle.ready && preferences.sound ? 'Playing the downloaded classic Twitter notification.' : preferences.sound ? 'Sound is unavailable in this browser. Popups still work.' : 'Tweet sound is muted. Popups still work.')
-      : `${item.analysis ? directionLabel(item.analysis.direction) + ' · ' + item.analysis.rationale + ' ' : ''}${SOURCE_NAMES[item.source] || 'News'} · ${newsTime(item.publishedAt)}${ordered.length>1 ? ` · +${ordered.length-1} new in News` : ''}`;
+  function showUnread() {
+    if (!unreadQueue.hasUnread()) return;
+    unreadQueue.show();
     toast.hidden = false;
     positionToast();
-    if (preferences.sound && !replay && (test || Date.now()-lastWhistleAt >= 3000)) { if (whistle.play()) lastWhistleAt = Date.now(); }
   }
-  toastDismiss.addEventListener('click', nextQueuedAlert);
-  toastOpen.addEventListener('click', openNews);
+
+  function showAlert(items, {test = false} = {}) {
+    if (test) {
+      unreadQueue.test(whistle.ready && preferences.sound ? 'Playing the classic Twitter notification.' :
+        preferences.sound ? 'Popups are ready. Sound is unavailable in this browser.' : 'Tweet sound is muted.');
+      toast.hidden = false;
+      positionToast();
+    } else {
+      if (!preferences.alerts || !items.length) return;
+      unreadQueue.enqueue(items);
+      if (document.hidden) reopenUnread = true;
+      else showUnread();
+    }
+    if (preferences.sound && (test || Date.now() - lastWhistleAt >= 3000) && whistle.play()) {
+      lastWhistleAt = Date.now();
+    }
+  }
+
+  toastDismiss.addEventListener('click', () => { reopenUnread = false; hideToast(); });
+  toastOpen.addEventListener('click', () => { reopenUnread = false; hideToast(); openNews(); });
+  unreadButton.addEventListener('click', showUnread);
   alertsToggle.addEventListener('click', () => {
     preferences.alerts = !preferences.alerts;
     silenceBaseline();
     savePreferences();
-    if (!preferences.alerts) { queuedAlerts = []; hideToast(); }
+    if (!preferences.alerts) { reopenUnread = false; hideToast(); }
     else unlockSound();
     refreshNews();
   });
@@ -652,12 +643,14 @@ export function setupNewsDesk() {
   refresh.addEventListener('click', refreshNews);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      if(activeItem) queuedAlerts=[...new Map([activeItem,...queuedAlerts].map(item=>[item.id,item])).values()].slice(-50);
-      activeItem=null;hideToast();if(!preferences.alerts)interruptRefresh();
+      reopenUnread ||= !toast.hidden && unreadQueue.hasUnread();
+      hideToast();
+      if (!preferences.alerts) interruptRefresh();
     }
     else {
       if(dialog.open)render();
-      if(queuedAlerts.length) nextQueuedAlert();
+      if (reopenUnread && preferences.alerts) showUnread();
+      reopenUnread = false;
       if (!feed || Date.now() - lastAttempt >= REFRESH_MS) refreshNews();
       else scheduleRefresh();
     }

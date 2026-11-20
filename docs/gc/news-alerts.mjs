@@ -110,8 +110,12 @@ export function collectNewsAlerts(state, feed, {now = Date.now(), maxAgeMs = NEW
       entry.history = revised ? [...previous.history, previous.titleKey].slice(-5) : previous?.history || [];
       if (revised && item.analysis?.is_correction && previous.priority === 'P1') { item.analysis.priority = 'P1'; entry.priority = 'P1'; }
       if (item.analysis) { item.analysis.event_version = entry.version; item.analysis.previous_headlines = entry.history; item.analysis.novelty = revised ? 'Updated headline' : known ? 'Already seen' : 'New headline'; }
-      const stamp = Date.parse(entry.publishedAt);
-      if (!baseline && !known && (revised || !previousWatermark || entry.publishedAt >= previousWatermark) && (stamp >= now - age || revised && item.analysis?.is_correction) && (includeContext || !item.analysis || ['P1','P2'].includes(item.analysis.priority))) newItems.push(item);
+      // Grok can verify a new story after a later post has already been shown.
+      const grok = id === 'grok';
+      const stamp = Date.parse(grok ? dateValue(item.receivedAt, now) : entry.publishedAt);
+      const isNew = grok || !baseline && (revised || !previousWatermark || entry.publishedAt >= previousWatermark);
+      if (isNew && !known && (stamp >= now - age || !grok && revised && item.analysis?.is_correction) &&
+          (includeContext || !item.analysis || ['P1','P2'].includes(item.analysis.priority))) newItems.push(item);
       ids.add(key); urls.add(entry.url); titles.add(entry.titleKey);
       entries.delete(key); entries.set(key, entry);
       watermark = laterDate(watermark, entry.publishedAt);

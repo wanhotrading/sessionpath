@@ -227,17 +227,15 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   margin: 0;
   padding: clamp(10px, 1.25vw, 17px);
   overflow: visible;
-  border: 1px solid #bacef85c;
+  border: 1px solid #d8e3ff50;
   border-radius: 16px;
   background:
-    repeating-linear-gradient(90deg,
-      #c2d8ff13 0, #e7efff28 1px, #b6caff0b 4px,
-      transparent 8px, #0a142f24 11px, #080e291c 13px, transparent 14px),
-    linear-gradient(150deg, #52668638, transparent 61%),
-    linear-gradient(145deg, #17263ee0, #0c1429ed 78%);
-  -webkit-backdrop-filter: blur(14px) saturate(115%);
-  backdrop-filter: blur(14px) saturate(115%);
-  box-shadow: inset 0 1px #d5e5ff44, inset 0 -1px #0b102340, 0 15px 32px #070e2240;
+    radial-gradient(ellipse at top left, #9dbfff30, transparent 70%),
+    radial-gradient(ellipse at bottom right, #8c7be726, transparent 66%),
+    linear-gradient(145deg, #19253cdd, #0d162be6 80%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  backdrop-filter: blur(18px) saturate(115%);
+  box-shadow: inset 0 1px #e5edff46, inset 0 -1px #10183170, 0 16px 36px #070e2259;
   scroll-margin-top: 85px;
 }
 .session-board #sessions-section .section-heading { flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -249,7 +247,7 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   min-height: 0;
   padding: 10px;
   border-radius: 10px;
-  background: linear-gradient(150deg, #17253bd9, #0c162bdd);
+  background: linear-gradient(150deg, #15213bd9, #101b31df);
   border: 1px solid #b4cbfc33;
   box-shadow: inset 0 1px #d5e5ff14;
 }

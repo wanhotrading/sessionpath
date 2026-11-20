@@ -2,7 +2,7 @@
 
 Use Grok Bot's built-in public X search on the existing Premium allowance. Run hourly. If included usage runs out, pause until it resets. Use only public information. Send results only to the SessionPath ticker.
 
-On the bot computer, download the accompanying `bot-sender.mjs` from the same repository revision, keep it in the bot workspace, and run `node bot-sender.mjs pair`. Give the owner the single public key printed by that command. Keep the generated private file on this bot. The owner registers the public key with SessionPath. A successful quiet scan can then verify the connection.
+On the Grok Bot cloud computer, download the accompanying `bot-sender.mjs` from the same repository revision and keep it in the bot workspace. Pass the owner's one-time pairing code on standard input to `node bot-sender.mjs enroll`. Use the code only for this step. Store the generated signing file on the cloud computer and keep it private. After pairing, do one real scan, deliver its result, and enable the hourly routine in Grok Bot. For a quiet scan, an accepted empty report confirms the connection.
 
 ## Each scan
 
