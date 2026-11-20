@@ -372,3 +372,13 @@ body.session-board-active[data-device-view="mobile"] .sp-assistant { bottom: cal
 .bbox-curve-scrub { display: block; width: 100%; margin: 0; accent-color: #bda7ff; }
 .bbox-check-transfer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
 .bbox-check-code { width: 100%; min-height: 36px; }
+
+.sp-chat-path-fill {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #bacef85c;
+  border-radius: 10px;
+}
+.sp-chat-path-fill-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sp-chat-path-fill-actions button { border-color: #b59df086; color: #eee4ff; }
+.sp-chat-path-fill-actions:empty { display: none; }

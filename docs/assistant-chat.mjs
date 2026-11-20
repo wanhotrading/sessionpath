@@ -270,7 +270,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  }
  function renderPathFill(body){
   const reading=chartPathOutcomes(body);
-  const section=element('section','sp-chat-shapes');section.setAttribute('aria-label','Session paths fill');
+  const section=element('section','sp-chat-path-fill');section.setAttribute('aria-label','Session paths fill');
   const feedback=element('p','sp-chat-note');feedback.setAttribute('role','status');
   section.append(element('strong','','Session paths'),feedback);
   if(!reading||!reading.outcomes.length){
@@ -285,8 +285,8 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   const outcomeText=reading.outcomes.map(row=>`${chartShapeSessions[row.session]} · ${chartShapeNames[row.tag]}${row.source==='tentative'?' (review)':''}`).join(' / ');
   section.append(element('p','sp-chat-note',`${reading.market} · ${reading.date} · through ${reading.cutoff.slice(11)} NY`),
     element('p','sp-chat-note',outcomeText));
-  const actions=element('div','sp-chat-path-actions');
-  const action=(label,click)=>{const button=element('button','sp-chat-copy',label);button.type='button';button.addEventListener('click',click);actions.append(button);return button;};
+  const actions=element('div','sp-chat-path-fill-actions');
+  const action=(label,click)=>{const button=element('button','',label);button.type='button';button.addEventListener('click',click);actions.append(button);return button;};
   const result=sameContext&&!exploring&&automatic.length?applyReading({...reading,outcomes:automatic}):null;
   feedback.textContent=result?.message??(sameContext&&suggestions.length===reading.outcomes.length?'Review the AI suggestions before filling.':'Chart outcomes are ready to fill.');
   if(result?.applied?.length||result?.unchanged?.length)action('View Session paths',showSessionPaths);
