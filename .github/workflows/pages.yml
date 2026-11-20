@@ -139,6 +139,13 @@ jobs:
           test -s docs/instrument.mjs
           test -s docs/data/nq/session-path-nq.pine
           test -f docs/.nojekyll
+      - name: Build comparison chart previews
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/sessionpath-preview-venv"
+          preview_python="$RUNNER_TEMP/sessionpath-preview-venv/bin/python"
+          "$preview_python" -m pip install --disable-pip-version-check --only-binary=:all: Pillow==13.0.0
+          "$preview_python" scripts/build-comparison-previews.py docs
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload website

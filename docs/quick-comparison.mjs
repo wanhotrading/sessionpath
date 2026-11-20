@@ -1,6 +1,10 @@
 const SHAPE_END = { NTA: 0, ASIA: 120, LONDON: 510 };
 const PAGE_SIZE = 6;
 const MOTION = { duration: 300, easing: 'cubic-bezier(.25,.7,.25,1)' };
+const SITE = new URL('./', import.meta.url);
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const CHART_PATH = /^(?:(?:es|gc)\/)?charts\/(?:[a-z0-9._-]+\/)*[a-z0-9._-]+\.(?:png|jpe?g|webp)$/i;
+const PREVIEW_NAME = /^\d{4}-\d{2}-\d{2}-[0-9a-f]{12}\.webp$/;
 
 export function comparisonCandidates(days, { date, minute, dates }, choices = {}) {
   const tags = Object.entries(choices)
@@ -22,7 +26,31 @@ function dayScreenshots(archive) {
   return images;
 }
 
-function makeCard({ day, image }, index) {
+async function fetchPreviewArchive(market) {
+  if (!['CL', 'NQ', 'ES', 'GC'].includes(market)) throw Error('Unsupported market');
+  const folder = new URL(`charts/previews/v1/${market}/`, SITE);
+  const options = { credentials: 'omit' };
+  if (typeof AbortSignal.timeout === 'function') options.signal = AbortSignal.timeout(8000);
+  const response = await fetch(new URL('index.json', folder), options);
+  if (!response.ok) throw Error('Preview archive unavailable');
+  const data = await response.json();
+  if (data.version !== 1 || data.market !== market || !Array.isArray(data.images) || data.images.length > 5000) throw Error('Invalid preview archive');
+  const images = new Map();
+  for (const item of data.images) {
+    const { date, src, contract, preview } = item || {};
+    if (!DATE.test(date) || typeof src !== 'string' || !CHART_PATH.test(src) ||
+        src.split('/').some(part => part === '.' || part === '..')) continue;
+    images.set(date, {
+      contract,
+      url: new URL(src, SITE).href,
+      preview: PREVIEW_NAME.test(preview) ? new URL(preview, folder).href : null,
+    });
+  }
+  if (data.images.length && !images.size) throw Error('Preview archive has no valid images');
+  return images;
+}
+
+function makeCard({ day, image }, index, lazy) {
   const card = document.createElement('button');
   card.type = 'button';
   card.className = 'quick-comparison-card';
@@ -30,9 +58,10 @@ function makeCard({ day, image }, index) {
   card.setAttribute('aria-label', 'Enlarge chart for ' + day.date);
   const chart = document.createElement('img');
   chart.alt = 'TradingView chart for ' + day.date;
-  chart.loading = 'lazy';
+  chart.loading = lazy ? 'lazy' : 'eager';
   chart.decoding = 'async';
-  chart.src = image.url;
+  if (image.preview) chart.addEventListener('error', () => { chart.src = image.url; }, { once: true });
+  chart.src = image.preview || image.url;
   const caption = document.createElement('span');
   caption.className = 'quick-comparison-caption';
   const date = document.createElement('time');
@@ -45,8 +74,7 @@ function makeCard({ day, image }, index) {
   return card;
 }
 
-function genieFrames(anchor, panel) {
-  const { width, height } = panel.getBoundingClientRect();
+function genieFrames(anchor, { width, height }) {
   const scaleX = Math.min(.35, anchor.width / Math.max(1, width));
   const scaleY = Math.min(.2, anchor.height / Math.max(1, height));
   return [
@@ -69,7 +97,7 @@ function genieFrames(anchor, panel) {
   ];
 }
 
-export function mountQuickComparison(after, { loadArchive, getDays, getChoices }) {
+export function mountQuickComparison(after, { market, loadArchive, getDays, getChoices }) {
   const section = document.createElement('section');
   section.className = 'quick-comparison';
   section.innerHTML = `
@@ -119,6 +147,7 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
   const detailLabel = panel.querySelector('.quick-comparison-detail-label');
   const original = panel.querySelector('.quick-comparison-original');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const narrow = matchMedia('(max-width: 700px)');
   let forecast;
   let source;
   let loading;
@@ -149,7 +178,8 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
     detail.hidden = true;
     grid.hidden = !charts.length;
     const first = page * PAGE_SIZE;
-    grid.replaceChildren(...charts.slice(first, first + PAGE_SIZE).map((item, offset) => makeCard(item, first + offset)));
+    grid.replaceChildren(...charts.slice(first, first + PAGE_SIZE).map((item, offset) =>
+      makeCard(item, first + offset, narrow.matches && offset > 1)));
     grid.scrollTop = 0;
     updateNavigation();
     if (focusIndex !== null) grid.children[focusIndex - first]?.focus();
@@ -187,7 +217,7 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
     const days = getDays();
     const canMatch = Boolean(days?.length && forecast?.date);
     const matches = canMatch ? comparisonCandidates(days, forecast, getChoices(forecast.date)) : [];
-    const images = source ? dayScreenshots(source()) : null;
+    const images = source?.();
     const result = images ? matches.flatMap(day => images.has(day.date) ? [{ day, image: images.get(day.date) }] : []) : [];
     const message = !canMatch ? 'Waiting for the forecast and historical data.' :
       !matches.length ? 'No historical matches for the active forecast and selected outcomes.' :
@@ -195,7 +225,7 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
       result.length ? result.length.toLocaleString() + ' of ' + matches.length.toLocaleString() + ' matched days have screenshots.' :
       'No screenshots are available for these matched days.';
     if (coverage.textContent !== message) coverage.textContent = message;
-    const key = result.map(({ day, image }) => day.date + '|' + image.url).join('\n');
+    const key = result.map(({ day, image }) => day.date + '|' + (image.preview || image.url)).join('\n');
     if (key === signature) return;
     const selectedDate = charts[current]?.day.date;
     signature = key;
@@ -218,19 +248,25 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
     return !reduced.matches && !document.body.classList.contains('motion-paused');
   }
 
+  function prepareArchive() {
+    loading ??= fetchPreviewArchive(market)
+      .then(images => { source = () => images; })
+      .catch(async () => {
+        const archive = await loadArchive();
+        source = () => dayScreenshots(archive());
+      }).catch(() => { source = () => new Map(); }).finally(refresh);
+  }
+
   function openComparison() {
     if (panel.open) return;
     const anchor = toggle.getBoundingClientRect();
     panel.showModal();
     toggle.setAttribute('aria-expanded', 'true');
-    if (!loading) {
-      loading = Promise.resolve().then(loadArchive).then(readArchive => {
-        source = readArchive;
-      }).catch(() => { source = () => []; }).finally(refresh);
-    }
+    prepareArchive();
     render();
-    panel.style.transformOrigin = `${anchor.left + anchor.width / 2}px ${anchor.top + anchor.height / 2}px`;
-    frames = genieFrames(anchor, panel);
+    const bounds = panel.getBoundingClientRect();
+    panel.style.transformOrigin = `${anchor.left + anchor.width / 2 - bounds.left}px ${anchor.top + anchor.height / 2 - bounds.top}px`;
+    frames = genieFrames(anchor, bounds);
     if (motionEnabled()) animation = panel.animate(frames, MOTION);
   }
 
@@ -243,6 +279,7 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
     animation.onfinish = () => panel.close();
   }
 
+  toggle.addEventListener('pointerdown', prepareArchive, { passive: true });
   toggle.addEventListener('click', openComparison);
   close.addEventListener('click', closeComparison);
   panel.addEventListener('close', () => {

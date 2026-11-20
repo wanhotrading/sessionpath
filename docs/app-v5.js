@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=mist-comparison-20261119';
+import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=quick-archive-20261119';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=checkpoint-open-20261113';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -11,7 +11,7 @@ import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
 import {mountLiveBBoxCheck} from './bbox-live-check.mjs?v=automatic-bbox-20261118';
 import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
-import {mountScreenshotReview} from './screenshot-review.mjs?v=quick-comparison-20261119';
+import {mountScreenshotReview} from './screenshot-review.mjs?v=quick-archive-20261119';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace} from './workspace-v7.mjs?v=quick-comparison-20261119';
 import {mountReplayTools} from './replay-tools.mjs';
@@ -26,7 +26,12 @@ setupWorkspace({chartReader:false, comparison:false});mountInstrumentSelector();
 const windows={'1930-0500':[-270,300],'1930-0830':[-270,510]};
 const fields=['open1930','ud-units','window','asof','trading-date','price','avr','printed','range-high','range-low','range-position','prior-high','prior-low','location','up','down','behavior','tag-mode','sample-size','year'];
 const state={sessionChoices:{},sessionChoiceSources:{},sessionChoiceDate:null,sessionPathCutoff:null,box:null,pine:null,days:[],tags:[],timeline:[],galleryIndex:{},selected:new Set(),checkpoints:[],ready:false,library:false,query:null,matches:[],pool:[],summary:null,page:0,viewer:0,request:0,rowCache:new Map()};
-const screenshotReview = mountScreenshotReview(state);
+const screenshotReview = mountScreenshotReview(state, {
+ loadGallery: async () => {
+  state.galleryIndex = await loadAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020', {attempts:1});
+  renderGallery();
+ },
+});
 mountForecastContext();
 const bboxCheckPanel=document.createElement('section');
 bboxCheckPanel.id='bbox-return-details';
@@ -315,16 +320,6 @@ async function startResearch(){
   $('forecast').innerHTML=`<div class="panel empty"><p>${esc(error.message)}</p><button type="button" id="retry-research" class="quiet">Retry loading</button></div>`;
   $('retry-research').onclick=()=>location.reload();return;
  }
- // An optional download must never block the forecast.
- async function optionalAsset(file,apply,target){
-  try{apply(await loadAsset(file,{format:file.endsWith('.pine')?'text':'json'}));}
-  catch(error){
-   const note=document.createElement('p');note.className='compact-note';note.textContent=error.message+' ';
-   const retry=document.createElement('button');retry.type='button';retry.className='quiet';retry.textContent='Retry';
-   retry.onclick=()=>{note.remove();optionalAsset(file,apply,target);};note.append(retry);target.append(note);
-  }
- }
- void optionalAsset(dataPath('gallery-index.json')+'?v=public-captures-20261020',value=>{state.galleryIndex=value;renderGallery();$('sessions-section').dispatchEvent(new Event('sessionpath:comparison-filters'));},$('evidence'));
  for(const mount of [()=>mountReplayTools(state,applyReplaySnapshot),()=>mountDictionary(state),()=>mountValidation()]){
   await yieldToBrowser();try{Promise.resolve(mount()).catch(error=>console.warn('Optional tool unavailable:',error));}catch(error){console.warn('Optional tool unavailable:',error);}
  }

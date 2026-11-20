@@ -22,7 +22,7 @@ body.session-board-active {
   gap: 10px;
 }
 
-.session-board-active .topbar .site-brand-logo { width: 150px; height: 36px; }
+.session-board-active .topbar .site-brand-logo { width: 150px; height: 50px; }
 .session-board-active .watermark-feed { color: var(--sp-mist-ink); font-family: var(--sp-mist-font); font-weight: 400; }
 
 body.session-board-active #sessionpath-assistant {

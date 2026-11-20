@@ -7,7 +7,7 @@ const STORAGE = storageKey('sessionpath-screenshot-reviews-v1');
 const $ = id => document.getElementById(id);
 const labelStatus = status => ({ good: 'Good', redo: 'Needs redo', unreviewed: 'Unreviewed' }[status] || 'Unreviewed');
 
-export function mountScreenshotReview(research) {
+export function mountScreenshotReview(research, { loadGallery = () => {} } = {}) {
   const card = document.createElement('article');
   card.className = 'workflow-tool-card';
   card.innerHTML = `<h3>Screenshot review</h3><p>Review archive charts or a screenshot-link column from Google Sheets.</p><button id="open-screenshot-review" class="quiet" type="button">Open screenshot review</button>`;
@@ -71,6 +71,12 @@ export function mountScreenshotReview(research) {
   }
   function updateVerdict() {
     const status = record()?.status || 'unreviewed'; $('review-verdict-status').textContent = labelStatus(status); $('review-verdict-status').dataset.status = status;
+  }
+  let legacyPromise;
+  async function ensureArchive() {
+    legacyPromise ??= Promise.resolve().then(loadGallery).catch(() => { legacyPromise = undefined; });
+    await Promise.all([legacyPromise, ensurePublicArchive()]);
+    return archiveItems;
   }
   function archiveItems() {
     const legacy = (research.days || []).flatMap(day => { const asset = research.galleryIndex?.[day.index]; return asset?.src ? [{ id: 'archive:' + day.index + ':' + (asset.sha256 || asset.src), name: asset.sourceFile || day.date + '_' + day.contract + '.png', date: day.date, contract: day.contract, src: asset.src, url: new URL(asset.src, document.baseURI).href, view: asset.view || 'overview', width: asset.width, height: asset.height }] : []; });
@@ -269,7 +275,15 @@ export function mountScreenshotReview(research) {
     finally { if (version === sheetImportVersion) sheetBusy(false); }
   }
   function download(content, type, name) { const url = URL.createObjectURL(new Blob([content], { type })), a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
-  $('open-screenshot-review').onclick = () => { for(const open of document.querySelectorAll('dialog[open]'))if(open!==dialog)open.close();dialog.showModal(); refresh(); ensurePublicArchive(); if (research.query?.date) { const target = visible.findIndex(item => item.date === research.query.date); if (target >= 0) { index = target; renderCurrent(); } } if (!persistenceOK) message('Browser storage is unavailable. Export your review log to keep a backup.'); };
+  $('open-screenshot-review').onclick = () => { for(const open of document.querySelectorAll('dialog[open]'))if(open!==dialog)open.close();dialog.showModal(); refresh();
+    void ensureArchive().then(() => {
+      if (!dialog.open || $('review-source').value !== 'archive') return;
+      refresh(current()?.id);
+      if (research.query?.date) {
+        const target = visible.findIndex(item => item.date === research.query.date);
+        if (target >= 0) { index = target; renderCurrent(); }
+      }
+    }); if (!persistenceOK) message('Browser storage is unavailable. Export your review log to keep a backup.'); };
   $('tools-open-replay').onclick = () => { if ($('replay-tools')) { $('workspace-tools-dialog').close();$('replay-tools').click(); } };
   $('review-close').onclick = () => dialog.close(); dialog.addEventListener('close', () => { if (document.fullscreenElement === dialog) document.exitFullscreen().catch(() => {}); });
   $('review-prev').onclick = () => move(-1); $('review-next').onclick = () => move(1);
@@ -316,8 +330,5 @@ export function mountScreenshotReview(research) {
     stage.addEventListener('wheel', event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); stepZoom(event.deltaY < 0 ? 1 : -1); } }, { passive: false });
     for (const name of ['dragover', 'drop']) stage.addEventListener(name, event => { event.preventDefault(); if (name === 'drop') chooseFiles(event.dataTransfer.files); });
   }
-  return { loadArchive: async () => {
-    await ensurePublicArchive();
-    return archiveItems;
-  } };
+  return { loadArchive: ensureArchive };
 }

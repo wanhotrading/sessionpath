@@ -1,4 +1,4 @@
-import { mountQuickComparison } from './quick-comparison.mjs?v=mist-comparison-20261119';
+import { mountQuickComparison } from './quick-comparison.mjs?v=quick-archive-20261119';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
@@ -120,7 +120,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   const followupPanel = node('section', 'research-followup');
   followupPanel.id = 'research-followup';
   right.append(paths, followupPanel);
-  const quickComparison = mountQuickComparison(paths, comparison);
+  const quickComparison = mountQuickComparison(paths, { market, ...comparison });
   paths.addEventListener('sessionpath:comparison-filters', quickComparison.refresh);
   grid.append(...cards.map(card => card.panel), right);
   board.append(grid, actions);

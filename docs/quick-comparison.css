@@ -10,14 +10,14 @@ html:has(body.session-board-active #quick-comparison-results[open]) { overflow: 
 
 #quick-comparison-results {
   position: fixed;
-  inset: 0;
+  inset: 10dvh 10vw;
   display: none;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   box-sizing: border-box;
-  width: 100% !important;
+  width: 80vw !important;
   max-width: none !important;
-  height: 100dvh;
+  height: 80dvh;
   max-height: none !important;
   margin: 0;
   padding: max(8px, env(safe-area-inset-top, 0px))
@@ -25,16 +25,16 @@ html:has(body.session-board-active #quick-comparison-results[open]) { overflow: 
     max(8px, env(safe-area-inset-bottom, 0px))
     max(10px, env(safe-area-inset-left, 0px));
   overflow: hidden;
-  border: 0 !important;
-  border-radius: 0 !important;
+  border: 1px solid #484160 !important;
+  border-radius: 16px !important;
   background: #0b1020 !important;
   backdrop-filter: none;
   color: #eee8fa !important;
-  box-shadow: none;
+  box-shadow: 0 24px 75px #05061197;
 }
 
 #quick-comparison-results[open] { display: grid; }
-#quick-comparison-results::backdrop { background: rgb(8 11 22 / 18%); backdrop-filter: none; }
+#quick-comparison-results::backdrop { background: rgb(8 11 22 / 46%); backdrop-filter: none; }
 
 .quick-comparison-toolbar {
   display: grid;
@@ -128,7 +128,9 @@ html:has(body.session-board-active #quick-comparison-results[open]) { overflow: 
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px 10px;
   }
-  .quick-comparison-navigation { grid-column: 1 / -1; grid-row: 2; justify-content: end; }
+  .quick-comparison-navigation { grid-column: 1 / -1; grid-row: 2; justify-content: end; gap: 4px; }
+  .quick-comparison-position { min-width: 7ch; white-space: nowrap; }
+  #quick-comparison-results .quick-comparison-back { padding-inline: 7px; font-size: .75rem; white-space: nowrap; }
   .quick-comparison-close { grid-column: 2; grid-row: 1; }
   .quick-comparison-grid {
     display: flex;
