@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101829">
   <title>Overnight breach timing · SessionPath</title>
-  <link rel="stylesheet" href="./timing.css?v=3">
-  <script type="module" src="./timing.mjs?v=2"></script>
+  <link rel="stylesheet" href="./timing.css?v=2">
+  <script type="module" src="./timing.mjs?v=conditional-20261119"></script>
+<link rel="stylesheet" href="./interactive-curve.css?v=conditional-20261119">
 </head>
 <body>
   <main class="shell">
@@ -45,12 +46,13 @@
       </div>
       <div class="fields" id="patterns"></div>
       <p class="muted filter-note" id="pattern-note" hidden>“Upper only” means price traded above the upper edge and stayed at or above the lower edge. An ongoing move outside can count in consecutive windows.</p>
-      <fieldset id="prior-path" class="prior-path-options"><legend>Prior breach and return path</legend>
+      <details id="prior-path">
+        <summary>Prior breach and return path</summary>
         <div class="fields secondary">
           <label>Edge to trace
             <select id="trace-edge"><option value="upper">Upper BBOX edge</option><option value="lower">Lower BBOX edge</option></select>
           </label>
-          <label>Return and fresh breach
+          <label>Path before the target window
             <select id="prior-path-filter">
               <option value="any">Any path</option><option value="no-return">Breached, no close back inside</option>
               <option value="returned-no-repeat">Closed back inside, no fresh breach</option>
@@ -62,7 +64,7 @@
           </label>
         </div>
         <p class="muted filter-note" id="path-cutoff"></p>
-      </fieldset>
+      </details>
       <div class="fields secondary" id="evening-fields" hidden>
         <label>18:00 opening position
           <select id="evening-open"><option value="any">Any opening position</option><option value="inside">Inside BBOX</option><option value="past-edge">Beyond the breached edge</option><option value="opposite">Beyond the opposite edge</option></select>
@@ -93,12 +95,8 @@
           </div>
         </div>
         <p id="observed-state" class="notice" role="status" hidden></p>
-        <svg id="graph" viewBox="0 0 720 226" role="img" aria-label="Chance of a future breach at each five-minute observation"></svg>
-        <div class="scrub">
-          <label for="asof">Observation time <output id="point-time"></output></label>
-          <input type="range" id="asof" aria-label="Observation time in New York">
-          <div id="checkpoints" class="checkpoints" aria-label="Jump to checkpoint"></div>
-        </div>
+        <svg id="graph"></svg>
+        <output id="point-time" class="muted"></output>
         <p id="curve-note" class="muted"></p>
         <label class="check confirm"><input type="checkbox" id="reached"> The target has already been breached</label>
         <p class="muted manual-note">Use your chart to confirm wick history. The clock advances the estimate every five minutes.</p>
@@ -123,8 +121,8 @@
               </select>
             </label>
           </div>
-          <p id="distance-result" class="distance-result"></p>
-          <p class="muted">This comparison uses the completed close at the selected observation, or the opening price at the start. The curve keeps its time-only cohort.</p>
+          
+          <p class="muted">These filters apply across the curve using the completed close at each historical observation and the decision open at the start.</p>
         </details>
       </div>
     </section>

@@ -1,0 +1,69 @@
+.overnight-timing-panel {
+  min-width: 0;
+  padding: 15px 16px;
+  color: #eaf0ff;
+  background: #111b30ed;
+  border: 1px solid #364564;
+  border-radius: 15px;
+}
+.overnight-timing-panel [hidden] { display: none !important; }
+.overnight-timing-panel .ot-heading,
+.overnight-timing-panel .ot-graph-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.overnight-timing-panel h2 { margin: 0; font-size: 18px; }
+.overnight-timing-panel .ot-heading p { margin: 3px 0 0; color: #c2cee7; font-size: 12px; }
+.overnight-timing-panel .ot-status { margin: 9px 0 0; color: #c6b5fb; font-size: 12px; }
+.overnight-timing-panel .ot-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1.1fr);
+  gap: 7px;
+  margin-top: 10px;
+}
+.overnight-timing-panel .ot-controls > * {
+  padding: 7px 9px;
+  margin: 0;
+  min-width: 0;
+  color: #becce6;
+  font-size: 11px;
+  border: 1px solid #36425e;
+  background: #0c1528a8;
+  border-radius: 9px;
+}
+.overnight-timing-panel .ot-controls select { width: 100%; min-width: 0; margin: 3px 0 0; }
+.overnight-timing-panel .ot-controls strong {
+  display: block;
+  margin: 2px 0;
+  color: #edf2ff;
+  font-size: clamp(14px, 2vw, 21px);
+  font-variant-numeric: tabular-nums;
+}
+.overnight-timing-panel .ot-controls .ot-estimate { color: #cbb8ff; }
+.overnight-timing-panel .ot-controls small { font-size: 11px; }
+.overnight-timing-panel .ot-context {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 9px 0 0;
+  list-style: none;
+}
+.overnight-timing-panel .ot-context li {
+  padding: 3px 6px;
+  font-size: 11px;
+  background: #263452aa;
+  border-radius: 5px;
+  color: #d6e3fa;
+}
+.overnight-timing-panel .ot-path,
+.overnight-timing-panel .ot-note,
+.overnight-timing-panel .ot-graph-foot { margin: 7px 0 0; font-size: 12px; color: #bbc9e0; }
+.overnight-timing-panel .ot-graph-foot output { color: #ffd399; font-variant-numeric: tabular-nums; }
+@media (max-width: 460px) {
+  .overnight-timing-panel .ot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .overnight-timing-panel .ot-controls label { grid-column: 1 / -1; }
+}

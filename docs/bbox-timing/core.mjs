@@ -45,6 +45,22 @@ export function validateStudy(data, market) {
   return data;
 }
 
+const archives = new Map();
+export function loadTimingArchive(market) {
+  if (!['CL','NQ','ES'].includes(market)) return Promise.reject(Error('This market has no overnight timing study.'));
+  if (!archives.has(market)) {
+    const request = (async () => {
+      if (typeof DecompressionStream !== 'function') throw Error('Use a current browser to load the overnight archive.');
+      const response = await fetch(new URL('./'+market.toLowerCase()+'-v2.bin',import.meta.url),{signal:AbortSignal.timeout(15000)});
+      if (!response.ok || !response.body) throw Error('The overnight archive is unavailable.');
+      const decoded = new Response(response.body.pipeThrough(new DecompressionStream('gzip')));
+      return validateStudy(await decoded.json(),market);
+    })().catch(error=>{ archives.delete(market);throw error; });
+    archives.set(market,request);
+  }
+  return archives.get(market);
+}
+
 function matches(history, pattern) {
   if (pattern==='any') return true;
   if (pattern==='breach') return history!==0;
@@ -132,9 +148,9 @@ export function fromAnchor(scenario) {
   return estimate(scenario.paths.filter(path=>path.hit>=0&&path.hit<=scenario.end).length,scenario.paths.length);
 }
 
-export function curve(scenario) {
+export function curve(scenario, filters) {
   return Array.from({length:scenario.end-scenario.start+1},(_,i)=>{
     const step=scenario.start+i;
-    return {step,...remaining(scenario,step)};
+    return {step,...remaining(scenario,step,filters)};
   });
 }

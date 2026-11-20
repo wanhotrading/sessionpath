@@ -105,7 +105,7 @@ function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   return result;
 }
 export function normalizePacket(input,{now=Date.now()}={}){
-  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing']);
+  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing','research_bars']);
   if(input.schema!==PERSONAL_SCHEMA||!Object.hasOwn(PERSONAL_MARKETS,input.market)||input.source_symbol!==input.market+'1!'||input.timeframe!=='5'||input.timezone!=='America/New_York'||input.confirmed!==true||input.feed_type!=='continuous_front_contract'||input.backadjustment!=='off'||input.avr_profile!==PERSONAL_AVR_PROFILE)bad('INVALID_FEED');
   const observedMs=instant(input.observed_at),sentMs=instant(input.sent_at);
   if(observedMs%300000||observedMs>now+5000||now-observedMs>180000||sentMs<observedMs||sentMs>now+30000||now-sentMs>180000||sentMs-observedMs>180000)bad('STALE_TRANSPORT');
@@ -134,5 +134,21 @@ export function normalizePacket(input,{now=Date.now()}={}){
     if(previousHistory&&!bboxSequenceMatches(previousHistory,snapshot.bbox_history))delete snapshot.bbox_history;
     else previousHistory=snapshot.bbox_history;
   }
-  return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:price(input.last_price,PERSONAL_MARKETS[input.market]),...(decisionOpen?{checkpoint_timing:DECISION_OPEN_TIMING}:{})};
+  const tick=PERSONAL_MARKETS[input.market],lastPrice=price(input.last_price,tick);
+  const researchBars=normalizeResearchBars(input.research_bars,{date:input.session_date,observedMs,tick,lastPrice});
+  return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:lastPrice,...(decisionOpen?{checkpoint_timing:DECISION_OPEN_TIMING}:{}),...(researchBars?{research_bars:researchBars}:{})};
+}
+
+function normalizeResearchBars(values,{date,observedMs,tick,lastPrice}){
+  if(!Array.isArray(values)||values.length===0||values.length>468||values.length%3)return null;
+  const start=nyEpoch(date,'03:00'),end=nyEpoch(date,'16:00');
+  const expected=(Math.min(observedMs,end)-start)/300000;
+  if(expected!==values.length/3)return null;
+  for(let i=0;i<values.length;i+=3){
+    const [high,low,close]=[values[i],values[i+1],values[i+2]];
+    if(high===null&&low===null&&close===null)continue;
+    if(![high,low,close].every(x=>Number.isSafeInteger(x)&&x>0&&x*tick<=1e9)||high<close||close<low)return null;
+  }
+  if(observedMs<=end&&Math.abs(values.at(-1)*tick-lastPrice)>1e-7)return null;
+  return values;
 }

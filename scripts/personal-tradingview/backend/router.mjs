@@ -1,4 +1,5 @@
-import {FeedError,normalizePacket,PERSONAL_MARKETS,targetSessionDate} from './validation.mjs';
+import {FeedError,normalizePacket,PERSONAL_MARKETS,targetSessionDate,validDate,nyDate,nyEpoch} from './validation.mjs';
+import { summarizeOvernightTiming } from './overnight-timing.mjs';
 export const PERSONAL_ORIGIN='https://wanhotrading.github.io';
 export const MAX_BODY_BYTES=16384;
 const encoder=new TextEncoder();
@@ -10,7 +11,7 @@ function hasValidHistoryQuery(url,current){
 }
 async function readHistory(market,date,env){
   const saved=await env.PERSONAL_FEEDS.getByName(market).getHistory(date);
-  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:saved?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(saved)};
+  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:publicPacket(saved?.packet),source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(saved)};
 }
 // A source may revise historical candles when its alert runtime recalculates.
 // Reads retain the first verified version of EACH decision checkpoint. A later
@@ -22,7 +23,50 @@ function checkpointMetadata(entry){
 async function readSnapshot(market,env,current){
   const latest=await env.PERSONAL_FEEDS.getByName(market).getLatest();
   const stale=latest&&(current-latest.observedMs>480000||current-Date.parse(latest.receivedAt)>480000||latest.packet.session_date!==targetSessionDate(current));
-  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:latest?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(latest)};
+  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:publicPacket(latest?.packet),source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(latest)};
+}
+function publicPacket(packet){
+  if(!packet)return null;
+  const {research_bars,...published}=packet;
+  const overnight = summarizeOvernightTiming(packet);
+  return {...published,
+    ...(research_bars?{research_through:180+5*(research_bars.length/3)}:{}),
+    ...(overnight?{overnight_timing:overnight}:{}),
+  };
+}
+const followupWindows={'03:00':[180,300],'05:00':[300,510],'08:30':[510,960]};
+function followupQuery(url,now){
+  const query=url.searchParams;
+  if(query.size!==5||['market','date','cutoff','upper','lower'].some(k=>query.getAll(k).length!==1))return null;
+  const market=query.get('market'),date=query.get('date'),cutoff=query.get('cutoff');
+  if(!Object.hasOwn(PERSONAL_MARKETS,market)||!validDate(date)||date>nyDate(now)||!Object.hasOwn(followupWindows,cutoff))return null;
+  const read=name=>/^\d{1,10}(?:\.\d{1,8})?$/.test(query.get(name))?Number(query.get(name)):NaN;
+  const upper=read('upper'),lower=read('lower');
+  if(!(upper>lower&&lower>0&&upper<=1e9))return null;
+  return {market,date,cutoff,upper,lower};
+}
+export function verifiedFirstBreach(packet,{market,date,cutoff,upper,lower}){
+  const range=followupWindows[cutoff];
+  if(!packet||packet.session_date!==date||packet.market!==market||!range||!packet.snapshots.some(s=>s.cutoff===cutoff))return {status:'unavailable'};
+  const [start,end]=range,bars=packet.research_bars,tick=PERSONAL_MARKETS[market];
+  if(!bars?.length)return {status:'unavailable'};
+  const through=Math.min(end,180+5*(bars.length/3));
+  if(through<=start)return {status:'waiting'};
+  const epsilon=1e-8,width=upper-lower;
+  for(let minute=start+5;minute<=through;minute+=5){
+    const offset=3*((minute-180)/5-1);
+    if(bars[offset]===null)return {status:'gap'};
+    const high=bars[offset]*tick,low=bars[offset+1]*tick,close=bars[offset+2]*tick;
+    const up=high>upper+epsilon,down=low<lower-epsilon;
+    if(up&&down)return {status:'ambiguous',minute};
+    if(!up&&!down)continue;
+    const outside=close>upper+epsilon||close<lower-epsilon;
+    const reaches=factor=>up?high>=lower+factor*width-epsilon:low<=upper-factor*width+epsilon;
+    return {status:'breach',minute,observation:{side:up?'U':'D',signalType:outside?'CLOSE_OUTSIDE':'WICK_ONLY',
+      strengthPercent:outside?Math.max(0,100*(up?close-upper:lower-close)/width):null,
+      alreadyReached:{reach120:reaches(1.2),reach130:reaches(1.3)}}};
+  }
+  return {status:'unbreached',minute:through};
 }
 export async function sha256(value,cryptoImpl=globalThis.crypto){return Array.from(new Uint8Array(await cryptoImpl.subtle.digest('SHA-256',encoder.encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function authenticateToken(token,expectedHash,cryptoImpl=globalThis.crypto){
@@ -83,6 +127,13 @@ export function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto
         if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
         if(!hasValidHistoryQuery(url,now()))throw new FeedError('INVALID_QUERY');
         return reply(await readHistory(url.searchParams.get('market'),url.searchParams.get('date'),env));
+      }
+      if(url.pathname==='/api/followup'&&request.method==='GET'){
+        if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
+        const query=followupQuery(url,now());
+        if(!query)throw new FeedError('INVALID_QUERY');
+        const saved=await env.PERSONAL_FEEDS.getByName(query.market).getHistory(query.date);
+        return reply({date:query.date,market:query.market,cutoff:query.cutoff,...verifiedFirstBreach(saved?.packet,query)});
       }
       if(url.pathname==='/api/snapshots'&&request.method==='GET'){
         if(!hasValidMarketQuery(url))throw new FeedError('INVALID_QUERY');

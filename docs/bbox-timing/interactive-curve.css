@@ -1,0 +1,33 @@
+.overnight-curve {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-block-start: 7px;
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.overnight-curve text { fill: #b6c4dd; font: 14px system-ui, sans-serif; }
+.overnight-curve .ot-grid { stroke: #38445e; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.overnight-curve .ot-trend {
+  fill: none;
+  stroke: #bba8ff;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.overnight-curve .ot-thin { stroke-dasharray: 3 5; stroke-width: 1.6; }
+.overnight-curve .ot-marker, .overnight-curve .ot-dot {
+  transition: transform 80ms linear;
+  pointer-events: none;
+}
+.overnight-curve .ot-guide { stroke: #dfbf99; stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.overnight-curve .ot-dot { fill: #ffd399; stroke: #1a2238; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.overnight-curve .no-sample .ot-dot { fill: #172137; stroke: #b5a5e0; }
+.overnight-curve:focus-visible { outline: 2px solid #baa8ef; outline-offset: 3px; border-radius: 6px; }
+.overnight-curve.dimmed { opacity: .6; }
+@media (max-width: 560px) { .overnight-curve text { font-size: 17px; } }
+@media (prefers-reduced-motion: reduce) {
+  .overnight-curve .ot-marker, .overnight-curve .ot-dot { transition: none; }
+}
+.motion-paused .overnight-curve .ot-marker, .motion-paused .overnight-curve .ot-dot { transition: none; }

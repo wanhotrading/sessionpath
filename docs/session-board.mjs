@@ -122,6 +122,19 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   right.append(paths, followupPanel);
   const quickComparison = mountQuickComparison(paths, { market, ...comparison });
   paths.addEventListener('sessionpath:comparison-filters', quickComparison.refresh);
+  if (['CL','NQ','ES'].includes(market)) {
+    const timing = node('section');
+    followupPanel.before(timing);
+    void import('./bbox-timing/live-panel.mjs?v=conditional-20261119').then(({mountLiveTimingPanel})=>{
+      const tool=mountLiveTimingPanel(timing,{market,replay:()=>$('replay-toggle').checked});
+      if(livePacket)tool.receive(livePacket);
+    }).catch(()=>{
+      timing.className='overnight-timing-panel';
+      const link=node('a','quiet','Open overnight breach timing');
+      link.href=new URL('./bbox-timing/?instrument='+market,import.meta.url).href;
+      timing.append(link);
+    });
+  }
   grid.append(...cards.map(card => card.panel), right);
   board.append(grid, actions);
   $('workspace').prepend(board);

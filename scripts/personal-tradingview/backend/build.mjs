@@ -1,6 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 const pieces=[];
-for(const file of ['validation.mjs','state.mjs','router.mjs','worker.mjs']){
+for(const file of ['validation.mjs','state.mjs','overnight-timing.mjs','router.mjs','worker.mjs']){
   let source=await readFile(new URL(file,import.meta.url),'utf8');
   source=source.replace(/^import .* from ['"]\.\/.*['"];\r?\n/gm,'');
   if(file!=='worker.mjs')source=source.replace(/^export /gm,'');

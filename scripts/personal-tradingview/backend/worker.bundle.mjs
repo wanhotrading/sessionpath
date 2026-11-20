@@ -106,7 +106,7 @@ function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   return result;
 }
 function normalizePacket(input,{now=Date.now()}={}){
-  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing']);
+  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing','research_bars']);
   if(input.schema!==PERSONAL_SCHEMA||!Object.hasOwn(PERSONAL_MARKETS,input.market)||input.source_symbol!==input.market+'1!'||input.timeframe!=='5'||input.timezone!=='America/New_York'||input.confirmed!==true||input.feed_type!=='continuous_front_contract'||input.backadjustment!=='off'||input.avr_profile!==PERSONAL_AVR_PROFILE)bad('INVALID_FEED');
   const observedMs=instant(input.observed_at),sentMs=instant(input.sent_at);
   if(observedMs%300000||observedMs>now+5000||now-observedMs>180000||sentMs<observedMs||sentMs>now+30000||now-sentMs>180000||sentMs-observedMs>180000)bad('STALE_TRANSPORT');
@@ -135,7 +135,23 @@ function normalizePacket(input,{now=Date.now()}={}){
     if(previousHistory&&!bboxSequenceMatches(previousHistory,snapshot.bbox_history))delete snapshot.bbox_history;
     else previousHistory=snapshot.bbox_history;
   }
-  return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:price(input.last_price,PERSONAL_MARKETS[input.market]),...(decisionOpen?{checkpoint_timing:DECISION_OPEN_TIMING}:{})};
+  const tick=PERSONAL_MARKETS[input.market],lastPrice=price(input.last_price,tick);
+  const researchBars=normalizeResearchBars(input.research_bars,{date:input.session_date,observedMs,tick,lastPrice});
+  return {schema:PERSONAL_SCHEMA,market:input.market,source_symbol:input.source_symbol,timeframe:'5',timezone:'America/New_York',confirmed:true,observed_at:new Date(observedMs).toISOString(),sent_at:new Date(sentMs).toISOString(),session_date:input.session_date,avr_profile:PERSONAL_AVR_PROFILE,feed_type:'continuous_front_contract',backadjustment:'off',snapshots,last_price:lastPrice,...(decisionOpen?{checkpoint_timing:DECISION_OPEN_TIMING}:{}),...(researchBars?{research_bars:researchBars}:{})};
+}
+
+function normalizeResearchBars(values,{date,observedMs,tick,lastPrice}){
+  if(!Array.isArray(values)||values.length===0||values.length>468||values.length%3)return null;
+  const start=nyEpoch(date,'03:00'),end=nyEpoch(date,'16:00');
+  const expected=(Math.min(observedMs,end)-start)/300000;
+  if(expected!==values.length/3)return null;
+  for(let i=0;i<values.length;i+=3){
+    const [high,low,close]=[values[i],values[i+1],values[i+2]];
+    if(high===null&&low===null&&close===null)continue;
+    if(![high,low,close].every(x=>Number.isSafeInteger(x)&&x>0&&x*tick<=1e9)||high<close||close<low)return null;
+  }
+  if(observedMs<=end&&Math.abs(values.at(-1)*tick-lastPrice)>1e-7)return null;
+  return values;
 }
 
 // state.mjs
@@ -156,11 +172,15 @@ function addsHistoryAtSameObservation(current,incoming){
   return incoming.observedMs===current.observedMs&&incoming.packet.session_date===current.packet.session_date&&
     incoming.packet.snapshots.some(candidate=>canAddBboxHistory(current.packet.snapshots.find(s=>s.cutoff===candidate.cutoff),candidate));
 }
+function addsResearchAtSameObservation(current,incoming){
+  return incoming.observedMs===current.observedMs&&incoming.packet.session_date===current.packet.session_date&&
+    incoming.packet.research_bars&&!current.packet.research_bars;
+}
 
 function decideFeedUpdate(current,incoming){
   // A historical-feed correction must not stop a fresh transport heartbeat.
   // Snapshot immutability is enforced by retaining first-accepted values below.
-  if(current&&incoming.observedMs<=current.observedMs&&!addsBoundaryAtSameObservation(current,incoming)&&!addsHistoryAtSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
+  if(current&&incoming.observedMs<=current.observedMs&&!addsBoundaryAtSameObservation(current,incoming)&&!addsHistoryAtSameObservation(current,incoming)&&!addsResearchAtSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
   if(current&&incoming.packet.session_date<current.packet.session_date)return {status:'ignored'};
   return {status:'accepted'};
 }
@@ -204,10 +224,23 @@ async function reconcileFrozenCheckpoints(current,incoming){
   // Keep transport timestamps and the reported quote when an authenticated
   // boundary or matching history enriches the same observation.
   const addingBoundary = current && addsBoundaryAtSameObservation(current,incoming);
-  const sameObservation = current && (addingBoundary || addsHistoryAtSameObservation(current,incoming));
+  const sameObservation = current && (addingBoundary || addsHistoryAtSameObservation(current,incoming) || addsResearchAtSameObservation(current,incoming));
   const packet = sameObservation
     ? {...current.packet,...(addingBoundary?{checkpoint_timing:DECISION_OPEN_TIMING}:{}),snapshots}
     : {...incoming.packet,snapshots};
+  const researchBars=(sameDay?current.packet.research_bars:null)||[];
+  const suppliedBars=incoming.packet.research_bars||[];
+  const length=Math.max(researchBars.length,suppliedBars.length);
+  // A later delivery can fill gaps or extend coverage. Freeze the first H/L/C
+  // to prevent a provider correction changing an already displayed first breach.
+  if(length)packet.research_bars=Array.from({length},(_,i)=>researchBars[i]??suppliedBars[i]??null);
+  const endpointCloses={...(sameDay?current.packet.endpoint_closes:null)};
+  for(const cutoff of ['05:00','08:30']){
+    const snapshot=snapshots.find(s=>s.cutoff===cutoff);
+    if(nyEpoch(incoming.packet.session_date,cutoff)===incoming.observedMs)endpointCloses[cutoff]??=incoming.packet.last_price;
+    if(cutoff==='08:30'&&snapshot?.london_complete)endpointCloses[cutoff]??=snapshot.london_close;
+  }
+  if(Object.keys(endpointCloses).length)packet.endpoint_closes=endpointCloses;
   const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields,...(historyAddedCutoffs.length?{historyAddedCutoffs}:{})};
   // The composite can contain first-accepted checkpoints from different source
   // revisions. Its own hash must describe the stored packet, not a rejected
@@ -232,7 +265,9 @@ class PersonalFeedStore {
   async archive(tx,entry){
     if(!entry?.packet.snapshots.length)return;
     const date=entry.packet.session_date,key='history:'+date,prior=await tx.get(key);
-    if(prior&&JSON.stringify(prior.snapshotHashes)===JSON.stringify(entry.snapshotHashes))return;
+    if(prior&&JSON.stringify(prior.snapshotHashes)===JSON.stringify(entry.snapshotHashes)&&
+       JSON.stringify(prior.packet.endpoint_closes)===JSON.stringify(entry.packet.endpoint_closes)&&
+       JSON.stringify(prior.packet.research_bars)===JSON.stringify(entry.packet.research_bars))return;
     if(prior&&decideFeedUpdate(prior,entry).status!=='accepted')return;
     await tx.put(key,entry);
     if(prior)return;
@@ -254,6 +289,93 @@ class PersonalFeedStore {
 }
 
 
+// overnight-timing.mjs
+
+const OVERNIGHT_STEP_MS = 300_000;
+const OVERNIGHT_EPS = 1e-8;
+const overnightMask = (high, low, upper, lower) =>
+  Number(high > upper + OVERNIGHT_EPS) + 2 * Number(low < lower - OVERNIGHT_EPS);
+const overnightSide = (price, upper, lower) => overnightMask(price, price, upper, lower);
+const overnightFlag = value => Number.isInteger(value) && value >= 0 && value <= 3 ? value : null;
+
+// The current sender supplies contiguous H/L/C from 03:00 when coverage is complete.
+// Its 19:30–03:00 checkpoint supplies edge flags, but no sequence of within-window closes.
+function summarizeOvernightTiming(packet) {
+  if (!packet || !['CL', 'NQ', 'ES'].includes(packet.market) || !packet.snapshots.length) return null;
+  const at03 = nyEpoch(packet.session_date, '03:00');
+  const stamp = Date.parse(packet.observed_at);
+  const elapsed = (stamp - at03) / OVERNIGHT_STEP_MS;
+  if (!Number.isInteger(elapsed) || elapsed < 0) return null;
+  const step = Math.min(174, 108 + elapsed);
+  const window = step < 132 ? 2 : 3;
+  const cutoff = window === 2 ? '03:00' : '05:00';
+  const start = window === 2 ? 108 : 132;
+  const opening = packet.snapshots.find(snapshot => snapshot.cutoff === cutoff);
+  const { prior_high: upper, prior_low: lower, prior_ny_date: priorDate } = opening || packet.snapshots[0];
+  const matching = packet.snapshots.filter(s => s.prior_high === upper && s.prior_low === lower && s.prior_ny_date === priorDate);
+  const tick = PERSONAL_MARKETS[packet.market];
+  const bars = packet.research_bars || [];
+  function barAt(closeStep) {
+    const index = (closeStep - 109) * 3;
+    if (!Number.isFinite(bars[index])) return null;
+    return bars.slice(index, index + 3).map(value => value * tick);
+  }
+  const phases = matching.find(s => s.bbox_history)?.bbox_history.phases;
+  const asia = overnightFlag(phases?.[0]);
+  const gap = overnightFlag(phases?.[1]);
+  const night = asia === null || gap === null ? null : asia | gap;
+  const early = matching.filter(s => s.cutoff !== '03:00')
+    .map(s => overnightFlag(s.bbox_history?.phases?.[2])).find(v => v !== null);
+
+  function scan(from, through) {
+    let mask = 0;
+    let complete = true;
+    for (let close = from + 1; close <= through; close++) {
+      const bar = barAt(close);
+      if (!bar) { complete = false; continue; }
+      mask |= overnightMask(bar[0], bar[1], upper, lower);
+    }
+    return { mask, complete };
+  }
+
+  function traces(through) {
+    return [1, 2].map(edge => {
+      let breached = Boolean(night & edge);
+      let returnConfirmed = false;
+      let armed = false;
+      let freshWindow = null;
+      for (let close = 109; close <= through; close++) {
+        const bar = barAt(close);
+        if (!bar) { armed = false; continue; }
+        const wick = Boolean(overnightMask(bar[0], bar[1], upper, lower) & edge);
+        // Test the wick first. A close back inside on this bar cannot arm
+        // the same bar as a fresh attempt, regardless of its intrabar path.
+        if (wick && armed) { freshWindow ??= close <= 132 ? 2 : 3; armed = false; }
+        breached ||= wick;
+        if (breached && overnightSide(bar[2], upper, lower) === 0) {
+          returnConfirmed = true;
+          armed = true;
+        }
+      }
+      return { returnConfirmed, freshWindow };
+    });
+  }
+
+  const active = scan(start, step);
+  const earlyBars = window === 3 && early === undefined ? scan(108, 132) : null;
+  const openingSide = opening ? overnightSide(opening.reference_price, upper, lower) : null;
+  const price = step === start ? opening?.reference_price :
+    elapsed <= 66 ? packet.last_price : packet.endpoint_closes?.['08:30'] ?? barAt(174)?.[2];
+  const position = Number.isFinite(price) ? overnightSide(price, upper, lower) : null;
+  return {
+    version: 1, window, step, price: price ?? null, position, openingSide, lower, upper,
+    past: [null, night, ...(window === 3 ? [early ?? (earlyBars?.complete ? earlyBars.mask : null)] : [])],
+    activeMask: active.mask | (openingSide ?? 0) | (position ?? 0),
+    activeComplete: openingSide !== null && active.complete,
+    priorPaths: traces(start), observedPaths: traces(step),
+  };
+}
+
 // router.mjs
 const PERSONAL_ORIGIN='https://wanhotrading.github.io';
 const MAX_BODY_BYTES=16384;
@@ -266,7 +388,7 @@ function hasValidHistoryQuery(url,current){
 }
 async function readHistory(market,date,env){
   const saved=await env.PERSONAL_FEEDS.getByName(market).getHistory(date);
-  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:saved?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(saved)};
+  return {schema:'sessionpath.tradingview.history.v1',status:saved?.packet.snapshots.length?'ready':'unavailable',date,receivedAt:saved?.receivedAt??null,packet:publicPacket(saved?.packet),source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(saved)};
 }
 // A source may revise historical candles when its alert runtime recalculates.
 // Reads retain the first verified version of EACH decision checkpoint. A later
@@ -278,7 +400,50 @@ function checkpointMetadata(entry){
 async function readSnapshot(market,env,current){
   const latest=await env.PERSONAL_FEEDS.getByName(market).getLatest();
   const stale=latest&&(current-latest.observedMs>480000||current-Date.parse(latest.receivedAt)>480000||latest.packet.session_date!==targetSessionDate(current));
-  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:latest?.packet??null,source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(latest)};
+  return {schema:'sessionpath.tradingview.read.v1',status:stale?'stale':latest?.packet.snapshots.length?'ready':'waiting',receivedAt:latest?.receivedAt??null,packet:publicPacket(latest?.packet),source:'TradingView personal Pine alert',validationBasis:'authenticated_pine_attestation',...checkpointMetadata(latest)};
+}
+function publicPacket(packet){
+  if(!packet)return null;
+  const {research_bars,...published}=packet;
+  const overnight = summarizeOvernightTiming(packet);
+  return {...published,
+    ...(research_bars?{research_through:180+5*(research_bars.length/3)}:{}),
+    ...(overnight?{overnight_timing:overnight}:{}),
+  };
+}
+const followupWindows={'03:00':[180,300],'05:00':[300,510],'08:30':[510,960]};
+function followupQuery(url,now){
+  const query=url.searchParams;
+  if(query.size!==5||['market','date','cutoff','upper','lower'].some(k=>query.getAll(k).length!==1))return null;
+  const market=query.get('market'),date=query.get('date'),cutoff=query.get('cutoff');
+  if(!Object.hasOwn(PERSONAL_MARKETS,market)||!validDate(date)||date>nyDate(now)||!Object.hasOwn(followupWindows,cutoff))return null;
+  const read=name=>/^\d{1,10}(?:\.\d{1,8})?$/.test(query.get(name))?Number(query.get(name)):NaN;
+  const upper=read('upper'),lower=read('lower');
+  if(!(upper>lower&&lower>0&&upper<=1e9))return null;
+  return {market,date,cutoff,upper,lower};
+}
+function verifiedFirstBreach(packet,{market,date,cutoff,upper,lower}){
+  const range=followupWindows[cutoff];
+  if(!packet||packet.session_date!==date||packet.market!==market||!range||!packet.snapshots.some(s=>s.cutoff===cutoff))return {status:'unavailable'};
+  const [start,end]=range,bars=packet.research_bars,tick=PERSONAL_MARKETS[market];
+  if(!bars?.length)return {status:'unavailable'};
+  const through=Math.min(end,180+5*(bars.length/3));
+  if(through<=start)return {status:'waiting'};
+  const epsilon=1e-8,width=upper-lower;
+  for(let minute=start+5;minute<=through;minute+=5){
+    const offset=3*((minute-180)/5-1);
+    if(bars[offset]===null)return {status:'gap'};
+    const high=bars[offset]*tick,low=bars[offset+1]*tick,close=bars[offset+2]*tick;
+    const up=high>upper+epsilon,down=low<lower-epsilon;
+    if(up&&down)return {status:'ambiguous',minute};
+    if(!up&&!down)continue;
+    const outside=close>upper+epsilon||close<lower-epsilon;
+    const reaches=factor=>up?high>=lower+factor*width-epsilon:low<=upper-factor*width+epsilon;
+    return {status:'breach',minute,observation:{side:up?'U':'D',signalType:outside?'CLOSE_OUTSIDE':'WICK_ONLY',
+      strengthPercent:outside?Math.max(0,100*(up?close-upper:lower-close)/width):null,
+      alreadyReached:{reach120:reaches(1.2),reach130:reaches(1.3)}}};
+  }
+  return {status:'unbreached',minute:through};
 }
 async function sha256(value,cryptoImpl=globalThis.crypto){return Array.from(new Uint8Array(await cryptoImpl.subtle.digest('SHA-256',encoder.encode(value)))).map(b=>b.toString(16).padStart(2,'0')).join('');}
 async function authenticateToken(token,expectedHash,cryptoImpl=globalThis.crypto){
@@ -339,6 +504,13 @@ function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto}={}){
         if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
         if(!hasValidHistoryQuery(url,now()))throw new FeedError('INVALID_QUERY');
         return reply(await readHistory(url.searchParams.get('market'),url.searchParams.get('date'),env));
+      }
+      if(url.pathname==='/api/followup'&&request.method==='GET'){
+        if(env.PUBLIC_AUTOFILL_ENABLED!=='true')throw new FeedError('NOT_FOUND',404);
+        const query=followupQuery(url,now());
+        if(!query)throw new FeedError('INVALID_QUERY');
+        const saved=await env.PERSONAL_FEEDS.getByName(query.market).getHistory(query.date);
+        return reply({date:query.date,market:query.market,cutoff:query.cutoff,...verifiedFirstBreach(saved?.packet,query)});
       }
       if(url.pathname==='/api/snapshots'&&request.method==='GET'){
         if(!hasValidMarketQuery(url))throw new FeedError('INVALID_QUERY');

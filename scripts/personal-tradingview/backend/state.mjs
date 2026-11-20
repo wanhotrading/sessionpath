@@ -1,4 +1,4 @@
-import {DECISION_OPEN_TIMING} from './validation.mjs';
+import {DECISION_OPEN_TIMING,nyEpoch} from './validation.mjs';
 
 function addsBoundaryAtSameObservation(current,incoming){
   if (incoming.observedMs !== current.observedMs || incoming.packet.session_date !== current.packet.session_date || incoming.packet.checkpoint_timing !== DECISION_OPEN_TIMING) return false;
@@ -16,11 +16,15 @@ function addsHistoryAtSameObservation(current,incoming){
   return incoming.observedMs===current.observedMs&&incoming.packet.session_date===current.packet.session_date&&
     incoming.packet.snapshots.some(candidate=>canAddBboxHistory(current.packet.snapshots.find(s=>s.cutoff===candidate.cutoff),candidate));
 }
+function addsResearchAtSameObservation(current,incoming){
+  return incoming.observedMs===current.observedMs&&incoming.packet.session_date===current.packet.session_date&&
+    incoming.packet.research_bars&&!current.packet.research_bars;
+}
 
 export function decideFeedUpdate(current,incoming){
   // A historical-feed correction must not stop a fresh transport heartbeat.
   // Snapshot immutability is enforced by retaining first-accepted values below.
-  if(current&&incoming.observedMs<=current.observedMs&&!addsBoundaryAtSameObservation(current,incoming)&&!addsHistoryAtSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
+  if(current&&incoming.observedMs<=current.observedMs&&!addsBoundaryAtSameObservation(current,incoming)&&!addsHistoryAtSameObservation(current,incoming)&&!addsResearchAtSameObservation(current,incoming))return {status:incoming.packetHash===current.packetHash||incoming.packetHash===current.reconciliation?.sourcePacketHash?'duplicate':'ignored'};
   if(current&&incoming.packet.session_date<current.packet.session_date)return {status:'ignored'};
   return {status:'accepted'};
 }
@@ -64,10 +68,23 @@ export async function reconcileFrozenCheckpoints(current,incoming){
   // Keep transport timestamps and the reported quote when an authenticated
   // boundary or matching history enriches the same observation.
   const addingBoundary = current && addsBoundaryAtSameObservation(current,incoming);
-  const sameObservation = current && (addingBoundary || addsHistoryAtSameObservation(current,incoming));
+  const sameObservation = current && (addingBoundary || addsHistoryAtSameObservation(current,incoming) || addsResearchAtSameObservation(current,incoming));
   const packet = sameObservation
     ? {...current.packet,...(addingBoundary?{checkpoint_timing:DECISION_OPEN_TIMING}:{}),snapshots}
     : {...incoming.packet,snapshots};
+  const researchBars=(sameDay?current.packet.research_bars:null)||[];
+  const suppliedBars=incoming.packet.research_bars||[];
+  const length=Math.max(researchBars.length,suppliedBars.length);
+  // A later delivery can fill gaps or extend coverage. Freeze the first H/L/C
+  // to prevent a provider correction changing an already displayed first breach.
+  if(length)packet.research_bars=Array.from({length},(_,i)=>researchBars[i]??suppliedBars[i]??null);
+  const endpointCloses={...(sameDay?current.packet.endpoint_closes:null)};
+  for(const cutoff of ['05:00','08:30']){
+    const snapshot=snapshots.find(s=>s.cutoff===cutoff);
+    if(nyEpoch(incoming.packet.session_date,cutoff)===incoming.observedMs)endpointCloses[cutoff]??=incoming.packet.last_price;
+    if(cutoff==='08:30'&&snapshot?.london_complete)endpointCloses[cutoff]??=snapshot.london_close;
+  }
+  if(Object.keys(endpointCloses).length)packet.endpoint_closes=endpointCloses;
   const reconciliation={schema:'sessionpath.tradingview.reconciliation.v1',policy:'first-accepted-per-checkpoint',status:revisedCutoffs.length||missingCutoffs.length?'preserved_frozen':'aligned',sourceObservedAt:incoming.packet.observed_at,sourcePacketHash:incoming.packetHash,retainedCutoffs,revisedCutoffs,missingCutoffs,addedCutoffs,changedFields,...(historyAddedCutoffs.length?{historyAddedCutoffs}:{})};
   // The composite can contain first-accepted checkpoints from different source
   // revisions. Its own hash must describe the stored packet, not a rejected
@@ -92,7 +109,9 @@ export class PersonalFeedStore {
   async archive(tx,entry){
     if(!entry?.packet.snapshots.length)return;
     const date=entry.packet.session_date,key='history:'+date,prior=await tx.get(key);
-    if(prior&&JSON.stringify(prior.snapshotHashes)===JSON.stringify(entry.snapshotHashes))return;
+    if(prior&&JSON.stringify(prior.snapshotHashes)===JSON.stringify(entry.snapshotHashes)&&
+       JSON.stringify(prior.packet.endpoint_closes)===JSON.stringify(entry.packet.endpoint_closes)&&
+       JSON.stringify(prior.packet.research_bars)===JSON.stringify(entry.packet.research_bars))return;
     if(prior&&decideFeedUpdate(prior,entry).status!=='accepted')return;
     await tx.put(key,entry);
     if(prior)return;
