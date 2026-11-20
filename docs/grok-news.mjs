@@ -1,7 +1,7 @@
 export const grokSource=Object.freeze({id:'grok',name:'Grok · X watch',kind:'grok',
   pollMs:60000,hosts:['x.com'],url:'https://sessionpath-grok-news.jjj-jason2345.workers.dev/feed'});
 
-const sourceState={needs_key:'Waiting for xAI key',awaiting_first_scan:'Waiting for first hourly scan',
+const sourceState={awaiting_bot:'Waiting for Grok Bot',awaiting_first_scan:'Waiting for first hourly scan',
   scan_error:'Last Grok scan failed',stale:'Grok scan overdue'};
 
 export function grokItems(payload,now,analyze) {
