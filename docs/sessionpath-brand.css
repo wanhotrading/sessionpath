@@ -5,6 +5,7 @@
   --sp-blue-light: #bed8ff;
   --sp-sunflower: #ffd35a;
   --sp-dock-height: 66px;
+  --sp-toast-space: min(29dvh, 225px);
 }
 
 body.session-board-active {
@@ -172,6 +173,17 @@ body.session-board-active #sessionpath-assistant {
 #news-alert-toast .news-alert-actions button:first-child { background: var(--sp-sunflower); color: var(--sp-midnight-deep); border-color: var(--sp-sunflower); font-weight: 750; }
 #news-alert-toast .news-alert-actions button:last-child { color: var(--sp-blue-light); border-color: #83b5ff5c; }
 #news-alert-toast :is(a, button):focus-visible { outline-color: var(--sp-sunflower); }
+
+/* Keep alerts readable while the chat close button remains reachable. */
+body:has(.sp-chat-viewport:is([data-state="opening"], [data-state="open"])) > #news-alert-toast:not([hidden]) {
+  inset-block: calc(48px + env(safe-area-inset-top, 0px)) auto;
+  max-height: var(--sp-toast-space);
+}
+
+body:has(> #news-alert-toast:not([hidden])) #sessionpath-assistant .sp-chat-panel {
+  max-height: calc(100dvh - var(--sp-dock-height) - var(--sp-toast-space) - 67px
+    - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
 
 #research-followup .research-stat strong { color: #f4f7ff; }
 #research-followup strong[data-rank="low"] { color: #c3a7ff; }
