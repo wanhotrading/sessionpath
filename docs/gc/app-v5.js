@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=single-session-20261118';
-import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=study-return-20261120';
+import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=overnight-hours-20261120';
 import {mountMarketEmblem} from './market-emblem.mjs';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=study-return-20261120';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';

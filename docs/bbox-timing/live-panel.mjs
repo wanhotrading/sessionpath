@@ -91,6 +91,7 @@ export function mountLiveTimingPanel(host, {market, now=Date.now, replay=()=>fal
   }
 
   function render() {
+    if (host.hidden) return;
     const clock = now();
     const stepNow = currentNYStep(nyClockParts(clock));
     if (replay() || stepNow===null || stepNow<108 || !packet || clock-Date.parse(packet.observed_at)>480000) {
@@ -174,5 +175,5 @@ export function mountLiveTimingPanel(host, {market, now=Date.now, replay=()=>fal
   },15_000);
   window.addEventListener('pagehide',event=>{if(!event.persisted)clearInterval(timer);});
   render();
-  return {receive};
+  return {receive, refresh:render};
 }

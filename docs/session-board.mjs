@@ -1,3 +1,4 @@
+import { mountDashboardTiming } from './bbox-timing/dashboard-window.mjs';
 import { mountQuickComparison } from './quick-comparison.mjs?v=study-return-20261120';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
@@ -125,15 +126,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   if (['CL','NQ','ES'].includes(market)) {
     const timing = node('section');
     followupPanel.before(timing);
-    void import('./bbox-timing/live-panel.mjs?v=study-return-20261120').then(({mountLiveTimingPanel})=>{
-      const tool=mountLiveTimingPanel(timing,{market,replay:()=>$('replay-toggle').checked});
-      if(livePacket)tool.receive(livePacket);
-    }).catch(()=>{
-      timing.className='overnight-timing-panel';
-      const link=node('a','quiet','Open overnight breach timing');
-      link.href=new URL('./bbox-timing/?instrument='+market,import.meta.url).href;
-      timing.append(link);
-    });
+    mountDashboardTiming(timing, {market, replay:()=>$('replay-toggle').checked, getLatest:()=>livePacket});
   }
   grid.append(...cards.map(card => card.panel), right);
   board.append(grid, actions);
