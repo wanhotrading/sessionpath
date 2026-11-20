@@ -42,10 +42,14 @@
 }
 
 /* Framed panels elsewhere in the workspace and its full-size views. */
-.session-board-active #workspace > .panel,
-.session-board-active dialog {
+.session-board-active #workspace > .panel {
   border-radius: 28px;
   border-color: var(--sp-frame-outline);
+}
+
+.session-board-active dialog:not(:fullscreen) {
+  border-radius: 28px !important;
+  border-color: var(--sp-frame-outline) !important;
 }
 
 #workspace-tools-dialog {
@@ -54,7 +58,8 @@
   --sp-tools-card-radius: max(0px, calc(var(--sp-tools-radius) - var(--sp-tools-inset) - var(--sp-frame-stroke)));
   padding: var(--sp-tools-inset);
   border: var(--sp-frame-stroke) solid var(--sp-frame-outline);
-  border-radius: var(--sp-tools-radius);
+  border-color: var(--sp-frame-outline) !important;
+  border-radius: var(--sp-tools-radius) !important;
 }
 
 body[data-device-view="mobile"] #workspace-tools-dialog { padding: var(--sp-tools-inset); }
