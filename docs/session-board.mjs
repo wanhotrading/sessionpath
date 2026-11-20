@@ -1,4 +1,4 @@
-import { mountQuickComparison } from './quick-comparison.mjs?v=quick-archive-20261119';
+import { mountQuickComparison } from './quick-comparison.mjs?v=study-return-20261120';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
@@ -125,7 +125,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   if (['CL','NQ','ES'].includes(market)) {
     const timing = node('section');
     followupPanel.before(timing);
-    void import('./bbox-timing/live-panel.mjs?v=conditional-20261119').then(({mountLiveTimingPanel})=>{
+    void import('./bbox-timing/live-panel.mjs?v=study-return-20261120').then(({mountLiveTimingPanel})=>{
       const tool=mountLiveTimingPanel(timing,{market,replay:()=>$('replay-toggle').checked});
       if(livePacket)tool.receive(livePacket);
     }).catch(()=>{
@@ -434,7 +434,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   new MutationObserver(scheduleUpdate).observe(document.documentElement, { attributes: true, attributeFilter: ['data-startup'] });
   new MutationObserver(refreshNYCode).observe($('ny-reference'), { subtree: true, childList: true });
   const clockTimer = setInterval(scheduleUpdate, 30_000);
-  window.addEventListener('pagehide', () => clearInterval(clockTimer), { once: true });
+  window.addEventListener('pagehide', event => { if (!event.persisted) clearInterval(clockTimer); });
   for (const card of cards) {
     card.copy.addEventListener('click', async () => {
       if (!card.code) return;

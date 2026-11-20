@@ -1,3 +1,4 @@
+import { attachStudyDialog } from './study-dialog.mjs';
 import { windows, time, currentNYStep, prepareScenario, curve, loadTimingArchive } from './core.mjs?v=conditional-20261119';
 import { mountTimingCurve } from './interactive-curve.mjs?v=conditional-20261119';
 import { nyClockParts } from '../ny-online-clock.mjs?v=automatic-bbox-20261118';
@@ -62,6 +63,7 @@ export function mountLiveTimingPanel(host, {market, now=Date.now, replay=()=>fal
   const study = new URL('./',import.meta.url);
   study.searchParams.set('instrument',market);
   $('study').href = study.href;
+  attachStudyDialog($('study'));
   const graph = mountTimingCurve($('curve'), step=>{
     if (selected===step) return;
     follow = step===latest.step;
@@ -170,7 +172,7 @@ export function mountLiveTimingPanel(host, {market, now=Date.now, replay=()=>fal
     const epoch=now();
     if (!packet || replay() || currentNYStep(nyClockParts(epoch))<108 || epoch-Date.parse(packet.observed_at)>480000) render();
   },15_000);
-  window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+  window.addEventListener('pagehide',event=>{if(!event.persisted)clearInterval(timer);});
   render();
   return {receive};
 }

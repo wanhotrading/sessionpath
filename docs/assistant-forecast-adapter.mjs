@@ -1,4 +1,4 @@
-import {validatePersonalRead,nyClock,READ_SCHEMA,PROFILE} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
+import {validatePersonalRead,nyClock,READ_SCHEMA,PROFILE} from './tradingview-live-core.mjs?v=study-return-20261120';
 import {regime} from './research-core.mjs';
 import {readSnapshot} from './window-engine.mjs';
 import {nyTimestamp} from './planner-v3.mjs';
@@ -244,7 +244,7 @@ export function mountAssistantForecastAdapter(options){
  const manualReplay=event=>{if(event.isTrusted&&['replay-toggle','replay-date'].includes(event.target?.id))request.resetHistoricalOwnership();};
  doc.addEventListener('change',manualReplay);
  const clear=()=>{models.clear();doc.removeEventListener('sessionpath:forecast-export',capture);doc.removeEventListener('sessionpath:assistant-request',onRequest);doc.removeEventListener('change',manualReplay);};
- doc.defaultView?.addEventListener('pagehide',clear,{once:true});
+ doc.defaultView?.addEventListener('pagehide',event=>{if(!event.persisted)clear();});
  return {request,destroy:clear};
 }
 

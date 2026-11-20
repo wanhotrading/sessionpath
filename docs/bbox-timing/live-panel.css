@@ -67,3 +67,16 @@
   .overnight-timing-panel .ot-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .overnight-timing-panel .ot-controls label { grid-column: 1 / -1; }
 }
+
+html:has(.ot-study-dialog[open]) { overflow: hidden !important; }
+#overnight-study-dialog {
+  position: fixed; inset: 10dvh 10vw; box-sizing: border-box; margin: 0;
+  width: 80vw !important; height: 80dvh; max-width: none !important; max-height: none !important; padding: 0;
+  display: none; overflow: hidden; border: 1px solid #484160; border-radius: 16px;
+  background: #101829; color: #eee8fa; box-shadow: 0 24px 75px #05061197;
+}
+#overnight-study-dialog[open] { display: grid; grid-template-rows: auto minmax(0,1fr); }
+dialog.ot-study-dialog::backdrop { background: rgb(8 11 22 / 46%); }
+.ot-study-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 4px 10px 4px 16px; border-bottom: 1px solid #36425e; }
+.ot-study-toolbar button { min-width: 44px; min-height: 44px; font-size: 1.4rem; }
+.ot-study-dialog iframe { display: block; width: 100%; height: 100%; border: 0; }

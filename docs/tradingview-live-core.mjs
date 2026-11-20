@@ -16,13 +16,31 @@ export function nyClock(now=Date.now()){
  const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now).map(x=>[x.type,x.value]));
  return {date:`${p.year}-${p.month}-${p.day}`,minute:Number(p.hour)*60+Number(p.minute)};
 }
+// The 19:30 NY sender rollover starts the next dated session. A bar stamped
+// exactly 19:30 closed the previous five minutes and still belongs to the old date.
+function heartbeatSessionDate(observed) {
+ const candle=nyClock(observed-1);
+ if(candle.minute<1170)return candle.date;
+ return new Date(Date.parse(candle.date+'T12:00:00Z')+86400000).toISOString().slice(0,10);
+}
+function freshHeartbeat(body,market,now) {
+ const p=body?.packet,observed=Date.parse(p?.observed_at),received=Date.parse(body?.receivedAt);
+ return p?.market===market && [observed,received].every(stamp=>Number.isFinite(stamp)&&stamp<=now+60000&&now-stamp<=480000)
+   && received>=observed-60000 && p.session_date===heartbeatSessionDate(observed);
+}
+function overnightHandoff(body,market,now) {
+ const clock=nyClock(now);
+ return clock.minute>=1170 && clock.minute<1178 && body?.status==='stale'
+   && body.packet?.session_date===clock.date && freshHeartbeat(body,market,now);
+}
+function automaticCutoff(minute){return minute>=300&&minute<1170?'05:00':'03:00';}
 export function checkpointWaitState(body,{market,cutoff='03:00',now=Date.now()}={}){
  const selected=CUTS.includes(cutoff)?cutoff:'03:00',clock=nyClock(now),due=cutoffMinute(selected);
  const p=body?.packet,received=Date.parse(body?.receivedAt),observed=Date.parse(p?.observed_at);
  if(!p||p.market!==market||!Number.isFinite(received)||!Number.isFinite(observed))return {state:'Waiting',code:'NO_MARKET_DATA',message:`No ${market}1! data has reached this connection. Check that its personal sender alert is active.`};
- if(p.session_date!==clock.date||now-received>480000||now-observed>480000)return {state:'Unavailable',code:'STALE_MARKET_DATA',message:`${market}1! has no fresh data for today’s New York session. Check its personal sender alert.`};
+ if(!freshHeartbeat(body,market,now))return {state:'Unavailable',code:'STALE_MARKET_DATA',message:`${market}1! has no fresh data for today’s New York session. Check its personal sender alert.`};
  const label=new Date(observed).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
- if(clock.minute<due)return {state:'Connected',code:'CHECKPOINT_PENDING',message:`${market}1! is connected · last bar ${label} NY. The ${selected} NY checkpoint is expected on the first trade of that candle. Auto-fill will apply it automatically.`};
+ if(clock.minute>=1170 || clock.minute<due)return {state:'Connected',code:'CHECKPOINT_PENDING',message:`${market}1! is connected · last bar ${label} NY. The ${selected} NY checkpoint is expected on the first trade of that candle. Auto-fill will apply it automatically.`};
  if(observed<now-120000||nyClock(observed).minute<=due)return {state:'Connected',code:'AWAITING_CHECKPOINT_DELIVERY',message:`${market}1! is connected · last bar ${label} NY. Waiting for the ${selected} NY checkpoint. Auto-fill retries automatically.`};
  return {state:'Waiting',code:'CHECKPOINT_INCOMPLETE',message:`${market}1! is sending fresh data, but the ${selected} checkpoint is incomplete. Check the personal sender’s coverage status on TradingView.`};
 }
@@ -40,7 +58,7 @@ export function checkpointPollDelay(now,cutoffs,snapshots){
 }
 export function validatePersonalRead(body,{market,now=Date.now()}){
  if(body?.schema!==READ_SCHEMA)throw Error('The personal feed returned an unrecognized response.');
- if(body.status==='waiting')return null;
+ if(body.status==='waiting'||overnightHandoff(body,market,now))return null;
  if(body.status!=='ready')throw Error('TradingView feed is stale. Check that your alert is running.');
  const p=body.packet,clock=nyClock(now),received=Date.parse(body.receivedAt);
  if(!p||p.schema!=='sessionpath.personal.tradingview.v1'||p.market!==market||p.source_symbol!==market+'1!'||p.session_date!==clock.date)throw Error('No matching TradingView snapshot for today’s New York session.');
@@ -117,7 +135,8 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL,aut
  try{if(managedURL){sessionStorage.removeItem(KEY);sessionStorage.removeItem(ENABLED);}else savedReadKey=sessionStorage.getItem(KEY)||'';}catch{}
  function say(message,state){
   fillStatus.dataset.connection=state.toLowerCase();
-  fillStatus.textContent=state==='Connected'?'Connected':'Failed to fetch';
+  fillStatus.title=message;
+  fillStatus.textContent=state==='Unavailable'||state==='Off'?'Failed to fetch':state==='Waiting'?'Waiting for checkpoint':state;
  }
  function setBusy(value){fillButton.disabled=value;fillButton.setAttribute('aria-busy',String(value));}
  function mountPrivateNotes(){
@@ -199,14 +218,14 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL,aut
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
    const packet=validatePersonalRead(body,{market:instrument.id});
    snapshots=packet?.snapshots??[];
-   if(!packet){const cutoff=followLatest?(nyClock().minute>=300?'05:00':'03:00'):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);showBBoxHistory();return;}
+   if(!packet){const cutoff=followLatest?automaticCutoff(nyClock().minute):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);showBBoxHistory();return;}
    apply(packet);
    document.dispatchEvent(new CustomEvent('sessionpath:verified-checkpoints',{detail:packet}));
   }catch(error){if(seq!==sequence||!active)return;const network=error?.name==='TypeError'&&/fetch|network|load/i.test(error.message||'');say(error.name==='AbortError'?'The TradingView bridge timed out. Retrying shortly.':network?'Cannot reach your private TradingView feed. Your existing inputs were kept. Check your connection and try Refresh.':error.message,'Unavailable');showBBoxHistory(null,'Waiting for a fresh verified TradingView checkpoint.');}
   finally{
    clearTimeout(expiry);busy=false;setBusy(false);
    if(active){
-    const now=Date.now(),clock=nyClock(now),cutoff=followLatest?(clock.minute>=300?'05:00':'03:00'):$('asof')?.value;
+    const now=Date.now(),clock=nyClock(now),cutoff=followLatest?automaticCutoff(clock.minute):$('asof')?.value;
     const watched=[cutoff];
     if(followLatest&&clock.minute<300)watched.push('05:00');
     if($('ny-date')?.value===clock.date)watched.push('08:30');
@@ -244,7 +263,13 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL,aut
   if(active)void read();
  });
  window.addEventListener('pageshow',event=>{if(event.persisted&&managedURL)resumeManaged();});
- document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden)void read();});
+ function retryWhenAvailable(){
+  if(!active||document.hidden||$('replay-toggle')?.checked)return;
+  if(busy){resumePending=true;return;}
+  void read();
+ }
+ document.addEventListener('visibilitychange',retryWhenAvailable);
+ window.addEventListener('online',retryWhenAvailable);
  // An explicit chat forecast pins its selected decision checkpoint just like a
  // manual Decision time change, so later background polls cannot replace it.
  document.addEventListener('sessionpath:assistant-request',event=>{const r=event.detail;if(r?.market===instrument.id&&['03:00-05:00','05:00-08:30','08:30-16:00'].includes(r.window))followLatest=false;});

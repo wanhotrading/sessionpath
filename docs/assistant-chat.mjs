@@ -341,8 +341,9 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  host.addEventListener('drop',event=>{host.classList.remove('sp-chat-dragover');const file=event.dataTransfer?.files?.[0];if(!file)return;event.preventDefault();stageImage(file);});
  host.addEventListener('paste',event=>{const items=[...event.clipboardData?.items??[]],file=items.find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile()??[...event.clipboardData?.files??[]].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();stageImage(file);}});
  form.addEventListener('submit',event=>{event.preventDefault();submit();});input.addEventListener('focus',open);input.addEventListener('pointerdown',open);input.addEventListener('input',open);close.addEventListener('click',collapse);host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();collapse();}});
- function destroy(){destroyed=true;controller?.abort();clearAttachment();clearTimeout(motionTimer);motionObserver.disconnect();reducedMotion?.removeEventListener?.('change',finishPausedMotion);for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',destroy);host.remove();}
- win.addEventListener('pagehide',destroy,{once:true});
+ function destroy(){destroyed=true;controller?.abort();clearAttachment();clearTimeout(motionTimer);motionObserver.disconnect();reducedMotion?.removeEventListener?.('change',finishPausedMotion);for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',onPageHide);host.remove();}
+ function onPageHide(event){if(!event.persisted)destroy();}
+ win.addEventListener('pagehide',onPageHide);
  if(pending){const continuation=pending;pending=null;save();if(continuation.intent.market===instrument.id)submit(continuation.query,continuation.intent);}
  return {submit,attachImage:stageImage,clearAttachment,destroy,element:host};
 }

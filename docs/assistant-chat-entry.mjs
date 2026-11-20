@@ -1,3 +1,3 @@
 import {instrument} from './instrument.mjs';
-import {loadChartConfiguration,mountAssistantChat} from './assistant-chat.mjs?v=midnight-elf-20261119';
+import {loadChartConfiguration,mountAssistantChat} from './assistant-chat.mjs?v=study-return-20261120';
 mountAssistantChat({instrument,getChartConfiguration:loadChartConfiguration});
