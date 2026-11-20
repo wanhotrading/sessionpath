@@ -2,7 +2,7 @@ import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-202
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
 import { archivedResearchBar, contractSymbol } from './followup-observations.mjs?v=2';
-import { mountSessionFollowup } from './session-followup.mjs?v=2';
+import { mountSessionFollowup } from './session-followup.mjs?v=midnight-elf-20261119';
 
 const windows = [
   { cutoff: '03:00', end: '05:00', minute: 180, endMinute: 300 },

@@ -153,10 +153,10 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  if(doc.getElementById('sessionpath-assistant')||!MARKETS.includes(instrument?.id))return null;
  const win=doc.defaultView,element=(tag,className,text)=>{const el=doc.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set(),attachment=null,preparingImage=false,attachmentVersion=0,chartConfigController=null;
- const host=element('aside','sp-assistant');host.id='sessionpath-assistant';host.setAttribute('aria-label','SessionPath assistant');
+ const host=element('footer','sp-assistant');host.id='sessionpath-assistant';host.setAttribute('aria-label','Session elf assistant');
  const viewport=element('div','sp-chat-viewport');viewport.hidden=true;viewport.dataset.state='closed';
- const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','SessionPath conversation');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');panel.inert=true;viewport.append(panel);
- const header=element('div','sp-chat-head'),brand=element('strong','','SessionPath');const subtitle=element('span','','Forecast assistant');const close=element('button','sp-chat-close','×');close.type='button';close.setAttribute('aria-label','Close conversation');header.append(brand,subtitle,close);
+ const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','Session elf conversation');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');panel.inert=true;viewport.append(panel);
+ const header=element('div','sp-chat-head'),brand=element('strong','','Session elf');const subtitle=element('span','','Forecast assistant');const close=element('button','sp-chat-close','×');close.type='button';close.setAttribute('aria-label','Close conversation');header.append(brand,subtitle,close);
  const history=element('div','sp-chat-history');history.setAttribute('role','log');history.setAttribute('aria-label','Conversation');history.setAttribute('aria-live','polite');history.setAttribute('aria-relevant','additions');
  const examples=element('div','sp-chat-examples');for(const query of ['CL 03-05','NQ 05-0830','GC 08:30-16:00']){const button=element('button','',query);button.type='button';button.addEventListener('click',()=>{input.value=query;submit(query);});examples.append(button);}
  const status=element('p','sp-chat-status');status.setAttribute('role','status');
@@ -167,9 +167,9 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  const chartCloseLabel=element('label','','Last completed close · NY'),chartClose=element('input','sp-chat-chart-close');chartClose.type='time';chartClose.step='300';chartCloseLabel.append(chartClose,element('small','','Optional · five-minute close'));
  observationFields.append(chartDateLabel,chartCloseLabel);attachmentBox.append(preview,attachmentInfo,removeAttachment,historicalLabel,observationFields,disclosure);
  panel.append(header,history,attachmentBox,examples,status);
- const form=element('form','sp-chat-composer');form.noValidate=true;form.tabIndex=-1;const toggle=element('button','sp-chat-mark','SP');toggle.type='button';toggle.setAttribute('aria-label','Open conversation');toggle.setAttribute('aria-controls',panel.id);toggle.setAttribute('aria-expanded','false');
- const input=element('input','sp-chat-input');input.type='text';input.placeholder='Ask SessionPath · CL, 03–05 range';input.maxLength=600;input.setAttribute('aria-label','Ask SessionPath');input.autocomplete='off';
- const attach=element('button','sp-chat-attach','＋');attach.type='button';attach.setAttribute('aria-label','Attach chart screenshot');attach.title='Attach a PNG, JPEG or WebP screenshot';const filePicker=element('input');filePicker.type='file';filePicker.accept='image/png,image/jpeg,image/webp';filePicker.hidden=true;filePicker.setAttribute('aria-label','Choose chart screenshot');const send=element('button','sp-chat-send','Send');send.type='submit';form.append(toggle,attach,filePicker,input,send);host.append(viewport,form);doc.body.append(host);
+ const form=element('form','sp-chat-composer');form.noValidate=true;form.tabIndex=-1;
+ const input=element('input','sp-chat-input');input.type='text';input.placeholder='Ask Session elf…';input.maxLength=600;input.setAttribute('aria-label','Ask Session elf');input.autocomplete='off';
+ const attach=element('button','sp-chat-attach','＋');attach.type='button';attach.setAttribute('aria-label','Attach chart screenshot');attach.title='Attach a PNG, JPEG or WebP screenshot';const filePicker=element('input');filePicker.type='file';filePicker.accept='image/png,image/jpeg,image/webp';filePicker.hidden=true;filePicker.setAttribute('aria-label','Choose chart screenshot');const send=element('button','sp-chat-send','Send');send.type='submit';form.append(attach,filePicker,input,send);host.append(viewport,form);doc.body.append(host);
  const save=()=>{try{storage.setItem(STORAGE,JSON.stringify({messages:messages.slice(-10),pending,lastDate}));}catch{}};
  const reducedMotion=win.matchMedia?.('(prefers-reduced-motion: reduce)');let motionTimer=null;
  const motionOff=()=>reducedMotion?.matches||doc.body.classList.contains('motion-paused');
@@ -180,7 +180,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  }
  const open=()=>{
   if(destroyed||['open','opening'].includes(viewport.dataset.state))return;
-  clearTimeout(motionTimer);panel.hidden=false;viewport.hidden=false;panel.inert=false;panel.removeAttribute('inert');panel.setAttribute('aria-hidden','false');toggle.setAttribute('aria-expanded','true');
+  clearTimeout(motionTimer);panel.hidden=false;viewport.hidden=false;panel.inert=false;panel.removeAttribute('inert');panel.setAttribute('aria-hidden','false');
   // Flush only the initial resting frame. Subsequent frames are handled by
   // compositor transforms; no measurements or DOM updates run per frame.
   if(viewport.dataset.state==='closed'&&!motionOff())panel.getBoundingClientRect();
@@ -188,7 +188,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  };
  const collapse=()=>{
   if(destroyed||['closed','closing'].includes(viewport.dataset.state))return;
-  clearTimeout(motionTimer);toggle.setAttribute('aria-expanded','false');panel.inert=true;panel.setAttribute('inert','');panel.setAttribute('aria-hidden','true');
+  clearTimeout(motionTimer);panel.inert=true;panel.setAttribute('inert','');panel.setAttribute('aria-hidden','true');
   // The composer remains in place. Return focus to the form without focusing
   // the input (which would immediately open the conversation again).
   form.focus({preventScroll:true});viewport.dataset.state='closing';if(motionOff())finishMotion();else motionTimer=setTimeout(finishMotion,1000);
@@ -340,7 +340,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
  host.addEventListener('dragleave',event=>{if(!host.contains(event.relatedTarget))host.classList.remove('sp-chat-dragover');});
  host.addEventListener('drop',event=>{host.classList.remove('sp-chat-dragover');const file=event.dataTransfer?.files?.[0];if(!file)return;event.preventDefault();stageImage(file);});
  host.addEventListener('paste',event=>{const items=[...event.clipboardData?.items??[]],file=items.find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile()??[...event.clipboardData?.files??[]].find(file=>file.type.startsWith('image/'));if(file){event.preventDefault();stageImage(file);}});
- form.addEventListener('submit',event=>{event.preventDefault();submit();});toggle.addEventListener('click',()=>{open();input.focus();});input.addEventListener('focus',open);input.addEventListener('pointerdown',open);input.addEventListener('input',open);close.addEventListener('click',collapse);host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();collapse();}});
+ form.addEventListener('submit',event=>{event.preventDefault();submit();});input.addEventListener('focus',open);input.addEventListener('pointerdown',open);input.addEventListener('input',open);close.addEventListener('click',collapse);host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();collapse();}});
  function destroy(){destroyed=true;controller?.abort();clearAttachment();clearTimeout(motionTimer);motionObserver.disconnect();reducedMotion?.removeEventListener?.('change',finishPausedMotion);for(const timer of copyTimers)clearTimeout(timer);copyTimers.clear();win.removeEventListener('pagehide',destroy);host.remove();}
  win.addEventListener('pagehide',destroy,{once:true});
  if(pending){const continuation=pending;pending=null;save();if(continuation.intent.market===instrument.id)submit(continuation.query,continuation.intent);}

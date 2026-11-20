@@ -1,3 +1,4 @@
+import {rankFollowup} from './followup-percentiles.mjs';
 import {completedEndpointClose, firstCompletedBreach} from './followup-observations.mjs?v=2';
 
 const endpointMetrics = [['hh', 'New running high'], ['ll', 'New running low'], ['both', 'Both new extremes'], ['neither', 'Neither new extreme']];
@@ -22,8 +23,8 @@ function reading(title) {
   return {root, detail, key: ''};
 }
 
-function show(group, label, meta = '', metrics = [], outcomes = {}, reached = {}) {
-  const key = JSON.stringify([label, meta, metrics, outcomes, reached]);
+function show(group, label, meta = '', metrics = [], outcomes = {}, reached = {}, ranks = {}) {
+  const key = JSON.stringify([label, meta, metrics, outcomes, reached, ranks]);
   if (key === group.key) return;
   group.key = key;
   group.detail.replaceChildren(element('p', metrics.length ? 'research-state' : 'followup-status', label));
@@ -35,7 +36,16 @@ function show(group, label, meta = '', metrics = [], outcomes = {}, reached = {}
     const stat = element('article', 'research-stat');
     stat.append(element('span', '', name));
     if (metric?.available) {
-      stat.append(element('strong', '', pc(metric.probability)));
+      const value = element('strong', '', pc(metric.probability));
+      const rank = ranks[id];
+      stat.append(value);
+      if (rank) {
+        value.dataset.rank = rank.band;
+        const percentile = Math.round(rank.percentile * 10) / 10;
+        const historical = element('small', 'research-percentile', 'Percentile ' + percentile);
+        historical.title = 'Compared with ' + rank.comparisons + ' earlier forecasts for this market, window and result.';
+        stat.append(historical);
+      }
       const interval = metric.rawInterval?.map(pc).join('–');
       const sample = metric.n > 0 ? `${metric.successes}/${metric.n} observed · 95% raw interval ${interval}` : `${metric.prior.n} broader cases`;
       stat.append(element('small', '', sample));
@@ -116,13 +126,13 @@ export function mountSessionFollowup(host, {market, loadResearch, historyURL}) {
 
     research ??= loadResearch().catch(error => { research = null; throw error; });
     try {
-      const [data, {selectEndpointProbability, selectFirstBreachProbability}, {classifyEndpoint, observeFirstBreach}] = await research;
+      const [data, {selectEndpointProbability, selectFirstBreachProbability, FIXED_PRIOR_WEIGHT}, {classifyEndpoint, observeFirstBreach}] = await research;
       if (run !== revision) return;
       if (canReadEndpoint) {
         const state = classifyEndpoint(close, priorBounds.upper, priorBounds.lower);
         const result = selectEndpointProbability(data, {market, window: id, state, asOf: date});
         const training = result.sample.trainingThrough;
-        show(endpoint, endpointTitle[state], `${date} · ${clock(minute)}–${clock(endMinute)} NY${training ? ' · Training through ' + training : ''}`, endpointMetrics, result.outcomes);
+        show(endpoint, endpointTitle[state], `${date} · ${clock(minute)}–${clock(endMinute)} NY${training ? ' · Training through ' + training : ''}`, endpointMetrics, result.outcomes, {}, rankFollowup(data, result, FIXED_PRIOR_WEIGHT));
       }
       if (canReadBreach) {
         const observation = signal.observation || observeFirstBreach({window: id, minute: signal.minute, ...bounds, ...signal.bar});
@@ -130,7 +140,7 @@ export function mountSessionFollowup(host, {market, loadResearch, historyURL}) {
         const side = observation.side === 'U' ? 'Upper breach' : 'Lower breach';
         const type = observation.signalType === 'WICK_ONLY' ? 'wick outside, closed inside' : 'closed outside';
         show(breach, `${side} · ${type}`, `${date} · ${clock(signal.minute)} NY${replay ? ' · recorded after the checkpoint' : ''}`,
-          breachMetrics, result.outcomes, observation.alreadyReached);
+          breachMetrics, result.outcomes, observation.alreadyReached, rankFollowup(data, result, FIXED_PRIOR_WEIGHT));
       }
     } catch {
       if (run !== revision) return;
