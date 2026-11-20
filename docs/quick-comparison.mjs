@@ -1,5 +1,6 @@
 const SHAPE_END = { NTA: 0, ASIA: 120, LONDON: 510 };
-const BATCH = 12;
+const PAGE_SIZE = 6;
+const MOTION = { duration: 300, easing: 'cubic-bezier(.25,.7,.25,1)' };
 
 export function comparisonCandidates(days, { date, minute, dates }, choices = {}) {
   const tags = Object.entries(choices)
@@ -21,110 +22,168 @@ function dayScreenshots(archive) {
   return images;
 }
 
-function makeSlide(day, image) {
-  const slide = document.createElement('article');
-  slide.className = 'quick-comparison-slide';
-  const heading = document.createElement('h3');
-  const date = document.createElement('time');
-  date.dateTime = day.date;
-  date.textContent = day.date;
-  heading.append(date);
-  const contract = image.contract || day.contract;
-  if (contract) {
-    const symbol = document.createElement('span');
-    symbol.textContent = contract;
-    heading.append(symbol);
-  }
-  const link = document.createElement('a');
-  link.href = image.url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.setAttribute('aria-label', 'Open full chart for ' + day.date + ' in a new tab');
+function makeCard({ day, image }, index) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'quick-comparison-card';
+  card.dataset.chartIndex = index;
+  card.setAttribute('aria-label', 'Enlarge chart for ' + day.date);
   const chart = document.createElement('img');
-  chart.src = image.url;
   chart.alt = 'TradingView chart for ' + day.date;
   chart.loading = 'lazy';
   chart.decoding = 'async';
-  link.append(chart);
-  slide.append(heading, link);
-  return slide;
+  chart.src = image.url;
+  const caption = document.createElement('span');
+  caption.className = 'quick-comparison-caption';
+  const date = document.createElement('time');
+  date.dateTime = day.date;
+  date.textContent = day.date;
+  const contract = document.createElement('span');
+  contract.textContent = image.contract || day.contract || '';
+  caption.append(date, contract);
+  card.append(chart, caption);
+  return card;
+}
+
+function genieFrames(anchor, panel) {
+  const { width, height } = panel.getBoundingClientRect();
+  const scaleX = Math.min(.35, anchor.width / Math.max(1, width));
+  const scaleY = Math.min(.2, anchor.height / Math.max(1, height));
+  return [
+    {
+      clipPath: 'polygon(12% 0%,88% 0%,100% 22%,93% 70%,83% 100%,17% 100%,7% 70%,0% 22%)',
+      transform: `scale(${scaleX},${scaleY})`,
+      opacity: .4,
+    },
+    {
+      offset: .55,
+      clipPath: 'polygon(0% 0%,100% 0%,98% 22%,90% 70%,82% 100%,18% 100%,10% 70%,2% 22%)',
+      transform: 'scale(.86,.79)',
+      opacity: .96,
+    },
+    {
+      clipPath: 'polygon(0% 0%,100% 0%,100% 22%,100% 70%,100% 100%,0% 100%,0% 70%,0% 22%)',
+      transform: 'scale(1)',
+      opacity: 1,
+    },
+  ];
 }
 
 export function mountQuickComparison(after, { loadArchive, getDays, getChoices }) {
   const section = document.createElement('section');
   section.className = 'quick-comparison';
   section.innerHTML = `
-    <button type="button" class="quiet quick-comparison-toggle" aria-expanded="false" aria-controls="quick-comparison-results">
-      Compare similar days <span aria-hidden="true">⌄</span>
-    </button>
-    <div id="quick-comparison-results" class="quick-comparison-results" hidden inert>
-      <div class="quick-comparison-toolbar">
-        <p class="quick-comparison-coverage" role="status"></p>
-        <div class="quick-comparison-navigation" hidden>
-          <button type="button" class="quiet" aria-label="Previous matched day">←</button>
-          <span class="quick-comparison-position" aria-live="polite"></span>
-          <button type="button" class="quiet" aria-label="Next matched day">Next day →</button>
-        </div>
-      </div>
-      <div class="quick-comparison-frame" hidden>
-        <div class="quick-comparison-track" role="region" aria-label="Matched day charts" tabindex="0"></div>
-      </div>
-    </div>`;
+    <button type="button" class="quiet quick-comparison-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="quick-comparison-results">
+      Compare similar days <span aria-hidden="true">↗</span>
+    </button>`;
   after.after(section);
-  const toggle = section.querySelector('.quick-comparison-toggle');
-  const panel = section.querySelector('.quick-comparison-results');
-  const coverage = section.querySelector('.quick-comparison-coverage');
-  const controls = section.querySelector('.quick-comparison-navigation');
-  const position = section.querySelector('.quick-comparison-position');
-  const frame = section.querySelector('.quick-comparison-frame');
-  const track = section.querySelector('.quick-comparison-track');
-  const [previous, next] = controls.querySelectorAll('button');
+  const toggle = section.firstElementChild;
+
+  const panel = document.createElement('dialog');
+  panel.id = 'quick-comparison-results';
+  panel.className = 'quick-comparison-results';
+  panel.setAttribute('aria-labelledby', 'quick-comparison-title');
+  panel.innerHTML = `
+    <header class="quick-comparison-toolbar">
+      <div class="quick-comparison-summary">
+        <h2 id="quick-comparison-title">Compare similar days</h2>
+        <p class="quick-comparison-coverage" role="status"></p>
+      </div>
+      <div class="quick-comparison-navigation" hidden>
+        <button type="button" class="quiet quick-comparison-back" hidden>Back to grid</button>
+        <button type="button" class="quiet quick-comparison-previous" aria-label="Previous six matched charts">←</button>
+        <span class="quick-comparison-position" aria-live="polite"></span>
+        <button type="button" class="quiet quick-comparison-next" aria-label="Next six matched charts">→</button>
+      </div>
+      <button type="button" class="quiet quick-comparison-close" aria-label="Close comparison" autofocus>×</button>
+    </header>
+    <div class="quick-comparison-grid" role="group" aria-label="Matched day charts" hidden></div>
+    <figure class="quick-comparison-detail" hidden>
+      <img class="quick-comparison-detail-image" alt="">
+      <figcaption class="quick-comparison-caption">
+        <span class="quick-comparison-detail-label"></span>
+        <a class="quiet quick-comparison-original" target="_blank" rel="noopener noreferrer">Open original ↗</a>
+      </figcaption>
+    </figure>`;
+  document.body.append(panel);
+  const coverage = panel.querySelector('.quick-comparison-coverage');
+  const controls = panel.querySelector('.quick-comparison-navigation');
+  const position = panel.querySelector('.quick-comparison-position');
+  const previous = panel.querySelector('.quick-comparison-previous');
+  const next = panel.querySelector('.quick-comparison-next');
+  const back = panel.querySelector('.quick-comparison-back');
+  const close = panel.querySelector('.quick-comparison-close');
+  const grid = panel.querySelector('.quick-comparison-grid');
+  const detail = panel.querySelector('.quick-comparison-detail');
+  const detailImage = panel.querySelector('.quick-comparison-detail-image');
+  const detailLabel = panel.querySelector('.quick-comparison-detail-label');
+  const original = panel.querySelector('.quick-comparison-original');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let forecast;
   let source;
   let loading;
-  let expanded = false;
   let animation;
+  let frames;
+  let closing = false;
   let scheduled = false;
   let signature;
-  let slides = [];
-  let index = 0;
+  let charts = [];
+  let page = 0;
+  let current = null;
 
-  function appendSlides() {
-    const start = track.children.length;
-    const fragment = document.createDocumentFragment();
-    for (const { day, image } of slides.slice(start, start + BATCH)) fragment.append(makeSlide(day, image));
-    track.append(fragment);
+  function updateNavigation() {
+    const first = page * PAGE_SIZE;
+    const single = current !== null;
+    controls.hidden = charts.length <= PAGE_SIZE && !single;
+    back.hidden = !single;
+    previous.setAttribute('aria-label', single ? 'Previous matched day' : 'Previous six matched charts');
+    next.setAttribute('aria-label', single ? 'Next matched day' : 'Next six matched charts');
+    previous.disabled = single ? current === 0 : page === 0;
+    next.disabled = single ? current === charts.length - 1 : first + PAGE_SIZE >= charts.length;
+    position.textContent = single ? (current + 1) + ' / ' + charts.length :
+      (first + 1) + '–' + Math.min(first + PAGE_SIZE, charts.length) + ' / ' + charts.length;
   }
 
-  function updatePosition() {
-    if (frame.hidden || panel.hidden || !track.firstElementChild) return;
-    const step = track.children[1]?.offsetLeft - track.firstElementChild.offsetLeft;
-    const atEnd = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
-    if (atEnd && track.children.length < slides.length) appendSlides();
-    const last = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
-    index = last ? slides.length - 1 : Math.min(slides.length - 1, Math.round(track.scrollLeft / (step || 1)));
-    frame.classList.toggle('has-prev', track.scrollLeft > 2);
-    frame.classList.toggle('has-next', !last);
-    previous.disabled = index === 0;
-    next.disabled = index === slides.length - 1;
-    const label = (index + 1) + ' / ' + slides.length;
-    if (position.textContent !== label) position.textContent = label;
+  function showGrid(focusIndex = null) {
+    current = null;
+    detail.hidden = true;
+    grid.hidden = !charts.length;
+    const first = page * PAGE_SIZE;
+    grid.replaceChildren(...charts.slice(first, first + PAGE_SIZE).map((item, offset) => makeCard(item, first + offset)));
+    grid.scrollTop = 0;
+    updateNavigation();
+    if (focusIndex !== null) grid.children[focusIndex - first]?.focus();
+  }
+
+  function showDetail(index) {
+    const { day, image } = charts[index];
+    const entering = current === null;
+    current = index;
+    page = Math.floor(index / PAGE_SIZE);
+    grid.hidden = true;
+    detail.hidden = false;
+    detailImage.src = image.url;
+    detailImage.alt = 'Full TradingView chart for ' + day.date;
+    detailLabel.textContent = [day.date, image.contract || day.contract].filter(Boolean).join(' · ');
+    original.href = image.url;
+    updateNavigation();
+    if (entering) back.focus();
   }
 
   function navigate(delta) {
-    const destination = Math.min(slides.length - 1, Math.max(0, index + delta));
-    if (destination === index || destination < 0) return;
-    if (destination >= track.children.length) appendSlides();
-    const card = track.children[destination];
-    if (card) track.scrollTo({
-      left: card.offsetLeft - track.firstElementChild.offsetLeft,
-      behavior: reduced.matches || document.body.classList.contains('motion-paused') ? 'instant' : 'smooth',
-    });
+    if (current !== null) {
+      const index = current + delta;
+      if (index >= 0 && index < charts.length) showDetail(index);
+      return;
+    }
+    const target = page + delta;
+    if (target < 0 || target * PAGE_SIZE >= charts.length) return;
+    page = target;
+    showGrid();
   }
 
   function render() {
-    if (!expanded) return;
+    if (!panel.open || closing) return;
     const days = getDays();
     const canMatch = Boolean(days?.length && forecast?.date);
     const matches = canMatch ? comparisonCandidates(days, forecast, getChoices(forecast.date)) : [];
@@ -137,62 +196,80 @@ export function mountQuickComparison(after, { loadArchive, getDays, getChoices }
       'No screenshots are available for these matched days.';
     if (coverage.textContent !== message) coverage.textContent = message;
     const key = result.map(({ day, image }) => day.date + '|' + image.url).join('\n');
-    if (key === signature) { updatePosition(); return; }
+    if (key === signature) return;
+    const selectedDate = charts[current]?.day.date;
     signature = key;
-    slides = result;
-    controls.hidden = result.length < 2;
-    frame.hidden = !result.length;
-    track.replaceChildren();
-    appendSlides();
-    track.scrollLeft = 0;
-    updatePosition();
+    charts = result;
+    const selectedIndex = selectedDate ? charts.findIndex(item => item.day.date === selectedDate) : -1;
+    if (selectedIndex >= 0) showDetail(selectedIndex);
+    else {
+      page = 0;
+      showGrid();
+    }
   }
 
   function refresh() {
-    if (!expanded || scheduled) return;
+    if (!panel.open || closing || scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => { scheduled = false; render(); });
   }
 
-  const frames = [
-    { clipPath: 'polygon(8% 0%, 28% 0%, 30% 20%, 29% 70%, 27% 100%, 13% 100%, 10% 70%, 8% 20%)', transform: 'translateY(-6px) scaleY(.06)', opacity: .6 },
-    { offset: .55, clipPath: 'polygon(0% 0%, 100% 0%, 94% 20%, 84% 70%, 78% 100%, 9% 100%, 4% 70%, 1% 20%)', transform: 'translateY(0) scaleY(.78)', opacity: 1 },
-    { clipPath: 'polygon(0% 0%, 100% 0%, 100% 20%, 100% 70%, 100% 100%, 0% 100%, 0% 70%, 0% 20%)', transform: 'translateY(0) scaleY(1)', opacity: 1 },
-  ];
-  function togglePanel(open) {
-    expanded = open;
-    toggle.setAttribute('aria-expanded', String(open));
-    panel.inert = !open;
-    if (open) {
-      panel.hidden = false;
-      if (!loading) {
-        loading = Promise.resolve().then(loadArchive).then(readArchive => {
-          source = readArchive;
-        }).catch(() => { source = () => []; }).finally(refresh);
-      }
-      render();
-    }
-    animation?.cancel();
-    if (reduced.matches || document.body.classList.contains('motion-paused')) { panel.hidden = !open; return; }
-    animation = panel.animate(frames, { duration: 300, easing: 'cubic-bezier(.25,.7,.25,1)', direction: open ? 'normal' : 'reverse' });
-    animation.onfinish = () => { panel.hidden = !expanded; };
+  function motionEnabled() {
+    return !reduced.matches && !document.body.classList.contains('motion-paused');
   }
-  toggle.addEventListener('click', () => togglePanel(!expanded));
-  section.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && expanded) {
-      togglePanel(false);
-      toggle.focus();
+
+  function openComparison() {
+    if (panel.open) return;
+    const anchor = toggle.getBoundingClientRect();
+    panel.showModal();
+    toggle.setAttribute('aria-expanded', 'true');
+    if (!loading) {
+      loading = Promise.resolve().then(loadArchive).then(readArchive => {
+        source = readArchive;
+      }).catch(() => { source = () => []; }).finally(refresh);
     }
+    render();
+    panel.style.transformOrigin = `${anchor.left + anchor.width / 2}px ${anchor.top + anchor.height / 2}px`;
+    frames = genieFrames(anchor, panel);
+    if (motionEnabled()) animation = panel.animate(frames, MOTION);
+  }
+
+  function closeComparison() {
+    if (closing) return;
+    closing = true;
+    if (!motionEnabled()) { panel.close(); return; }
+    if (animation?.playState === 'running') animation.reverse();
+    else animation = panel.animate(frames, { ...MOTION, direction: 'reverse' });
+    animation.onfinish = () => panel.close();
+  }
+
+  toggle.addEventListener('click', openComparison);
+  close.addEventListener('click', closeComparison);
+  panel.addEventListener('close', () => {
+    closing = false;
+    animation = null;
+    toggle.setAttribute('aria-expanded', 'false');
+    if (current !== null) showGrid();
+    toggle.focus({ preventScroll: true });
   });
-  track.addEventListener('scroll', updatePosition, { passive: true });
-  track.addEventListener('keydown', event => {
-    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+  panel.addEventListener('cancel', event => {
+    event.preventDefault();
+    if (current !== null && !closing) showGrid(current);
+    else closeComparison();
+  });
+  panel.addEventListener('keydown', event => {
+    if (closing || !['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.metaKey || event.ctrlKey) return;
     event.preventDefault();
     navigate(event.key === 'ArrowRight' ? 1 : -1);
   });
-  new ResizeObserver(updatePosition).observe(track);
-  previous.addEventListener('click', () => navigate(-1));
-  next.addEventListener('click', () => navigate(1));
+  grid.addEventListener('click', event => {
+    const card = event.target.closest('[data-chart-index]');
+    if (card && !closing) showDetail(Number(card.dataset.chartIndex));
+  });
+  back.addEventListener('click', () => { if (!closing) showGrid(current); });
+  previous.addEventListener('click', () => { if (!closing) navigate(-1); });
+  next.addEventListener('click', () => { if (!closing) navigate(1); });
+
   return {
     setForecast(value) {
       if (forecast?.date === value.date && forecast?.minute === value.minute && forecast?.dates === value.dates) return;

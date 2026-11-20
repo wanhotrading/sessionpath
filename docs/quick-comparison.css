@@ -1,114 +1,140 @@
-.quick-comparison {
-  min-width: 0;
-}
+.quick-comparison { min-width: 0; }
 
 .quick-comparison-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  color: #d9e9ff;
+  gap: 12px;
 }
 
-.quick-comparison-toggle span {
-  font-size: 1.15em;
-  line-height: 1;
+html:has(body.session-board-active #quick-comparison-results[open]) { overflow: hidden !important; }
+
+#quick-comparison-results {
+  position: fixed;
+  inset: 0;
+  display: none;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100dvh;
+  max-height: none !important;
+  margin: 0;
+  padding: max(8px, env(safe-area-inset-top, 0px))
+    max(10px, env(safe-area-inset-right, 0px))
+    max(8px, env(safe-area-inset-bottom, 0px))
+    max(10px, env(safe-area-inset-left, 0px));
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #0b1020 !important;
+  backdrop-filter: none;
+  color: #eee8fa !important;
+  box-shadow: none;
 }
 
-.quick-comparison-toggle[aria-expanded="true"] span { transform: rotate(180deg); }
-
-.quick-comparison-results {
-  margin-top: 8px;
-  padding: 12px;
-  border: 1px solid #303f5c;
-  border-radius: 14px;
-  background: #10192d;
-  color: #e3edff;
-  transform-origin: top left;
-}
+#quick-comparison-results[open] { display: grid; }
+#quick-comparison-results::backdrop { background: rgb(8 11 22 / 18%); backdrop-filter: none; }
 
 .quick-comparison-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px 12px;
+  gap: 10px 14px;
+  padding-inline: 4px;
 }
 
-.quick-comparison-coverage {
-  margin: 0;
-  font-size: .82rem;
-  color: #c4d4ed;
-}
+.quick-comparison-summary h2 { margin: 0 0 3px; font-size: clamp(17px, 1.6vw, 23px); }
+.quick-comparison-coverage { margin: 0; color: #bbb4d1; font-size: .8rem; }
 
 .quick-comparison-navigation {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .quick-comparison-position {
-  min-width: 4ch;
-  text-align: center;
+  min-width: 10ch;
+  color: #d1c3e8;
   font-variant-numeric: tabular-nums;
+  text-align: center;
   font-size: .8rem;
 }
 
-.quick-comparison-frame { margin-top: 10px; }
-
-.quick-comparison-track {
-  --carousel-fade: 14px;
-  --carousel-left: #000;
-  --carousel-right: #000;
-  display: flex;
-  position: relative;
-  gap: 12px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: thin;
-  scrollbar-color: #697da7 #152139;
-  mask-image: linear-gradient(to right, var(--carousel-left), #000 var(--carousel-fade), #000 calc(100% - var(--carousel-fade)), var(--carousel-right));
+#quick-comparison-results :is(.quick-comparison-previous, .quick-comparison-next, .quick-comparison-close) {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 18px;
 }
 
-.quick-comparison-frame.has-prev .quick-comparison-track { --carousel-left: transparent; }
-.quick-comparison-frame.has-next .quick-comparison-track { --carousel-right: transparent; }
+#quick-comparison-results .quick-comparison-close { font-size: 25px; line-height: 1; }
+#quick-comparison-results [hidden] { display: none !important; }
+#quick-comparison-results :is(button, a):focus-visible { outline: 2px solid #d5bdfd; outline-offset: -3px; }
 
-.quick-comparison-track:has(> article:nth-child(2))::after {
-  content: "";
-  flex: 0 0 max(0px, calc(16% - 12px), calc(100% - 632px));
+.quick-comparison-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(6px, .75vw, 12px);
+  overscroll-behavior: contain;
 }
 
-.quick-comparison-slide {
-  flex: 0 0 min(84%, 620px);
+#quick-comparison-results .quick-comparison-card,
+.quick-comparison-detail {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   min-width: 0;
-  scroll-snap-align: start;
-  overflow: hidden;
-  border: 1px solid #334663;
-  border-radius: 11px;
-  background: #17243b;
-}
-
-.quick-comparison-slide:only-child { flex-basis: min(100%, 620px); }
-
-.quick-comparison-slide h3 {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  min-height: 0;
+  width: 100%;
   margin: 0;
-  padding: 9px 14px;
-  font-size: .88rem;
+  padding: 0;
+  border: 1px solid #39344c;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #0f1423;
+  color: inherit;
 }
 
-.quick-comparison-slide h3 span { color: #a5b8d7; font-size: .75rem; }
-.quick-comparison-slide a { display: block; background: #0d1628; color: inherit; }
-.quick-comparison-slide a:focus-visible { outline: 2px solid #ffdf72; outline-offset: -3px; }
+#quick-comparison-results .quick-comparison-card { cursor: zoom-in; }
+#quick-comparison-results .quick-comparison-card:hover { border-color: #a895c9; }
 
-.quick-comparison-slide img {
+#quick-comparison-results img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
+  min-height: 0;
   object-fit: contain;
+  background: #070c16;
 }
 
-.quick-comparison [hidden] { display: none !important; }
+.quick-comparison-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  color: #ddd4ef;
+  font-size: .8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-comparison-card .quick-comparison-caption > span { color: #b7abc9; font-size: .73rem; }
+.quick-comparison-original { white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .quick-comparison-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+  }
+  .quick-comparison-navigation { grid-column: 1 / -1; grid-row: 2; justify-content: end; }
+  .quick-comparison-close { grid-column: 2; grid-row: 1; }
+  .quick-comparison-grid {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  #quick-comparison-results .quick-comparison-card { flex: none; grid-template-rows: auto auto; }
+  #quick-comparison-results .quick-comparison-card img { height: auto; aspect-ratio: 16 / 9; }
+}

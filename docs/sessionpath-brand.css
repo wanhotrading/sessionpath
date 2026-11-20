@@ -4,7 +4,9 @@
   --sp-power-blue: #639fff;
   --sp-blue-light: #bed8ff;
   --sp-sunflower: #ffd35a;
-  --sp-dock-height: 66px;
+  --sp-dock-height: 62px;
+  --sp-mist-ink: #ebdeff;
+  --sp-mist-font: "Segoe UI Light", "Helvetica Neue", system-ui, sans-serif;
   --sp-toast-space: min(29dvh, 225px);
 }
 
@@ -14,16 +16,15 @@ body.session-board-active {
 
 .session-board-active .topbar {
   z-index: 40;
-  inset-block-end: calc(13px + env(safe-area-inset-bottom, 0px));
+  inset-block-end: calc((var(--sp-dock-height) - 36px) / 2 + env(safe-area-inset-bottom, 0px));
   inset-inline-start: max(16px, env(safe-area-inset-left, 0px));
-  height: 40px;
+  height: 36px;
   gap: 10px;
 }
 
 .session-board-active .topbar .site-brand-logo { width: 150px; height: 36px; }
-.session-board-active .watermark-feed { color: #d4e2fa; }
+.session-board-active .watermark-feed { color: var(--sp-mist-ink); font-family: var(--sp-mist-font); font-weight: 400; }
 
-/* Full-width glass with a single centered, keyboard-accessible composer. */
 body.session-board-active #sessionpath-assistant {
   position: fixed;
   inset: auto 0 0;
@@ -31,22 +32,32 @@ body.session-board-active #sessionpath-assistant {
   transform: none;
   padding: 0 max(12px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px)
     max(12px, env(safe-area-inset-left, 0px));
-  border-top: 1px solid #78acffa0;
+  background: transparent;
+  color: var(--sp-mist-ink);
+}
+
+body.session-board-active #sessionpath-assistant::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -14px 0 0;
+  pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 0%, #3063b34d, transparent 57%),
-    linear-gradient(180deg, #0d1e3bd6, #081329ef);
-  backdrop-filter: blur(17px) saturate(115%);
-  box-shadow: 0 -11px 36px #0410223d;
-  color: #edf5ff;
+    radial-gradient(ellipse at 50% 110%, rgb(186 157 239 / 17%), transparent 69%),
+    linear-gradient(to bottom, rgb(34 29 52 / 13%), rgb(16 13 30 / 52%));
+  -webkit-backdrop-filter: blur(11px) saturate(108%);
+  backdrop-filter: blur(11px) saturate(108%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 52%);
+  mask-image: linear-gradient(to bottom, transparent, #000 52%);
 }
 
 #sessionpath-assistant .sp-chat-composer {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  grid-template-columns: 50px minmax(0, 1fr) 50px;
   align-items: center;
   gap: 8px;
-  width: min(550px, 100%);
-  min-height: calc(var(--sp-dock-height) - 1px);
+  width: min(480px, 100%);
+  min-height: var(--sp-dock-height);
   margin: 0 auto;
   padding: 0;
   border: 0;
@@ -56,26 +67,22 @@ body.session-board-active #sessionpath-assistant {
 }
 
 @media (min-width: 801px) {
-  #sessionpath-assistant .sp-chat-composer { width: min(550px, calc(100% - 415px)); }
+  #sessionpath-assistant .sp-chat-composer { width: min(480px, calc(100% - 540px)); }
 }
 
 #sessionpath-assistant .sp-chat-composer .sp-chat-input {
   height: 44px;
   padding: 6px 10px !important;
-  font-size: 16px;
-  font-weight: 650;
-  color: var(--sp-sunflower);
+  font: 300 13px/1.4 var(--sp-mist-font);
+  letter-spacing: .035em;
+  color: var(--sp-mist-ink);
   border-radius: 8px;
-  caret-color: var(--sp-sunflower);
+  caret-color: var(--sp-mist-ink);
+  text-shadow: 0 1px 4px #100b24, 0 0 9px #181026c9;
 }
 
 #sessionpath-assistant .sp-chat-input:placeholder-shown { text-align: center; }
-#sessionpath-assistant .sp-chat-input::placeholder {
-  color: var(--sp-sunflower);
-  opacity: 1;
-  letter-spacing: .015em;
-  text-shadow: 0 2px 5px #040c22a3, 0 0 24px #ffd35a4f;
-}
+#sessionpath-assistant .sp-chat-input::placeholder { color: var(--sp-mist-ink); opacity: 1; }
 
 #sessionpath-assistant button {
   border-color: #8cb8ff45;
@@ -87,25 +94,31 @@ body.session-board-active #sessionpath-assistant {
 #sessionpath-assistant :is(button,input,textarea):focus-visible { outline-color: var(--sp-sunflower); }
 
 #sessionpath-assistant .sp-chat-composer :is(.sp-chat-attach, .sp-chat-send) {
-  height: 42px;
-  min-height: 42px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
-  background: #0d213b8a;
-  color: var(--sp-blue-light);
-  border: 1px solid #83b4ff4a;
-  border-radius: 10px;
+  font-family: var(--sp-mist-font);
+  background: rgb(26 21 45 / 35%);
+  color: var(--sp-mist-ink);
+  border: 1px solid rgb(229 205 255 / 21%);
+  border-radius: 12px;
+  text-shadow: 0 1px 3px #100b24;
 }
 
-#sessionpath-assistant .sp-chat-composer .sp-chat-attach { justify-self: start; width: 42px; font-size: 21px; }
-#sessionpath-assistant .sp-chat-composer .sp-chat-send { font-size: 12px; font-weight: 750; }
-#sessionpath-assistant .sp-chat-composer :is(.sp-chat-attach, .sp-chat-send):hover { background: #346cbc5e; }
+#sessionpath-assistant .sp-chat-composer .sp-chat-attach { justify-self: start; width: 44px; font-size: 20px; font-weight: 300; }
+#sessionpath-assistant .sp-chat-composer .sp-chat-send { font-size: 12px; font-weight: 400; }
+#sessionpath-assistant .sp-chat-composer :is(.sp-chat-attach, .sp-chat-send):hover { background: rgb(160 126 222 / 34%); }
+#sessionpath-assistant .sp-chat-composer :focus-visible { outline-color: var(--sp-mist-ink); }
 #sessionpath-assistant:has(.sp-chat-viewport:is([data-state="opening"], [data-state="open"])) .sp-chat-send {
-  background: var(--sp-sunflower);
-  color: var(--sp-midnight-deep);
-  border-color: var(--sp-sunflower);
+  background: var(--sp-mist-ink);
+  color: #26173f;
+  border-color: var(--sp-mist-ink);
+  text-shadow: none;
 }
 
-#sessionpath-assistant.sp-chat-dragover .sp-chat-composer { outline-color: var(--sp-power-blue); }
+#sessionpath-assistant.sp-chat-dragover .sp-chat-composer { outline-color: var(--sp-mist-ink); }
+
+
 #sessionpath-assistant .sp-chat-viewport {
   inset: auto auto calc(100% + 9px) 50%;
   width: min(720px, calc(100% - 24px));
@@ -130,11 +143,14 @@ body.session-board-active #sessionpath-assistant {
 #sessionpath-assistant .sp-chat-historical-toggle input { accent-color: var(--sp-sunflower); }
 
 @media (max-width: 800px) {
-  :root { --sp-dock-height: 62px; }
   #sessionpath-assistant .sp-chat-composer { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 5px; }
-  #sessionpath-assistant .sp-chat-composer :is(.sp-chat-attach, .sp-chat-send) { height: 44px; min-height: 44px; }
-  #sessionpath-assistant .sp-chat-composer .sp-chat-attach { width: 44px; }
   #sessionpath-assistant .sp-chat-composer .sp-chat-input { padding-inline: 4px !important; }
+}
+
+/* Keep a comfortable editing size on mobile Safari when the keyboard opens. */
+@media (max-width: 800px) and (pointer: coarse) {
+  #sessionpath-assistant .sp-chat-composer .sp-chat-input { font-size: 16px; }
+  #sessionpath-assistant .sp-chat-composer .sp-chat-input::placeholder { font-size: 13px; }
 }
 
 #news-desk {
