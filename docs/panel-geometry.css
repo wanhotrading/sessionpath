@@ -1,0 +1,184 @@
+/* The offset between outlines is the shell's padding plus its border width. */
+:root {
+  --sp-frame-stroke: 1px;
+  --sp-frame-outline: rgb(203 218 250 / 27%);
+  --sp-inner-outline: rgb(203 218 250 / 18%);
+  --sp-panel-inset: clamp(10px, 1.25vw, 17px);
+}
+
+.session-board .session-board-window,
+.session-board :is(#sessions-section, #research-followup),
+.overnight-timing-panel,
+.session-board-active #bbox-return-details,
+.sp-bbox-study .card {
+  --sp-frame-inset: var(--sp-panel-inset);
+  --sp-frame-radius: calc(18px + var(--sp-frame-inset) + var(--sp-frame-stroke));
+  --sp-child-radius: max(0px, calc(var(--sp-frame-radius) - var(--sp-frame-inset) - var(--sp-frame-stroke)));
+  padding: var(--sp-frame-inset);
+  border: var(--sp-frame-stroke) solid var(--sp-frame-outline);
+  border-radius: var(--sp-frame-radius);
+}
+
+.session-board .compact-path-card,
+.session-board .followup-reading .research-stat,
+.session-board-window :is(.session-board-containment, .forecast-context),
+.overnight-timing-panel .br-decay,
+.session-board-active #bbox-return-details .br-decay,
+.sp-bbox-study :is(.readouts > div, .prior-path-options) {
+  border-radius: var(--sp-child-radius);
+  border-color: var(--sp-inner-outline);
+}
+
+.session-board-window .forecast-context {
+  --sp-context-inset: 11px;
+  --sp-context-radius: max(0px, calc(var(--sp-child-radius) - var(--sp-context-inset) - var(--sp-frame-stroke)));
+  padding: var(--sp-context-inset);
+  border-width: var(--sp-frame-stroke);
+}
+
+.session-board-window .context-metric {
+  border-radius: var(--sp-context-radius);
+  border-color: var(--sp-inner-outline);
+}
+
+/* Framed panels elsewhere in the workspace and its full-size views. */
+.session-board-active #workspace > .panel,
+.session-board-active dialog {
+  border-radius: 28px;
+  border-color: var(--sp-frame-outline);
+}
+
+#workspace-tools-dialog {
+  --sp-tools-inset: clamp(14px, 2vw, 20px);
+  --sp-tools-radius: calc(16px + var(--sp-tools-inset) + var(--sp-frame-stroke));
+  --sp-tools-card-radius: max(0px, calc(var(--sp-tools-radius) - var(--sp-tools-inset) - var(--sp-frame-stroke)));
+  padding: var(--sp-tools-inset);
+  border: var(--sp-frame-stroke) solid var(--sp-frame-outline);
+  border-radius: var(--sp-tools-radius);
+}
+
+body[data-device-view="mobile"] #workspace-tools-dialog { padding: var(--sp-tools-inset); }
+#workspace-tools-dialog .workflow-tool-card {
+  border-color: var(--sp-inner-outline);
+  border-radius: var(--sp-tools-card-radius);
+}
+
+#cot-positioning-dialog {
+  --sp-cot-inset: clamp(14px, 2.4vw, 22px);
+  --sp-cot-radius: calc(18px + var(--sp-cot-inset) + var(--sp-frame-stroke));
+  --sp-cot-card-radius: max(0px, calc(var(--sp-cot-radius) - var(--sp-cot-inset) - var(--sp-frame-stroke)));
+  border-color: var(--sp-frame-outline) !important;
+  border-radius: var(--sp-cot-radius) !important;
+}
+
+#cot-positioning-dialog :is(.cot-panel-header, .cot-panel-controls, .cot-panel-status, .cot-panel-body) {
+  padding-inline: var(--sp-cot-inset);
+}
+
+#cot-positioning-dialog :is(.cot-bias, .cot-participant, .cot-history, .cot-methodology, .cot-open-interest > .cot-metric) {
+  border-radius: var(--sp-cot-card-radius);
+}
+
+#cot-positioning-dialog :is(.cot-participant, .cot-history, .cot-methodology, .cot-open-interest > .cot-metric) {
+  border-color: var(--sp-inner-outline);
+}
+
+#cot-positioning-dialog .cot-history {
+  --sp-cot-history-inset: 11px;
+  padding-inline: var(--sp-cot-history-inset);
+}
+
+#cot-positioning-dialog .cot-history .cot-table-scroll {
+  border-radius: max(0px, calc(var(--sp-cot-card-radius) - var(--sp-cot-history-inset) - var(--sp-frame-stroke)));
+  border-color: var(--sp-inner-outline);
+}
+
+#quick-comparison-results {
+  --sp-gallery-inset: max(10px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  --sp-gallery-radius: calc(15px + var(--sp-gallery-inset) + var(--sp-frame-stroke));
+  padding-inline: var(--sp-gallery-inset);
+  border-color: var(--sp-frame-outline) !important;
+  border-radius: var(--sp-gallery-radius) !important;
+}
+
+#quick-comparison-results :is(.quick-comparison-card, .quick-comparison-detail) {
+  border-color: var(--sp-inner-outline);
+  border-radius: max(0px, calc(var(--sp-gallery-radius) - var(--sp-gallery-inset) - var(--sp-frame-stroke)));
+}
+
+#sessionpath-assistant .sp-chat-viewport {
+  --sp-chat-inset: 14px;
+  --sp-chat-radius: calc(18px + var(--sp-chat-inset) + var(--sp-frame-stroke));
+  --sp-chat-card-radius: max(0px, calc(var(--sp-chat-radius) - var(--sp-chat-inset) - var(--sp-frame-stroke)));
+  border-radius: var(--sp-chat-radius);
+}
+
+#sessionpath-assistant .sp-chat-panel {
+  border-color: var(--sp-frame-outline);
+  border-width: var(--sp-frame-stroke);
+  border-radius: var(--sp-chat-radius);
+}
+
+.sp-chat-history { padding-inline: var(--sp-chat-inset); }
+.sp-chat-panel .sp-chat-attachment { margin-inline: var(--sp-chat-inset); }
+.sp-chat-panel :is(.sp-chat-attachment, .sp-chat-message) {
+  border-radius: var(--sp-chat-card-radius);
+  border-color: var(--sp-inner-outline);
+}
+
+.sp-chat-message {
+  --sp-message-inset: 11px;
+  --sp-message-child-radius: max(0px, calc(var(--sp-chat-card-radius) - var(--sp-message-inset) - var(--sp-frame-stroke)));
+  padding-inline: var(--sp-message-inset);
+  border-width: var(--sp-frame-stroke);
+}
+
+.sp-chat-message :is(.sp-chat-path-fill, .sp-chat-shapes, .sp-chat-visual-tag, .sp-chat-range > div) {
+  border-radius: var(--sp-message-child-radius);
+  border-color: var(--sp-inner-outline);
+}
+
+#news-desk {
+  --sp-news-inset: clamp(13px, 2.3vw, 21px);
+  --sp-news-radius: calc(16px + var(--sp-news-inset) + var(--sp-frame-stroke));
+  --sp-news-card-radius: max(0px, calc(var(--sp-news-radius) - var(--sp-news-inset) - var(--sp-frame-stroke)));
+  border-color: var(--sp-frame-outline) !important;
+  border-width: var(--sp-frame-stroke);
+  border-radius: var(--sp-news-radius) !important;
+}
+
+#news-desk :is(.news-desk-header, .news-desk-controls, .news-source-status,
+               .news-desk-toolbar, .news-desk-list-area, .news-desk-footer) {
+  padding-inline: var(--sp-news-inset);
+}
+
+#news-desk .news-desk-notice { margin-inline: var(--sp-news-inset); }
+#news-desk :is(.news-headline, .news-source-card, .news-discord-connect, .news-desk-empty, .news-desk-notice) {
+  border-radius: var(--sp-news-card-radius);
+}
+
+#news-desk :is(.news-headline, .news-source-card, .news-discord-connect, .news-desk-empty) {
+  border-color: var(--sp-inner-outline);
+}
+
+#news-alert-toast {
+  --sp-toast-inset: clamp(12px, 2vw, 18px);
+  --sp-queue-inset: 2px;
+  --sp-toast-radius: calc(15px + var(--sp-toast-inset) + var(--sp-queue-inset) + var(--sp-frame-stroke));
+  padding-inline: var(--sp-toast-inset);
+  border-color: var(--sp-frame-outline);
+  border-width: var(--sp-frame-stroke);
+  border-radius: var(--sp-toast-radius);
+}
+
+.news-unread-carousel {
+  padding-inline: var(--sp-queue-inset);
+  scrollbar-width: none;
+}
+
+.news-queue-card {
+  border-color: var(--sp-inner-outline);
+  border-radius: max(0px, calc(var(--sp-toast-radius) - var(--sp-toast-inset) - var(--sp-queue-inset) - var(--sp-frame-stroke)));
+}
+
+body[data-device-view="mobile"] #news-desk { border-radius: var(--sp-news-radius) !important; }
