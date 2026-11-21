@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=elf-fill-20261120';
-import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=overnight-hours-20261120';
+import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=chart-archive-20261121';
 import {mountMarketEmblem} from './market-emblem.mjs';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=study-return-20261120';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
@@ -12,7 +12,7 @@ import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
 import {mountLiveBBoxCheck} from '../bbox-live-check.mjs?v=automatic-bbox-20261118';
 import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
-import {mountScreenshotReview} from './screenshot-review.mjs?v=quick-archive-20261119';
+import {mountScreenshotReview} from './screenshot-review.mjs?v=chart-archive-20261121';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace} from './workspace-v7.mjs?v=quick-comparison-20261119';
 import {mountReplayTools} from './replay-tools.mjs';
