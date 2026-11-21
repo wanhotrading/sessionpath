@@ -35,9 +35,7 @@ html body :is(.sp-glass-tile, #workspace .sp-glass-tile) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-/* One shared wallpaper layer sits behind the panel text and controls. */
-.sp-glass-optics { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; }
-.sp-bbox-study .sp-glass-optics { z-index: -1; }
+
 html body dialog.sp-glass-host {
   background: linear-gradient(122deg, rgb(10 21 40 / 81%), rgb(14 26 47 / 73%)) !important;
 }
@@ -48,6 +46,8 @@ html body dialog.sp-glass-host {
 .session-board #sessions-section :is(.compact-path-sample, .compact-path-source, .observed-select) { color: #e2ebfa; }
 .session-board #sessions-section select { background-color: rgb(11 23 41 / 78%); }
 .session-board #clear-sequence { border-radius: 999px; }
+.sp-optics-scene {position:fixed; inset:0; width:100%; height:100%; z-index:-2; pointer-events:none;}
+.sp-bbox-study .sp-optics-scene {z-index:-1;}
 body.sp-bbox-study { background: linear-gradient(#111c33ad,#0d1935a8), var(--sp-study-wallpaper) center/cover fixed; }
 
 /* News uses its original drawer and queue styles. The AI dock keeps its own mist. */
@@ -63,14 +63,20 @@ body.session-board-active #sessionpath-assistant { border: 0; }
     backdrop-filter: blur(14px) saturate(108%);
   }
 }
+html.sp-optics-fallback body :is(.sp-glass-host, .sp-glass-tile, #workspace .sp-glass-host, #workspace .sp-glass-tile),
+html.sp-optics-fallback body dialog.sp-glass-host {
+  -webkit-backdrop-filter: var(--sp-backdrop, blur(3px)) !important;
+  backdrop-filter: var(--sp-backdrop, blur(3px)) !important;
+}
+.sp-optics-scene[hidden] { display: none; }
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {
-  html body :is(.sp-glass-host, .sp-glass-tile, #workspace .sp-glass-host, #workspace .sp-glass-tile),
-  html body dialog.sp-glass-host, html body #news-desk, html body #news-alert-toast,
+  html:root body :is(.sp-glass-host, .sp-glass-tile, #workspace .sp-glass-host, #workspace .sp-glass-tile),
+  html:root body dialog.sp-glass-host, html body #news-desk, html body #news-alert-toast,
   #sessionpath-assistant .sp-chat-panel, body.session-board-active #sessionpath-assistant::before {
     background: #152139 !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
   body.sp-bbox-study { background: #111b31; }
-  .sp-glass-optics { display: none; }
+  .sp-optics-scene { display: none; }
 }
