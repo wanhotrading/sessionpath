@@ -1,237 +1,171 @@
-// One optical renderer per document. Each visible panel keeps a still image of its glass.
+// The map describes the bevel only. The browser samples the actual backdrop
+// when it composites each frame, including native scrolling and panel transforms.
 const root = document.documentElement;
-const study = document.body.matches('.sp-bbox-study');
-const simple = matchMedia('(prefers-reduced-transparency: reduce), (forced-colors: active)');
-const calm = matchMedia('(prefers-reduced-motion: reduce)');
+const reduced = matchMedia('(prefers-reduced-transparency: reduce), (forced-colors: active)');
 const shells = [
   '.session-board-window', '#sessions-section', '#research-followup', '.overnight-timing-panel',
   '#bbox-return-details', '.quick-comparison-toggle', '#workspace > .panel:not(#projection):not(#conditions):not(#session-board)',
-  'dialog', '#news-alert-toast', '#news-desk', '.sp-bbox-study .card'
+  'dialog', '.sp-bbox-study .card'
 ].join(',');
 const tiles = [
-  '.compact-path-card', '#clear-sequence', '.quick-comparison-toggle > span',
-  '.session-board-containment', '.forecast-context', '.context-metric', '.research-stat',
-  '.br-decay', '.ot-controls > *', '.readouts > div', '.prior-path-options',
-  '.workflow-tool-card', '.quick-comparison-card', '.quick-comparison-detail', '.cot-bias',
-  '.cot-participant', '.cot-history', '.cot-methodology', '.cot-metric', '.news-source-card',
-  '.news-headline', '.news-queue-card', '.news-desk-empty', '.news-desk-notice'
+  '.compact-path-card', '#clear-sequence', '.quick-comparison-toggle > span', '.session-board-containment',
+  '.forecast-context', '.context-metric', '.research-stat', '.br-decay', '.ot-controls > *',
+  '.readouts > div', '.prior-path-options', '.workflow-tool-card', '.quick-comparison-card',
+  '.quick-comparison-detail', '.cot-bias', '.cot-participant', '.cot-history', '.cot-methodology', '.cot-metric'
 ].join(',');
-const records = new Map();
-const dirty = new Set();
-const buffer = document.createElement('canvas');
-const silent = {bands: new Float32Array(6), level: 0};
-const noPointer = {x: -10000, y: -10000};
-let renderer, loading, imageURL, textureReady = false, frame = 0, scrollTimer;
+const candidates = shells + ',' + tiles;
+const excluded = '#news-desk, #news-alert-toast, #sessionpath-assistant';
+const svgNS = 'http://www.w3.org/2000/svg';
+const maps = new Map();
+let serial = 0;
 
-function wallpaper() {
-  let choice = Number(root.dataset.background);
-  if (study && !choice) {
-    try { choice = Number(window.parent.document.documentElement.dataset.background); } catch {}
-    if (!choice) try { choice = Number(localStorage.getItem('sessionpath-last-background')) + 1; } catch {}
+function svgNode(name, attributes = {}) {
+  const node = document.createElementNS(svgNS, name);
+  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+  return node;
+}
+
+function bevelMap(width, height, radius, rim) {
+  const canvas = document.createElement('canvas');
+  const density = Math.min(1, 420 / Math.max(width, height));
+  canvas.width = Math.max(2, Math.round(width * density));
+  canvas.height = Math.max(2, Math.round(height * density));
+  const context = canvas.getContext('2d');
+  const image = context.createImageData(canvas.width, canvas.height);
+  // R and G encode horizontal and vertical offsets. Neutral glass leaves
+  // the centre clear. Only the rounded perimeter bends the background.
+  new Uint32Array(image.data.buffer).fill(0xff808080);
+  const dx = width / canvas.width, dy = height / canvas.height;
+  for (let y = 0; y < canvas.height; y++) {
+    const py = (y + .5) * dy - height / 2;
+    const qy = Math.abs(py) - (height / 2 - radius);
+    const margin = Math.ceil((rim + radius + 1) / dx);
+    for (let x = 0; x < canvas.width; x++) {
+      if (height / 2 - Math.abs(py) > rim + radius && x === margin && canvas.width > 2 * margin) x = canvas.width - margin;
+      const px = (x + .5) * dx - width / 2;
+      const qx = Math.abs(px) - (width / 2 - radius);
+      const nx = Math.max(0, qx), ny = Math.max(0, qy);
+      const norm = Math.hypot(nx, ny);
+      const depth = radius - norm - Math.min(Math.max(qx, qy), 0);
+      if (depth < 0 || depth >= rim) continue;
+      const t = depth / rim;
+      const bend = 123 * Math.sin(Math.PI * (t * .88 + .12)) * (1 - t) ** 1.15;
+      const index = 4 * (y * canvas.width + x);
+      image.data[index] = 128 - Math.sign(px) * (norm ? nx / norm : Number(qx >= qy)) * bend;
+      image.data[index + 1] = 128 - Math.sign(py) * (norm ? ny / norm : Number(qy > qx)) * bend;
+    }
   }
-  if (!Number.isInteger(choice) || choice < 1 || choice > 11) choice = 1;
-  return new URL(`./assets/backgrounds/snowy-sunset-v${choice}.webp`, import.meta.url).href;
+  context.putImageData(image, 0, 0);
+  return canvas.toDataURL();
 }
 
-function refreshImage() {
-  const url = wallpaper();
-  if (study) root.style.setProperty('--sp-study-wallpaper', `url("${url}")`);
-  if (!renderer || url === imageURL) return;
-  imageURL = url;
-  textureReady = false;
-  const image = new Image();
-  image.onload = () => {
-    if (!renderer || imageURL !== url) return;
-    renderer.setSource(image, image.naturalWidth, image.naturalHeight);
-    textureReady = true;
-    for (const state of records.values()) { state.key = ''; schedule(state); }
-  };
-  image.onerror = () => {
-    if (url === imageURL) for (const state of records.values()) state.surface?.removeAttribute('data-painted');
-  };
-  image.src = url;
-}
-
-function enableRenderer() {
-  if (!loading) loading = import('./vendor/liquid-glass/liquid-glass.js?v=all-panels-3').then(module => {
-    renderer = module.createGlassRenderer(buffer);
-    renderer.setDim(.08);
-    refreshImage();
-  }).catch(() => { /* Translucent CSS glass is available without WebGL. */ });
-}
-
-function schedule(state) {
-  if (!state.visible || document.hidden || simple.matches) return;
-  if (!renderer) enableRenderer();
-  if (!textureReady) return;
-  dirty.add(state);
-  if (!frame) frame = requestAnimationFrame(paintNext);
-}
-
-function paintNext() {
-  frame = 0;
-  const state = dirty.values().next().value;
-  if (!state) return;
-  dirty.delete(state);
-  if (textureReady && !document.hidden && !simple.matches && state.visible && state.host.isConnected) paint(state);
-  if (dirty.size && !document.hidden && !simple.matches) frame = requestAnimationFrame(paintNext);
-}
-
-function glassShape(rect, origin, element, outer) {
-  const halfWidth = rect.width / 2, halfHeight = rect.height / 2;
-  const half = Math.min(halfWidth, halfHeight);
-  const style = getComputedStyle(element);
-  const corner = style.borderTopLeftRadius;
-  const material = (key, fallback) => parseFloat(style.getPropertyValue('--glass-' + key)) || fallback;
-  const radius = corner.endsWith('%') ? half * parseFloat(corner) / 50 : parseFloat(corner) || 0;
-  const depth = Math.min(44, Math.max(half * .36, Math.min(half * .7, 14))) * material('depth', outer ? 1.07 : .73);
-  return {x:rect.left-origin.left+halfWidth, y:rect.top-origin.top+halfHeight,
-    halfWidth, halfHeight, radius: Math.min(radius,half), depth, rounding:Math.min(depth*.73,half*.9),
-    dome:depth * .48 * material('dome', outer ? 1.1 : .85), ior:material('ior', outer ? 1.5 : 1.43),
-    frost:material('frost', outer ? .16 : .28), chroma:material('chroma', .022),
-    tint:[.09,.15,.24, outer ? .08 : .13], shadow:.65, pull:0, lens:[0,0,0,0], glow:0, press:0};
-}
-
-function paint(state) {
-  const {host} = state;
-  if (!state.surface || state.surface.parentNode !== host) {
-    const surface = document.createElement('sessionpath-glass');
-    surface.className = 'sp-liquid-surface';
-    surface.setAttribute('aria-hidden','true');
-    state.canvas = document.createElement('canvas');
-    surface.append(state.canvas);
-    host.append(surface);
-    state.surface = surface;
-    state.key = '';
+function acquire(defs, key, width, height, radius, inner) {
+  let map = maps.get(key);
+  if (!map) {
+    const id = 'sp-live-rim-' + ++serial;
+    const rim = Math.min(inner ? 11 : 24, width / 4, height / 4);
+    const filter = svgNode('filter', {id, x:'0%', y:'0%', width:'100%', height:'100%', 'color-interpolation-filters':'sRGB'});
+    // Chromium resolves percentage feImage dimensions against the zero-size
+    // definitions SVG. Use the panel's CSS pixels for the map's destination.
+    filter.append(svgNode('feImage', {href:bevelMap(width, height, radius, rim), x:0, y:0, width,
+      height, preserveAspectRatio:'none', result:'bevel'}));
+    filter.append(svgNode('feDisplacementMap', {in:'SourceGraphic', in2:'bevel', scale:rim * 2.5, xChannelSelector:'R', yChannelSelector:'G'}));
+    defs.append(filter);
+    map = {key, id, filter, users:0};
+    maps.set(key, map);
   }
-  const {surface, canvas} = state;
-  if (host.scrollTop || host.scrollLeft || surface.style.translate)
-    surface.style.translate = `${host.scrollLeft}px ${host.scrollTop}px`;
-  const rect = surface.getBoundingClientRect();
-  const w = Math.round(rect.width), h = Math.round(rect.height);
-  if (w < 2 || h < 2) return;
-  const shapes = [glassShape(rect, rect, host, true)];
-  for (const tile of host.querySelectorAll(tiles)) {
-    if (shapes.length >= renderer.maxPanes) break;
-    if (tile.closest(shells) !== host) continue;
-    const r = tile.getBoundingClientRect();
-    if (r.width < 2 || r.height < 2 || r.bottom <= Math.max(rect.top,0) || r.top >= Math.min(rect.bottom,innerHeight)) continue;
-    shapes.push(glassShape(r, rect, tile, false));
-  }
-  const key = [imageURL, Math.round(rect.left), Math.round(rect.top), w, h, innerWidth, innerHeight,
-    ...shapes.flatMap(s => [s.x,s.y,s.halfWidth,s.halfHeight,s.radius].map(Math.round))].join('/');
-  if (key === state.key) return;
-  // Spend pixels on readable DOM text. Limit the decorative bitmap on tall/mobile panels.
-  const resolution = Math.min(1, Math.sqrt(640000 / (w*h)), 1800 / Math.max(w,h));
-  renderer.resize(w,h,resolution);
-  renderer.drawScene(0,rect);
-  renderer.drawGlass(shapes,{x:w*.18, y:-h*.25},noPointer,silent);
-  const ctx = canvas.getContext('2d', {alpha:false});
-  if (!ctx) return;
-  if (canvas.width !== buffer.width) canvas.width = buffer.width;
-  if (canvas.height !== buffer.height) canvas.height = buffer.height;
-  ctx.drawImage(buffer,0,0);
-  surface.dataset.painted = '';
-  state.key = key;
+  map.users++;
+  return map;
 }
 
 function release(state) {
-  dirty.delete(state);
-  state.surface?.remove();
-  state.canvas = null;
-  state.surface = null;
-  state.key = '';
+  if (!state.map) return;
+  state.el.style.removeProperty('--sp-backdrop');
+  if (!--state.map.users) {
+    state.map.filter.remove();
+    maps.delete(state.map.key);
+  }
+  state.map = null;
 }
 
-function setup() {
-  const resize = new ResizeObserver(() => { for (const state of records.values()) schedule(state); });
-  const visibility = new IntersectionObserver(entries => {
+function configureLenses() {
+  const registry = new Map();
+  const svg = svgNode('svg', {width:0, height:0, 'aria-hidden':'true', focusable:'false'});
+  svg.style.cssText = 'position:absolute;pointer-events:none;overflow:hidden';
+  const defs = svgNode('defs');
+  svg.append(defs);
+  document.body.append(svg);
+  // Safari and Firefox support native backdrop blur. Enable URL refraction on
+  // engines that also implement SVG reference filters on a CSS backdrop.
+  const refracts = CSS.supports('backdrop-filter', 'url("#lens")') && /Chrom(?:e|ium)\//.test(navigator.userAgent);
+  function update(state) {
+    if (!state.visible || reduced.matches || !refracts) return;
+    const {el, inner} = state;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    if (w < 2 || h < 2) return;
+    const radius = getComputedStyle(el).borderTopLeftRadius;
+    const r = Math.round(Math.min(w / 2, h / 2, radius.endsWith('%') ? Math.min(w,h) * parseFloat(radius) / 100 : parseFloat(radius) || 0));
+    const key = [w,h,r,inner].join('/');
+    if (key === state.map?.key) return;
+    release(state);
+    state.map = acquire(defs, key, w, h, r, inner);
+    el.style.setProperty('--sp-backdrop', 'url("#' + state.map.id + '")');
+  }
+  const sizes = new ResizeObserver(entries => {
+    for (const entry of entries) { const state = registry.get(entry.target); if (state) update(state); }
+  });
+  const visible = new IntersectionObserver(entries => {
     for (const entry of entries) {
-      const state = records.get(entry.target);
+      const state = registry.get(entry.target);
       if (!state) continue;
-      state.visible = entry.isIntersecting && entry.intersectionRect.height > 0 && entry.intersectionRect.width > 0;
-      if (state.visible) schedule(state);
-      else release(state);
+      state.visible = entry.isIntersecting;
+      if (state.visible) update(state); else release(state);
     }
-  });
-  function register(host) {
-    if (records.has(host)) return;
-    const state = {host, visible:false, key:''};
-    records.set(host,state);
-    if (getComputedStyle(host).position === 'static') host.classList.add('sp-glass-static');
-    host.classList.add('sp-glass-host');
-    if (host.matches('#news-desk, #news-alert-toast')) attachNewsLight(host);
-    visibility.observe(host);
-    resize.observe(host);
+  }, {rootMargin:'160px'});
+  function register(el) {
+    if (registry.has(el) || el.closest(excluded)) return;
+    const inner = !el.matches(shells);
+    if (inner && !el.closest(shells)) return;
+    const state = {el, inner, visible:false, map:null};
+    registry.set(el, state);
+    el.classList.add(inner ? 'sp-glass-tile' : 'sp-glass-host');
+    visible.observe(el);
+    sizes.observe(el);
   }
-  function discover(el) {
-    if (el.matches(shells)) register(el);
-    el.querySelectorAll(shells).forEach(register);
+  function scan(node) {
+    if (node.matches(candidates)) register(node);
+    node.querySelectorAll(candidates).forEach(register);
   }
-  discover(document.body);
-  new MutationObserver(recordsChanged => {
+  scan(document.body);
+  new MutationObserver(changes => {
     let removed = false;
-    for (const m of recordsChanged) {
-      if (m.type === 'attributes' && m.target.matches(shells)) register(m.target);
-      for (const node of m.addedNodes) if (node.nodeType === 1 && node.localName !== 'sessionpath-glass') discover(node);
-      for (const node of m.removedNodes) if (node.nodeType === 1) removed = true;
-      const state = records.get(m.target.closest?.(shells));
-      if (state && (m.type === 'attributes' || [...m.addedNodes,...m.removedNodes].some(node =>
-        node.nodeType === 1 && (node.localName !== 'sessionpath-glass' || state.surface === node && node.parentNode !== state.host)))) schedule(state);
+    for (const change of changes) {
+      if (change.target.namespaceURI === svgNS) continue;
+      if (change.type === 'attributes' && change.target.matches(candidates)) register(change.target);
+      for (const node of change.addedNodes) if (node.nodeType === 1 && node.namespaceURI !== svgNS) scan(node);
+      if (change.removedNodes.length) removed = true;
     }
-    if (removed) for (const [host, state] of records) if (!host.isConnected) {
-      visibility.unobserve(host); resize.unobserve(host); release(state); records.delete(host);
+    if (removed) for (const [el, state] of registry) if (!el.isConnected || el.closest(excluded)) {
+      visible.unobserve(el); sizes.unobserve(el); release(state); registry.delete(el);
+      el.classList.remove('sp-glass-tile', 'sp-glass-host');
     }
-  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','open','hidden','data-state']});
-  const updateVisible = () => { for (const state of records.values()) schedule(state); };
-  window.addEventListener('resize',updateVisible,{passive:true});
-  // A swipe or scroll performs one final layout pass once the view settles.
-  window.addEventListener('scroll',() => { clearTimeout(scrollTimer);scrollTimer=setTimeout(updateVisible,85); },{capture:true,passive:true});
-  document.addEventListener('visibilitychange',updateVisible);
-  for (const event of ['animationend','transitionend','toggle']) document.addEventListener(event,updateVisible,true);
-  simple.addEventListener('change',() => {
-    if (simple.matches) for (const state of records.values()) release(state);
-    else updateVisible();
+  }).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class']});
+  reduced.addEventListener('change', () => {
+    for (const state of registry.values()) if (reduced.matches) release(state); else update(state);
   });
-  new MutationObserver(refreshImage).observe(root,{attributes:true,attributeFilter:['data-background']});
-  refreshImage();
 }
 
-// The only moving highlight belongs to news. Moving across forecasts never repaints a lens.
-let litNews;
-function clearLight() {
-  litNews?.removeAttribute('data-news-light');
-  litNews = null;
+if (document.body.matches('.sp-bbox-study')) {
+  let source = root, fallback = 1;
+  try { source = parent.document.documentElement; } catch {}
+  try { fallback = Number(localStorage.getItem('sessionpath-last-background')) + 1; } catch {}
+  const wallpaper = () => {
+    const choice = Number(source.dataset.background) || fallback;
+    const index = Number.isInteger(choice) && choice >= 1 && choice <= 11 ? choice : 1;
+    const url = new URL('./assets/backgrounds/snowy-sunset-v' + index + '.webp', import.meta.url);
+    root.style.setProperty('--sp-study-wallpaper', 'url("' + url.href + '")');
+  };
+  wallpaper();
+  new MutationObserver(wallpaper).observe(source, {attributes:true, attributeFilter:['data-background']});
 }
-function attachNewsLight(host) {
-  host.addEventListener('pointermove', event => {
-    if (simple.matches || calm.matches || event.pointerType === 'touch') return;
-    if (litNews !== host) clearLight();
-    const rect = host.getBoundingClientRect();
-    host.style.setProperty('--sp-news-x', (event.clientX-rect.left)+'px');
-    host.style.setProperty('--sp-news-y', (event.clientY-rect.top)+'px');
-    host.dataset.newsLight = '';
-    litNews = host;
-  }, {passive:true});
-  host.addEventListener('pointerleave', clearLight, {passive:true});
-  host.addEventListener('close', clearLight);
-}
-window.addEventListener('blur',clearLight);
-calm.addEventListener('change',clearLight);
-simple.addEventListener('change',clearLight);
-buffer.addEventListener('webglcontextlost',event=>{
-  event.preventDefault();
-  renderer = null; textureReady = false;
-  for (const state of records.values()) release(state);
-});
-buffer.addEventListener('webglcontextrestored',()=>{
-  loading = null; imageURL = null;
-  if (!simple.matches) enableRenderer();
-});
-if ('IntersectionObserver' in window && 'ResizeObserver' in window) {
-  if (study || root.dataset.startup === 'ready') setup();
-  else {
-    const ready = new MutationObserver(()=>{if(root.dataset.startup==='ready'){ready.disconnect();setup();}});
-    ready.observe(root,{attributes:true,attributeFilter:['data-startup']});
-  }
-}
+if ('IntersectionObserver' in window && 'ResizeObserver' in window) configureLenses();
