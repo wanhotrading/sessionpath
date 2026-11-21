@@ -6,7 +6,7 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)');
 const shells = [
   '.session-board-window', '#sessions-section', '#research-followup', '.overnight-timing-panel',
   '#bbox-return-details', '.quick-comparison-toggle', '#workspace > .panel:not(#projection):not(#conditions):not(#session-board)',
-  'dialog', '#news-alert-toast', '#news-desk', '.sp-chat-panel', '.sp-chat-composer', '.sp-bbox-study .card'
+  'dialog', '#news-alert-toast', '#news-desk', '.sp-bbox-study .card'
 ].join(',');
 const tiles = [
   '.compact-path-card', '#clear-sequence', '.quick-comparison-toggle > span',
@@ -14,7 +14,7 @@ const tiles = [
   '.br-decay', '.ot-controls > *', '.readouts > div', '.prior-path-options',
   '.workflow-tool-card', '.quick-comparison-card', '.quick-comparison-detail', '.cot-bias',
   '.cot-participant', '.cot-history', '.cot-methodology', '.cot-metric', '.news-source-card',
-  '.news-headline', '.news-queue-card', '.news-desk-empty', '.news-desk-notice', '.sp-chat-message'
+  '.news-headline', '.news-queue-card', '.news-desk-empty', '.news-desk-notice'
 ].join(',');
 const records = new Map();
 const dirty = new Set();

@@ -38,7 +38,7 @@
 
 /* Panel shells keep their existing layout, placement, and concentric radii. */
 .sp-glass-static { position: relative; }
-html body :is(.sp-glass-host, #workspace .sp-glass-host, dialog.sp-glass-host, #news-desk, #news-alert-toast, #sessionpath-assistant .sp-glass-host).sp-glass-host {
+html body :is(.sp-glass-host, #workspace .sp-glass-host, dialog.sp-glass-host, #news-desk, #news-alert-toast).sp-glass-host {
   isolation: isolate;
   background: linear-gradient(125deg, rgb(31 47 68 / 68%), rgb(16 27 48 / 75%)) !important;
   border-color: rgb(233 241 255 / 56%) !important;
@@ -74,7 +74,7 @@ html body .sp-glass-host:has(> .sp-liquid-surface[data-painted]) {
 html body .sp-glass-host :is(.compact-path-card, .session-board-containment, .forecast-context, .context-metric,
     .research-stat, .br-decay, .ot-controls > *, .readouts > div, .prior-path-options, .workflow-tool-card,
     .quick-comparison-card, .quick-comparison-detail, .cot-bias, .cot-participant, .cot-history, .cot-methodology,
-    .cot-metric, .news-source-card, .news-headline, .news-queue-card, .news-desk-empty, .sp-chat-message) {
+    .cot-metric, .news-source-card, .news-headline, .news-queue-card, .news-desk-empty) {
   background: linear-gradient(125deg, rgb(17 28 46 / 53%), rgb(13 23 42 / 42%));
   border-color: rgb(230 239 255 / 38%);
   box-shadow: inset 0 1px 1px #f2f8ff45, inset 0 -1px 2px #becce947;
@@ -90,8 +90,7 @@ html body .sp-glass-host :is(.compact-path-card, .session-board-containment, .fo
   box-shadow: inset 0 1px 1px #f5faff79, inset 0 -1px 1px #e2ebff65;
 }
 dialog.sp-glass-host > .sp-liquid-surface::after,
-#news-desk > .sp-liquid-surface::after, #news-alert-toast > .sp-liquid-surface::after,
-.sp-chat-panel > .sp-liquid-surface::after {
+#news-desk > .sp-liquid-surface::after, #news-alert-toast > .sp-liquid-surface::after {
   background: linear-gradient(122deg, rgb(8 20 40 / 61%), rgb(11 23 43 / 54%));
 }
 @media (prefers-reduced-motion: no-preference) and (hover: hover) {
@@ -111,12 +110,26 @@ dialog.sp-glass-host > .sp-liquid-surface::after,
 body.sp-bbox-study {
   background: linear-gradient(#111c33ad,#0d1935a8), var(--sp-study-wallpaper) center/cover fixed;
 }
+/* The composer uses the original full-width mist behind the dock. The open
+   conversation blurs its own backdrop so the text and chart uploads stay sharp. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #sessionpath-assistant .sp-chat-panel {
+    background: linear-gradient(155deg, rgb(22 33 56 / 84%), rgb(12 22 42 / 88%));
+    -webkit-backdrop-filter: blur(14px) saturate(108%);
+    backdrop-filter: blur(14px) saturate(108%);
+  }
+}
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {
-  html body :is(.sp-glass-host, #workspace .sp-glass-host, #news-desk, #news-alert-toast, #sessionpath-assistant .sp-glass-host).sp-glass-host {
+  html body :is(.sp-glass-host, #workspace .sp-glass-host, #news-desk, #news-alert-toast).sp-glass-host {
     background: #152139 !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
   .sp-liquid-surface { display: none; }
   body.sp-bbox-study { background: #111b31; }
+  #sessionpath-assistant .sp-chat-panel, body.session-board-active #sessionpath-assistant::before {
+    background: #152139;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
