@@ -97,7 +97,7 @@ export function mountScreenshotReview(research, { loadGallery = () => {} } = {})
         const seen = new Set();
         const parsed = source.flatMap(item => {
           if (!item || item.instrument !== instrument.id || !/^[a-f0-9]{64}$/.test(item.sha256 || '') || !/^\d{4}-\d{2}-\d{2}$/.test(item.date || '') || !['overview','detail'].includes(item.view)) return [];
-          if (typeof item.src !== 'string' || !new RegExp(`^charts/captures/${instrument.id}/[A-Za-z0-9._-]+\\.png$`).test(item.src)) return [];
+          if (typeof item.src !== 'string' || !new RegExp(`^charts/captures/${instrument.id}/[A-Za-z0-9._-]+\\.(?:png|webp)$`).test(item.src)) return [];
           const url = new URL(item.src, document.baseURI).href; if (seen.has(url)) return []; seen.add(url);
           return [{ id: 'local:' + item.sha256, name: String(item.sourceFile || item.name || item.date + '.png').slice(0,250), date: item.date, contract: String(item.contract || '').slice(0,20), view: item.view, src: url, url, width: item.width, height: item.height }];
         });

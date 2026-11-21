@@ -1,5 +1,5 @@
 import { mountDashboardTiming } from './bbox-timing/dashboard-window.mjs';
-import { mountQuickComparison } from './quick-comparison.mjs?v=study-return-20261120';
+import { mountQuickComparison } from './quick-comparison.mjs?v=chart-archive-20261121';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';

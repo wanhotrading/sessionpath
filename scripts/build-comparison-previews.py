@@ -100,6 +100,10 @@ def main(docs):
             records = candidates(docs, market, workspace, data_folder)
             results = list(executor.map(lambda row: build_preview(docs, folder, row), records))
             images = sorted((record for record, _, _ in results), key=lambda record: record["date"])
+            tags = read_json(docs / workspace / "data/archive-tags.json", {})
+            for image in images:
+                if image["date"] in tags:
+                    image["comparisonTags"] = tags[image["date"]]
             catalog = {"version": 1, "market": market, "images": images}
             (folder / "index.json").write_text(json.dumps(catalog, separators=(",", ":")) + "\n", encoding="utf-8")
             original = sum(before for _, before, _ in results)

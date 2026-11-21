@@ -37,13 +37,16 @@ async function fetchPreviewArchive(market) {
   if (data.version !== 1 || data.market !== market || !Array.isArray(data.images) || data.images.length > 5000) throw Error('Invalid preview archive');
   const images = new Map();
   for (const item of data.images) {
-    const { date, src, contract, preview } = item || {};
+    const { date, src, contract, preview, comparisonTags } = item || {};
     if (!DATE.test(date) || typeof src !== 'string' || !CHART_PATH.test(src) ||
         src.split('/').some(part => part === '.' || part === '..')) continue;
     images.set(date, {
       contract,
       url: new URL(src, SITE).href,
       preview: PREVIEW_NAME.test(preview) ? new URL(preview, folder).href : null,
+      day: Array.isArray(comparisonTags?.phaseTags)
+        ? { date, contract, phaseTags: comparisonTags.phaseTags, phaseComplete: comparisonTags.phaseComplete }
+        : null,
     });
   }
   if (data.images.length && !images.size) throw Error('Preview archive has no valid images');
@@ -57,7 +60,7 @@ function makeCard({ day, image }, index, lazy) {
   card.dataset.chartIndex = index;
   card.setAttribute('aria-label', 'Enlarge chart for ' + day.date);
   const chart = document.createElement('img');
-  chart.alt = 'TradingView chart for ' + day.date;
+  chart.alt = 'Session chart for ' + day.date;
   chart.loading = lazy ? 'lazy' : 'eager';
   chart.decoding = 'async';
   if (image.preview) chart.addEventListener('error', () => { chart.src = image.url; }, { once: true });
@@ -95,6 +98,7 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
       <div class="quick-comparison-summary">
         <h2 id="quick-comparison-title">Compare similar days</h2>
         <p class="quick-comparison-coverage" role="status"></p>
+        ${['ES', 'GC'].includes(market) ? '<label><input type="checkbox" class="quick-comparison-all-tags"> All archived dates with selected tags</label>' : ''}
       </div>
       <div class="quick-comparison-navigation" hidden>
         <button type="button" class="quiet quick-comparison-back" hidden>Back to grid</button>
@@ -114,6 +118,7 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
     </figure>`;
   document.body.append(panel);
   const coverage = panel.querySelector('.quick-comparison-coverage');
+  const allTags = panel.querySelector('.quick-comparison-all-tags');
   const controls = panel.querySelector('.quick-comparison-navigation');
   const position = panel.querySelector('.quick-comparison-position');
   const previous = panel.querySelector('.quick-comparison-previous');
@@ -193,14 +198,22 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
 
   function render() {
     if (!panel.open || closing) return;
-    const days = getDays();
-    const canMatch = Boolean(days?.length && forecast?.date);
-    const matches = canMatch ? comparisonCandidates(days, forecast, getChoices(forecast.date)) : [];
     const images = source?.();
+    const days = getDays() || [];
+    const canMatch = Boolean(forecast?.date && (days.length || images?.size));
+    const choices = canMatch ? getChoices(forecast.date) : {};
+    const tagMode = Boolean(allTags?.checked);
+    const hasTags = Object.entries(choices).some(([session, value]) => value && SHAPE_END[session] <= forecast?.minute);
+    const archiveDays = tagMode && images ? [...images.values()].flatMap(image => image.day ? [image.day] : []) : [];
+    const candidates = tagMode ? [...archiveDays] : days;
+    const query = tagMode ? { ...forecast, dates: null } : forecast;
+    const matches = canMatch ? comparisonCandidates(candidates, query, choices) : [];
     const result = images ? matches.flatMap(day => images.has(day.date) ? [{ day, image: images.get(day.date) }] : []) : [];
     const message = !canMatch ? 'Waiting for the forecast and historical data.' :
-      !matches.length ? 'No historical matches for the active forecast and selected outcomes.' :
+      tagMode && !hasTags ? 'Select a completed session tag to compare archived charts.' :
       !images ? 'Loading archived charts…' :
+      !matches.length ? 'No historical matches for the active forecast and selected outcomes.' :
+      result.length && tagMode ? result.length.toLocaleString() + ' archived charts match the selected tags.' :
       result.length ? result.length.toLocaleString() + ' of ' + matches.length.toLocaleString() + ' matched days have screenshots.' :
       'No screenshots are available for these matched days.';
     if (coverage.textContent !== message) coverage.textContent = message;
@@ -222,6 +235,7 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
     scheduled = true;
     requestAnimationFrame(() => { scheduled = false; render(); });
   }
+  allTags?.addEventListener('change', refresh);
 
   function motionEnabled() {
     return !reduced.matches && !document.body.classList.contains('motion-paused');
