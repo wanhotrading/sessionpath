@@ -376,7 +376,9 @@ ${ye}`), p = e.createBuffer(), A = a(), R = a(), _ = a(), C = e.createFramebuffe
     if (e.bindTexture(e.TEXTURE_2D, m), e.texImage2D(e.TEXTURE_2D, 0, e.RGBA, b, N, 0, e.RGBA, e.UNSIGNED_BYTE, null), e.bindFramebuffer(e.FRAMEBUFFER, c), e.framebufferTexture2D(e.FRAMEBUFFER, e.COLOR_ATTACHMENT0, e.TEXTURE_2D, m, 0), e.checkFramebufferStatus(e.FRAMEBUFFER) !== e.FRAMEBUFFER_COMPLETE) throw new Error("A glass framebuffer is incomplete.");
   }
   function ae(c, m) {
-    L = Math.max(1, c), E = Math.max(1, m), X = Math.min(window.devicePixelRatio || 1, 1.5), o.width = Math.round(L * X), o.height = Math.round(E * X), J(C, R, o.width, o.height), J(w, _, Math.max(1, Math.ceil(o.width / 4)), Math.max(1, Math.ceil(o.height / 4))), e.bindFramebuffer(e.FRAMEBUFFER, null), O = !0;
+    // Keep background optics at CSS-pixel resolution on high-density phones. Text is native DOM.
+    const pixelRatioCap = o.getRootNode().host?.hasAttribute("viewport-backdrop") ? 1 : 1.5;
+    L = Math.max(1, c), E = Math.max(1, m), X = Math.min(window.devicePixelRatio || 1, pixelRatioCap), o.width = Math.round(L * X), o.height = Math.round(E * X), J(C, R, o.width, o.height), J(w, _, Math.max(1, Math.ceil(o.width / 4)), Math.max(1, Math.ceil(o.height / 4))), e.bindFramebuffer(e.FRAMEBUFFER, null), O = !0;
   }
   function le(c, m = 1, b = 1) {
     H = c === "wait" ? 2 : c ? 0 : 1, !(!c || c === "wait") && (W = { width: Math.max(1, m), height: Math.max(1, b) }, e.bindTexture(e.TEXTURE_2D, A), e.pixelStorei(e.UNPACK_FLIP_Y_WEBGL, !0), e.texImage2D(e.TEXTURE_2D, 0, e.RGBA, e.RGBA, e.UNSIGNED_BYTE, c), e.pixelStorei(e.UNPACK_FLIP_Y_WEBGL, !1));
@@ -387,9 +389,20 @@ ${ye}`), p = e.createBuffer(), A = a(), R = a(), _ = a(), C = e.createFramebuffe
   function ue(c) {
     Q = Math.min(0.9, Math.max(0, Number.isFinite(c) ? c : 0));
   }
+  // SessionPath addition to upstream 1.1.1. A small canvas can sample its actual
+  // rectangle in a viewport-sized wallpaper instead of fitting a second copy inside it.
+  function imageCrop() {
+    if (!o.getRootNode().host?.hasAttribute("viewport-backdrop")) return be(L, E, W.width, W.height);
+    const rect = o.getBoundingClientRect();
+    const width = document.documentElement.clientWidth;
+    const height = document.documentElement.clientHeight;
+    const [xScale, yScale, xOffset, yOffset] = be(width, height, W.width, W.height);
+    return [xScale * L / width, yScale * E / height,
+      xOffset + xScale * rect.left / width, yOffset + yScale * rect.top / height];
+  }
   function de(c) {
     if (G || !O) return;
-    e.bindFramebuffer(e.FRAMEBUFFER, C), e.viewport(0, 0, o.width, o.height), $(y), e.activeTexture(e.TEXTURE0), e.bindTexture(e.TEXTURE_2D, A), e.uniform1i(l.u_image, 0), e.uniform2f(l.u_size, L, E), e.uniform1f(l.u_dpr, X), e.uniform1f(l.u_mode, H), e.uniform4f(l.u_crop, ...be(L, E, W.width, W.height)), e.uniform1f(l.u_time, c), e.uniform3fv(l["u_colors[0]"], j), e.uniform3fv(l.u_base, K), e.uniform1f(l.u_dim, Q), e.drawArrays(e.TRIANGLES, 0, 3);
+    e.bindFramebuffer(e.FRAMEBUFFER, C), e.viewport(0, 0, o.width, o.height), $(y), e.activeTexture(e.TEXTURE0), e.bindTexture(e.TEXTURE_2D, A), e.uniform1i(l.u_image, 0), e.uniform2f(l.u_size, L, E), e.uniform1f(l.u_dpr, X), e.uniform1f(l.u_mode, H), e.uniform4f(l.u_crop, ...imageCrop()), e.uniform1f(l.u_time, c), e.uniform3fv(l["u_colors[0]"], j), e.uniform3fv(l.u_base, K), e.uniform1f(l.u_dim, Q), e.drawArrays(e.TRIANGLES, 0, 3);
     const m = Math.max(1, Math.ceil(o.width / 4)), b = Math.max(1, Math.ceil(o.height / 4));
     e.bindFramebuffer(e.FRAMEBUFFER, w), e.viewport(0, 0, m, b), $(u), e.bindTexture(e.TEXTURE_2D, R), e.uniform1i(f.u_background, 0), e.uniform2f(f.u_size, m, b), e.uniform2f(f.u_step, 5 * X / o.width, 5 * X / o.height), e.drawArrays(e.TRIANGLES, 0, 3), e.bindFramebuffer(e.FRAMEBUFFER, null);
   }

@@ -1,92 +1,165 @@
-const panel = document.getElementById('sessions-section');
 const root = document.documentElement;
-const reduceTransparency = matchMedia('(prefers-reduced-transparency: reduce)');
+const reducedTransparency = matchMedia('(prefers-reduced-transparency: reduce)');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const targets = ['#sessions-section', '.quick-comparison-toggle'];
 const component = 'sessionpath-glass';
+const scenes = new Map();
+let registration;
 
 function currentWallpaper() {
-  const selected = Number(root.dataset.background);
-  const variant = Number.isInteger(selected) && selected >= 1 && selected <= 11 ? selected : 1;
+  const choice = Number(root.dataset.background);
+  const variant = Number.isInteger(choice) && choice >= 1 && choice <= 11 ? choice : 1;
   return new URL(`./assets/backgrounds/snowy-sunset-v${variant}.webp`, import.meta.url).href;
 }
 
-async function mountGlass() {
-  // Upstream 1.1.1 at 32cd7f8, including its WebGL refraction shader. Keep its regular
-  // animation loop out of this dashboard by painting only on readiness and resize.
-  const { LiquidGlassElement } = await import('./vendor/liquid-glass/liquid-glass.js');
-  if (reduceTransparency.matches || !panel.isConnected) return;
-  if (!customElements.get(component)) {
-    customElements.define(component, class extends LiquidGlassElement {
-      connectedCallback() {
-        this.backdropObserver = new MutationObserver(() => this.start());
-        this.backdropObserver.observe(this, { attributes: true, attributeFilter: ['data-ready'] });
-        super.connectedCallback();
-      }
+async function defineGlass() {
+  const { LiquidGlassElement } = await import('./vendor/liquid-glass/liquid-glass.js?v=viewport-2');
+  customElements.define(component, class extends LiquidGlassElement {
+    get panes() {
+      // Use the bounds of the live controls. Text and inputs stay in their original DOM.
+      const children = this.parentElement?.querySelectorAll('.compact-path-card, #clear-sequence, .quick-comparison-toggle > span');
+      return [this, ...(children ?? [])].slice(0, this.renderer?.maxPanes ?? 16);
+    }
 
-      disconnectedCallback() {
-        this.backdropObserver.disconnect();
-        delete this.dataset.painted;
-        super.disconnectedCallback();
-      }
+    connectedCallback() {
+      this.lastPaint = 0;
+      this.readyObserver = new MutationObserver(() => this.start());
+      this.readyObserver.observe(this, {attributes: true, attributeFilter: ['data-ready']});
+      super.connectedCallback();
+      this.observeLayout();
+    }
 
-      start() {
-        if (this.dataset.renderer === 'webgl') super.start();
-      }
-
-      resize() {
-        super.resize();
+    observeLayout() {
+      const host = this.parentElement;
+      const signal = this.events.signal;
+      const layoutChanged = () => {
+        this.sceneDirty = true;
+        this.stylesDirty = true;
         this.start();
+      };
+      this.elementsObserver = new MutationObserver(records => {
+        if (records.some(record => record.target !== this)) layoutChanged();
+      });
+      this.elementsObserver.observe(host, {subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'hidden', 'class']});
+      // Changes to sibling forecast panels can move the glass without resizing it.
+      this.boardObserver = new ResizeObserver(layoutChanged);
+      for (const el of [host.closest('.session-board-grid'),host.closest('.session-board-right'),host.previousElementSibling]) {
+        if (el) this.boardObserver.observe(el);
       }
+      window.addEventListener('scroll', layoutChanged, {capture:true, passive:true, signal});
+      window.addEventListener('resize', layoutChanged, {passive:true, signal});
+      const lightAtPointer = event => {
+        if (reducedMotion.matches) return;
+        this.movePointer(event);
+        this.start();
+      };
+      const releaseLight = () => {
+        this.pointer.inside = false;
+        this.start();
+      };
+      host.addEventListener('pointermove', lightAtPointer, {passive:true, signal});
+      host.addEventListener('pointerdown', lightAtPointer, {passive:true, signal});
+      host.addEventListener('pointerleave', releaseLight, {passive:true, signal});
+      host.addEventListener('pointerup', event => {
+        if (event.pointerType !== 'mouse') releaseLight();
+      }, {passive:true, signal});
+      host.addEventListener('pointercancel', releaseLight, {signal});
+      reducedMotion.addEventListener('change', releaseLight, {signal});
+    }
 
-      frame(now) {
-        // The light stays above the bevel. The pane never receives pointer events.
-        Object.assign(this.light, { x: this.width * .18, y: -this.height * .25, vx: 0, vy: 0 });
-        try {
-          super.frame(now);
-          if (this.hasAttribute('data-ready') && !this.animatedScene && !this.hasAttribute('data-painted')) {
-            this.dataset.painted = '';
-          }
-        } finally {
-          this.stop();
-        }
+    disconnectedCallback() {
+      this.readyObserver.disconnect();
+      this.elementsObserver.disconnect();
+      this.boardObserver.disconnect();
+      delete this.dataset.painted;
+      super.disconnectedCallback();
+    }
+
+    resize() {
+      super.resize();
+      this.start();
+    }
+
+    applyBackdrop() {
+      delete this.dataset.painted;
+      delete this.dataset.ready;
+      super.applyBackdrop();
+    }
+
+    start() {
+      if (this.dataset.renderer === 'webgl' && !reducedTransparency.matches) super.start();
+    }
+
+    frame(now) {
+      // Coalesce pointer and scroll events. A still dashboard never runs a render loop.
+      if (now - this.lastPaint < 33) {
+        this.frameId = requestAnimationFrame(time => this.frame(time));
+        return;
       }
-    });
-  }
-
-  const scene = document.createElement(component);
-  scene.className = 'sp-liquid-surface';
-  scene.setAttribute('aria-hidden', 'true');
-  scene.setAttribute('reduce-motion', '');
-  scene.setAttribute('dim', '.34');
-  scene.backdrop = currentWallpaper();
-  const pane = document.createElement('div');
-  pane.className = 'sp-liquid-pane';
-  pane.setAttribute('glass', '');
-  scene.append(pane);
-  panel.prepend(scene);
-
-  new MutationObserver(() => {
-    const wallpaper = currentWallpaper();
-    if (scene.backdrop === wallpaper) return;
-    delete scene.dataset.painted;
-    scene.backdrop = wallpaper;
-  }).observe(root, { attributes: true, attributeFilter: ['data-background'] });
+      this.lastPaint = now;
+      const active = this.pointer.inside && !reducedMotion.matches;
+      Object.assign(this.light, {
+        x: active ? this.pointer.x - 100 : this.width * .18,
+        y: active ? this.pointer.y - 160 : -this.height * .25, vx: 0, vy: 0
+      });
+      Object.assign(this.bulge, {x: active ? this.pointer.x : -10000, y: active ? this.pointer.y : -10000, vx: 0, vy: 0});
+      this.lastSignature = ''; // Light position alone also changes the refracted image.
+      try {
+        super.frame(now);
+        if (this.hasAttribute('data-ready') && !this.animatedScene && this.dataset.renderer === 'webgl') this.dataset.painted = '';
+      } finally {
+        this.stop();
+      }
+    }
+  });
 }
 
-if (panel && !reduceTransparency.matches && 'IntersectionObserver' in window && 'ResizeObserver' in window) {
-  let visible = false;
-  function mountWhenReady() {
-    if (!visible || root.dataset.startup !== 'ready') return;
-    intersection.disconnect();
-    startup.disconnect();
-    void mountGlass().catch(() => {
-      // The original frosted surface stays visible if the enhancement cannot load.
-    });
+async function mount(host) {
+  try {
+    await (registration ??= defineGlass());
+    if (!host.isConnected || reducedTransparency.matches || scenes.has(host)) return;
+    const scene = document.createElement(component);
+    scene.className = 'sp-liquid-surface';
+    scene.setAttribute('aria-hidden', 'true');
+    scene.setAttribute('viewport-backdrop', '');
+    scene.setAttribute('dim', '.08');
+    scene.backdrop = currentWallpaper();
+    host.prepend(scene);
+    scenes.set(host, scene);
+  } catch {
+    // The CSS glass is already visible and operable.
   }
-  const intersection = new IntersectionObserver(([entry]) => {
-    visible = entry.isIntersecting;
-    mountWhenReady();
+}
+
+if ('IntersectionObserver' in window && 'ResizeObserver' in window) {
+  const visible = new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) {
+      visible.unobserve(entry.target);
+      void mount(entry.target);
+    }
   });
-  const startup = new MutationObserver(mountWhenReady);
-  startup.observe(root, { attributes: true, attributeFilter: ['data-startup'] });
-  intersection.observe(panel);
+  function discover() {
+    if (reducedTransparency.matches || root.dataset.startup !== 'ready') return;
+    const hosts = targets.map(selector => document.querySelector(selector));
+    for (const host of hosts) if (host && !scenes.has(host)) visible.observe(host);
+    if (hosts.every(Boolean)) additions.disconnect();
+  }
+  const additions = new MutationObserver(discover);
+  additions.observe(document.body, {childList:true, subtree:true});
+  const settings = new MutationObserver(() => {
+    for (const scene of scenes.values()) if (scene.backdrop !== currentWallpaper()) {
+      delete scene.dataset.painted;
+      scene.backdrop = currentWallpaper();
+    }
+    discover();
+  });
+  settings.observe(root, {attributes:true, attributeFilter:['data-background', 'data-startup']});
+  reducedTransparency.addEventListener('change', () => {
+    if (reducedTransparency.matches) {
+      visible.disconnect();
+      for (const scene of scenes.values()) scene.remove();
+      scenes.clear();
+    } else discover();
+  });
+  discover();
 }

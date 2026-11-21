@@ -1,65 +1,132 @@
-.session-board #sessions-section {
+/* The same wallpaper runs across the board and the optical surfaces. Only the
+   background goes through the lenses; type, focus rings and hit targets stay sharp. */
+.session-board #sessions-section,
+.session-board .quick-comparison-toggle {
   position: relative;
   isolation: isolate;
+  border-color: rgb(233 241 255 / 64%);
+  background: linear-gradient(125deg, rgb(31 47 68 / 56%), rgb(16 27 48 / 62%));
+  -webkit-backdrop-filter: saturate(1.18) blur(4px);
+  backdrop-filter: saturate(1.18) blur(4px);
+  box-shadow: inset 0 1px 1px rgb(255 255 255 / 66%), inset 1px 0 2px rgb(216 233 255 / 32%),
+    inset 0 -2px 3px rgb(184 201 243 / 42%), 0 8px 22px -9px rgb(3 9 22 / 60%);
 }
 
-#sessions-section > .sp-liquid-surface {
+.session-board .sp-liquid-surface {
   position: absolute;
   z-index: -1;
   inset: 0;
   min-height: 0;
-  border-radius: max(0px, calc(var(--sp-frame-radius, 16px) - var(--sp-frame-stroke, 1px)));
+  border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 240ms ease-out;
-}
-
-#sessions-section > .sp-liquid-surface[data-renderer="webgl"][data-painted] {
-  opacity: .85;
-}
-
-.sp-liquid-surface .sp-liquid-pane {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  --glass-depth: .9;
-  --glass-ior: 1.43;
-  --glass-dome: .78;
-  --glass-frost: .18;
-  --glass-tint: rgb(15 27 49 / 52%);
-  --glass-chroma: .013;
-  --glass-shadow: 0;
-  --glass-pull: 0;
+  --glass-depth: 1.07;
+  --glass-ior: 1.50;
+  --glass-dome: 1.1;
+  --glass-frost: .16;
+  --glass-chroma: .022;
+  --glass-tint: rgb(24 39 64 / 8%);
+  --glass-pull: 4;
   --glass-press: 1;
-  --glass-glow: 0;
+  --glass-shadow: .65;
 }
-
-.session-board #sessions-section:has(> .sp-liquid-surface[data-renderer="webgl"][data-painted]) {
+#sessions-section > .sp-liquid-surface {
+  border-radius: max(0px, calc(var(--sp-frame-radius, 24px) - var(--sp-frame-stroke, 1px)));
+}
+.session-board .sp-liquid-surface[data-renderer="webgl"][data-painted] { opacity: 1; }
+.session-board :is(#sessions-section, .quick-comparison-toggle):has(> .sp-liquid-surface[data-renderer="webgl"][data-painted]) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-
 .sp-liquid-surface::after {
+  content: "";
   position: absolute;
-  z-index: 2;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(150deg, rgb(8 18 36 / 35%), rgb(8 18 36 / 59%));
-  box-shadow: inset 0 1px rgb(225 235 254 / 51%), inset 0 -1px rgb(168 186 224 / 24%);
   pointer-events: none;
-  content: "";
+  background: linear-gradient(122deg, rgb(14 26 45 / 36%), rgb(10 20 38 / 30%) 65%, rgb(33 39 65 / 22%));
+  box-shadow: inset 0 1px 2px #f8fdffc9, inset 2px 0 3px #dbeaff52, inset -2px -2px 3px #dfebff61;
+}
+.session-board #sessions-section .compact-path-card {
+  --glass-depth: .73;
+  --glass-ior: 1.43;
+  --glass-dome: .85;
+  --glass-frost: .28;
+  --glass-tint: rgb(20 32 48 / 13%);
+  --glass-pull: 3;
+  --glass-press: 1;
+  background: linear-gradient(125deg, rgb(17 28 46 / 46%), rgb(13 23 42 / 32%));
+  border-color: rgb(230 239 255 / 43%);
+  box-shadow: inset 0 1px 1px #f2f8ff59, inset 0 -1px 2px #becce970, 0 3px 9px #101b3026;
+}
+.session-board #sessions-section :is(h2, h3, label, summary, p, .compact-path-result) {
+  text-shadow: 0 1px 3px #081224db;
+}
+.session-board #sessions-section :is(.compact-path-sample, .compact-path-source, .observed-select) { color: #e2ebfa; }
+.session-board #sessions-section select {
+  background-color: rgb(11 23 41 / 78%);
+  color: #f4f8ff;
+}
+.session-board #sessions-section select option { background-color: #19273c; }
+.session-board #clear-sequence {
+  border-radius: 999px;
+  --glass-depth: 1.06;
+  --glass-pull: 4;
+  --glass-press: 1;
+  background: rgb(22 37 58 / 40%);
+  border-color: #e8f1ff73;
+  box-shadow: inset 0 1px 1px #f5faff79, inset 0 -1px 1px #e2ebff65;
 }
 
+/* The archive launcher is the small, clear capsule in the reference. Its arrow
+   has its own round lens and the original button still owns the whole hit area. */
+.session-board .quick-comparison-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 46px;
+  padding: 4px 5px 4px 18px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 650;
+  text-shadow: 0 1px 3px #061222, 0 0 8px #09172bb3;
+}
+.quick-comparison-toggle > .sp-liquid-surface {
+  --glass-depth: 1.18;
+  --glass-dome: 1.6;
+  --glass-pull: 5;
+  --glass-frost: .1;
+  --glass-chroma: .030;
+}
+.quick-comparison-toggle > .sp-liquid-surface::after {
+  background: radial-gradient(ellipse at 55% 108%, rgb(186 151 237 / 39%), transparent 58%),
+    linear-gradient(110deg, rgb(14 23 43 / 46%), rgb(15 22 40 / 19%));
+}
+.session-board .quick-comparison-toggle > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #e6f3ff9e;
+  background: rgb(26 45 66 / 13%);
+  box-shadow: inset 0 1px 2px #ffffffe3, inset 1px -2px 3px #c8ddffa6;
+  color: inherit;
+  --glass-depth: 1.4;
+  --glass-ior: 1.56;
+  --glass-frost: .13;
+  --glass-pull: 2;
+  --glass-press: 1;
+}
 @media (prefers-reduced-motion: reduce) {
-  #sessions-section > .sp-liquid-surface { transition: none; }
-  #sessions-section > .sp-liquid-surface::part(canvas) { transition: none; }
+  .sp-liquid-surface::part(canvas) { transition: none; }
 }
-
-@media (prefers-reduced-transparency: reduce) {
-  #sessions-section > .sp-liquid-surface { display: none; }
-  .session-board #sessions-section {
-    background: #15213b;
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .session-board :is(#sessions-section, .quick-comparison-toggle) {
+    background: #152139;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+  .session-board .sp-liquid-surface { display: none; }
+  .session-board #sessions-section .compact-path-card { background: #1b2b44; }
 }
