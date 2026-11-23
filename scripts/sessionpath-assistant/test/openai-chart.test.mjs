@@ -69,7 +69,7 @@ test('uses Responses for the screenshot question and returns the existing chart 
   const sent = JSON.parse(init.body);
   assert.equal(sent.model, OPENAI_CHART_MODEL);
   assert.equal(sent.store, false);
-  assert.equal(sent.max_output_tokens, 1800);
+  assert.equal(sent.max_output_tokens, 6000);
   assert.deepEqual(sent.reasoning, {effort: 'low'});
   assert.equal(sent.service_tier, 'default');
   assert.ok(sent.instructions.startsWith(CHART_READING_SYSTEM));

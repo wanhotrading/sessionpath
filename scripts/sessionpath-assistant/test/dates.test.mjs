@@ -123,3 +123,21 @@ test('AI must preserve deterministic resolved date, while legacy intents without
     assert.equal(rejected.status, 503); assert.equal((await rejected.json()).error.code, 'INVALID_AI_RESPONSE');
   }
 });
+
+test('informal box requests keep their market, window and NY date without an AI call', async () => {
+  const handler = createAssistantHandler({now: () => Date.parse('2026-11-23T15:00:00Z'), fetcher: () => {throw Error('Unexpected AI call');}});
+  for (const [message, market, window, date] of [
+    ["NQ today's 03 05 code", 'NQ', '03:00-05:00', null],
+    ['nov17 cl box code 03 05', 'CL', '03:00-05:00', '2026-11-17'],
+    ['CL 03 05 Nov 17', 'CL', '03:00-05:00', '2026-11-17'],
+    ['17nov ES 0500 to 0830 code', 'ES', '05:00-08:30', '2026-11-17'],
+    ['GC NOV17TH 0830 1600 code pls', 'GC', '08:30-16:00', '2026-11-17'],
+    ['cl nov17 0300 0500', 'CL', '03:00-05:00', '2026-11-17'],
+  ]) {
+    const result = await (await handler(post(message,'2026-11-10'), {})).json();
+    assert.deepEqual([result.interpreter,result.action,result.market,result.window,result.date], ['rules','forecast',market,window,date],message);
+  }
+  for (const message of ['CL nov170 03 05 code', 'CL Nov31 03 05', 'Nov17 today CL 03 05']) {
+    assert.equal((await (await handler(post(message), {})).json()).action,'clarify',message);
+  }
+});

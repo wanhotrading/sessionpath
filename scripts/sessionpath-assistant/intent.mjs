@@ -49,7 +49,7 @@ export function validateIntent(value, {now = Date.now(), defaultDate = null} = {
 
 const MONTH_NAMES = Object.freeze({jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12});
 const MONTH_WORD = '(?:january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)';
-const YEAR_SUFFIX = '(?:\\s*,?\\s*(\\d{4})(?![\\d:-])|\\s*,\\s*(\\d{2,3})(?![\\d:-]))?';
+const YEAR_SUFFIX = '(?:\\s*,?\\s*([1-9]\\d{3})(?![\\d:-])|\\s*,\\s*(\\d{2,3})(?![\\d:-]))?';
 function chineseNumber(value) {
   if (/^\d+$/u.test(value)) return Number(value);
   const digit = {零: 0, 〇: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9};
@@ -81,8 +81,20 @@ export function resolveMessageDate(message, {now = Date.now(), date = null} = {}
   const hits = [];
   remaining = remaining.replace(/\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b/gu, (_match, year, month, day) => {hits.push(resolvedMonthDay(Number(month), Number(day), Number(year), now)); return ' ';});
   remaining = remaining.replace(/(?:(\d{4}|[〇零一二三四五六七八九]{4})年)?(\d{1,2}|[一二三四五六七八九十廿]{1,3})月(\d{1,2}|[一二三四五六七八九十廿]{1,3})[日號号]/gu, (_match, year, month, day) => {hits.push(resolvedMonthDay(chineseNumber(month), chineseNumber(day), year ? chineseNumber(year) : undefined, now)); return ' ';});
-  remaining = remaining.replace(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_WORD})\\.?${YEAR_SUFFIX}\\b`, 'giu'), (_match, day, month, year, shortYear) => {hits.push(shortYear ? {status: 'ambiguous', date: null} : resolvedMonthDay(MONTH_NAMES[month.toLowerCase()], Number(day), year, now)); return ' ';});
-  remaining = remaining.replace(new RegExp(`\\b(${MONTH_WORD})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?${YEAR_SUFFIX}\\b`, 'giu'), (_match, month, day, year, shortYear) => {hits.push(shortYear ? {status: 'ambiguous', date: null} : resolvedMonthDay(MONTH_NAMES[month.toLowerCase()], Number(day), year, now)); return ' ';});
+  const monthFirst = new RegExp(`\\b(${MONTH_WORD})\\.?\\s*(\\d{1,2})(?:st|nd|rd|th)?${YEAR_SUFFIX}\\b`, 'giu');
+  const dayFirst = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:of\\s+)?(${MONTH_WORD})\\.?${YEAR_SUFFIX}\\b`, 'giu');
+  function recordMonthDay(day, month, year, shortYear) {
+    hits.push(shortYear ? {status: 'ambiguous', date: null} : resolvedMonthDay(MONTH_NAMES[month.toLowerCase()], Number(day), year, now));
+    return ' ';
+  }
+  remaining = remaining.replace(dayFirst, (match, day, month, year, shortYear, offset, source) => {
+    // In "03 05 Nov 17", the 05 ends the window. Let the month-first pass read Nov 17.
+    const prefix = source.slice(0, offset);
+    if (/(?:\b0?3(?::?00)?|\b0?5(?::?00)?|\b0?8:?30)(?:\s*[-–—→]\s*|\s+(?:to\s+)?|\s*至\s*)$/iu.test(prefix)
+        && /^\s*\d/u.test(source.slice(offset + match.length))) return match;
+    return recordMonthDay(day, month, year, shortYear);
+  });
+  remaining = remaining.replace(monthFirst, (_match, month, day, year, shortYear) => recordMonthDay(day, month, year, shortYear));
   remaining = remaining.replace(/\b(day before yesterday|yesterday|today|tonight|now|tomorrow)\b|前天|昨天|昨日|今天|今日|現在|现在|明天|後天|后天/giu, match => {
     const token = match.toLowerCase();
     if (/^(?:today|tonight|now|今天|今日|現在|现在)$/u.test(token)) hits.push({status: 'valid', date: null});
@@ -91,6 +103,7 @@ export function resolveMessageDate(message, {now = Date.now(), date = null} = {}
     return ' ';
   });
   if (hits.length > 1 || /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/u.test(remaining)) return {status: 'ambiguous', date: null, remaining};
+  if (new RegExp(`\\b${MONTH_WORD}\\.?\\s*\\d`, 'iu').test(remaining)) return {status: 'invalid', date: null, remaining};
   if (hits.length) return {...hits[0], remaining};
   return {status: 'none', date, remaining};
 }
@@ -110,13 +123,14 @@ export function parseExactForecast(message, {now = Date.now(), date = null} = {}
   ]) text = text.replace(pattern, () => {markets.add(market); return ' ';});
   if (markets.size !== 1) return null;
   const windows = [];
-  text = text.replace(/(?<!\d)(0?3(?::?00)?\s*-\s*0?5(?::?00)?|0?5(?::?00)?\s*-\s*0?8:?30|0?8:?30\s*-\s*16(?::?00)?)(?!\d)/gu, match => {
-    const compact = match.replace(/[\s:]/gu, '');
-    windows.push(/^0?3(?:00)?-0?5(?:00)?$/u.test(compact) ? WINDOWS[0] : /^0?5(?:00)?-0?830$/u.test(compact) ? WINDOWS[1] : WINDOWS[2]);
-    return ' ';
-  });
+  const separator = '(?:\\s*(?:-|TO|至)\\s*|\\s+)';
+  const hours = ['0?3(?::?00)?', '0?5(?::?00)?', '0?8:?30', '16(?::?00)?'];
+  for (const [index, window] of WINDOWS.entries()) {
+    const pair = new RegExp(`(?<![\\d:])${hours[index]}${separator}${hours[index + 1]}(?![\\d:])`, 'gu');
+    text = text.replace(pair, () => { windows.push(window); return ' '; });
+  }
   if (windows.length !== 1) return null;
-  text = text.replace(/\b(?:CAN|COULD|WOULD|YOU|PLEASE|HELP|ME|FETCH|GET|SHOW|GIVE|DISPLAY|THE|A|AN|FOR|OF|ON|RANGE|FORECAST|BOX|BOXES|CODE|PROBABILITY|PROBABILITIES|AND|WITH|TO|MY|I|WANT|NEED|HAVE|S|SESSIONPATH|SESSION|WINDOW)\b/gu, ' ')
+  text = text.replace(/\b(?:CAN|COULD|WOULD|PLS|PLZ|PULL|LOOK|UP|WHATS|WHAT|IS|TV|TRADINGVIEW|YOU|PLEASE|HELP|ME|FETCH|GET|SHOW|GIVE|DISPLAY|THE|A|AN|FOR|OF|ON|RANGE|FORECAST|BOX|BOXES|CODE|PROBABILITY|PROBABILITIES|AND|WITH|TO|MY|I|WANT|NEED|HAVE|S|SESSIONPATH|SESSION|WINDOW)\b/gu, ' ')
     .replace(/請|请|幫我|帮我|給我|给我|顯示|显示|取得|獲取|获取|預測|预测|範圍|范围|區間|区间|代碼|代码|概率|機率|几率|的|和|以及|可以|嗎|吗/gu, ' ')
     .replace(/[\s,.:;!?"'’‘()，。！？：；、]/gu, '');
   if (text) return null;
