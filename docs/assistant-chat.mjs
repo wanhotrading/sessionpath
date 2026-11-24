@@ -1,4 +1,4 @@
-import {chartPathOutcomes,validPathReading} from './session-path-summary.mjs?v=elf-fill-20261120';
+import {chartPathOutcomes,hasChartPathSuggestions,confirmChartPathOutcomes,validPathReading} from './session-path-summary.mjs?v=apply-chart-paths-20261124';
 import {CHART_REFERENCE_VERSION,CHART_COMPARISON_PROMPT} from './chart-reading-reference.mjs?v=visual-tags-20261108b';
 import {makeChartSessionPathCode} from './session-path-code.mjs?v=session-path-code-20261106';
 import {readChartResponse} from './chart-event-stream.mjs?v=grok-stream-20261108';
@@ -178,7 +178,7 @@ function validForecast(result,intent){
 export function mountAssistantChat({instrument,document:doc=globalThis.document,fetchImpl=(...args)=>fetch(...args),navigate=url=>doc.defaultView.location.assign(url),storage=doc.defaultView.sessionStorage,rootURL=new URL('./',import.meta.url),requestTimeout=30000,now=()=>Date.now(),prepareImage=normalizeChartImage,getChartConfiguration=null}={}){
  if(doc.getElementById('sessionpath-assistant')||!MARKETS.includes(instrument?.id))return null;
  const win=doc.defaultView,element=(tag,className,text)=>{const el=doc.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
- const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set(),attachment=null,preparingImage=false,attachmentVersion=0,chartConfigController=null;
+ const state=readChatState(storage,now()),messages=state.messages;let pending=state.pending,busy=false,controller=null,destroyed=false,lastWindow=WINDOWS[0],lastDate=state.lastDate,copyTimers=new Set(),pathRenderId=0,attachment=null,preparingImage=false,attachmentVersion=0,chartConfigController=null;
  const host=element('footer','sp-assistant');host.id='sessionpath-assistant';host.setAttribute('aria-label','Session elf assistant');
  const viewport=element('div','sp-chat-viewport');viewport.hidden=true;viewport.dataset.state='closed';
  const panel=element('section','sp-chat-panel');panel.id='sp-chat-panel';panel.hidden=true;panel.setAttribute('aria-label','Session elf conversation');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');panel.inert=true;viewport.append(panel);
@@ -279,7 +279,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   section.focus({preventScroll:true});
   section.scrollIntoView?.({block:'start',behavior:motionOff()?'instant':'smooth'});
  }
- function applyReading(reading,{openMatching=false}={}){
+ function applyReading(reading,{openMatching=false,replace=false}={}){
   if(openMatching&&doc.documentElement.dataset.startup!=='ready')return {message:'Session paths is still loading. Try again in a moment.'};
   if(openMatching&&reading.market!==instrument.id){
    try{storage.setItem(PATH_HANDOFF,JSON.stringify({reading,createdAt:now()}));}
@@ -293,43 +293,112 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    replay.checked=reading.date!==nyDate(now());date.value=reading.date;
    replay.dispatchEvent(new win.Event('change',{bubbles:true}));
   }
-  const detail={reading,result:null};
+  const detail={reading,replace,result:null};
   doc.dispatchEvent(new win.CustomEvent('sessionpath:chart-path-outcomes',{detail}));
   return detail.result??{message:'Session paths is still loading. Try again in a moment.'};
  }
  function renderPathFill(body){
-  const reading=chartPathOutcomes(body);
+  const renderId=++pathRenderId;
   const section=element('section','sp-chat-path-fill');section.setAttribute('aria-label','Session paths fill');
   const feedback=element('p','sp-chat-note');feedback.setAttribute('role','status');
-  section.append(element('strong','','Session paths'),feedback);
-  if(!reading||!reading.outcomes.length){
-   feedback.textContent=reading?'No complete NTA, Asia or London outcome could be identified.':
-    'To fill Session paths, include the market, New York chart date and completed five-minute close in the screenshot.';
+  const details=element('div','sp-chat-path-details');
+  const actions=element('div','sp-chat-path-fill-actions');
+  section.append(element('strong','','Session paths'),feedback,details,actions);
+  const action=(label,click,host=actions)=>{
+   const button=element('button','',label);button.type='button';button.addEventListener('click',click);host.append(button);return button;
+  };
+  const matchesView=reading=>instrument.id===reading.market&&tradingDate()===reading.date;
+  async function applyToPlanner(reading,options){
+   if(doc.documentElement.dataset.startup!=='ready'){
+    feedback.textContent='Waiting for Session paths to finish loading…';
+    try{await waitForReady(doc,new AbortController().signal,requestTimeout);}
+    catch(error){return {message:error.message};}
+   }
+   if(destroyed)return null;
+   if(!options.openMatching&&(renderId!==pathRenderId||!matchesView(reading)||doc.getElementById('sequence-explore')?.checked))return null;
+   return applyReading(reading,options);
+  }
+  function showReading(reading,{auto=false,applyNow=false}={}){
+   details.replaceChildren();
+   const confirmed=reading.outcomes.filter(row=>row.source!=='tentative');
+   const hasSuggestions=confirmed.length!==reading.outcomes.length;
+   const description=reading.outcomes.map(row=>`${chartShapeSessions[row.session]} · ${chartShapeNames[row.tag]}${row.source==='tentative'?' (review)':''}`).join(' / ');
+   details.append(element('p','sp-chat-note',`${reading.market} · ${reading.date} · through ${reading.cutoff.slice(11)} NY`),
+    element('p','sp-chat-note',description));
+   let appliedSuggestions=false, inFlight=false;
+   const replaceLabel='Replace conflicting tags';
+   function controls(result){
+    actions.replaceChildren();
+    if(result?.applied?.length||result?.unchanged?.length)action('View Session paths',showSessionPaths);
+    if((!result?.applied?.length&&!result?.unchanged?.length&&!result?.conflicts?.length)||(hasSuggestions&&!appliedSuggestions)){
+     const label=!matchesView(reading)?`Open ${reading.market} · ${reading.date} and fill`:hasSuggestions?'Apply suggested tags':'Fill Session paths';
+     action(label,()=>apply(false));
+    }
+    if(result?.conflicts?.length)action(replaceLabel,()=>apply(true));
+   }
+   async function apply(replace){
+    if(inFlight)return;
+    inFlight=true;
+    const result=await applyToPlanner(reading,{openMatching:true,replace});
+    inFlight=false;
+    if(!result||destroyed)return;
+    if(result.applied||result.unchanged||result.conflicts)appliedSuggestions=true;
+    feedback.textContent=result.message;
+    controls(result);
+   }
+   feedback.textContent=!matchesView(reading)?'Open the matching market and date to use these tags.':
+    hasSuggestions?'Review the suggested tags before applying them.':'Ready to fill the completed Session paths.';
+   controls(null);
+   if(applyNow){void apply(false);return;}
+   if(auto&&matchesView(reading)&&confirmed.length){
+    inFlight=true;
+    void applyToPlanner({...reading,outcomes:confirmed},{openMatching:false}).then(result=>{
+     inFlight=false;
+     if(!result||destroyed)return;
+     feedback.textContent=result.message+(hasSuggestions?' Other suggested tags need review.':'');
+     controls(result);
+    });
+   }
+  }
+  const reading=chartPathOutcomes(body);
+  if(reading?.outcomes.length){
+   showReading(reading,{auto:true});return section;
+  }
+  if(!reading&&hasChartPathSuggestions(body)){
+   feedback.textContent='The AI suggested tags but could not establish the chart details. Confirm the details below to fill Session paths.';
+   const inputs=element('div','sp-chat-historical-fields');
+   const field=(caption,input)=>{
+    const label=element('label','',caption);label.append(input);inputs.append(label);return input;
+   };
+   const market=field('Screenshot market',element('select'));
+   const placeholder=element('option','','Choose market');placeholder.value='';market.append(placeholder);
+   for(const name of MARKETS)market.append(element('option','',name));
+   const date=field('Chart date · NY',element('input'));date.type='date';date.max=nyDate(now());
+   const time=field('Last completed 5m close · NY',element('input'));time.type='time';time.step='300';
+   const seen=body.chartObservation;
+   market.value=MARKETS.includes(seen?.market)?seen.market:'';
+   date.value=canonicalDate(seen?.date)?seen.date:body.observationContext?.date??'';
+   const cutoff=seen?.cutoff??body.observationContext?.cutoff;
+   if(typeof cutoff==='string'&&cutoff.slice(0,10)===date.value)time.value=cutoff.slice(11);
+   details.append(inputs);
+   action('Use tags from this five-minute chart',()=>{
+    const today=nyDate(now()),latest=new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now());
+    const accepted=confirmChartPathOutcomes(body,{market:market.value,date:date.value,time:time.value});
+    if(!accepted||date.value>today||date.value===today&&time.value>latest){
+     feedback.textContent='Choose the chart market and date, then enter a completed five-minute close in New York time.';
+     return;
+    }
+    if(!accepted.outcomes.length){
+     feedback.textContent='None of the suggested sessions had finished by that close.';
+     return;
+    }
+    showReading(accepted,{applyNow:true});
+   });
    return section;
   }
-  const sameContext=instrument.id===reading.market&&tradingDate()===reading.date;
-  const exploring=doc.getElementById('sequence-explore')?.checked;
-  const automatic=reading.outcomes.filter(row=>row.source!=='tentative');
-  const suggestions=reading.outcomes.filter(row=>row.source==='tentative');
-  const outcomeText=reading.outcomes.map(row=>`${chartShapeSessions[row.session]} · ${chartShapeNames[row.tag]}${row.source==='tentative'?' (review)':''}`).join(' / ');
-  section.append(element('p','sp-chat-note',`${reading.market} · ${reading.date} · through ${reading.cutoff.slice(11)} NY`),
-    element('p','sp-chat-note',outcomeText));
-  const actions=element('div','sp-chat-path-fill-actions');
-  const action=(label,click)=>{const button=element('button','',label);button.type='button';button.addEventListener('click',click);actions.append(button);return button;};
-  const result=sameContext&&!exploring&&automatic.length?applyReading({...reading,outcomes:automatic}):null;
-  feedback.textContent=result?.message??(sameContext&&suggestions.length===reading.outcomes.length?'Review the AI suggestions before filling.':'Chart outcomes are ready to fill.');
-  if(result?.applied?.length||result?.unchanged?.length)action('View Session paths',showSessionPaths);
-  if((!result?.applied?.length&&!result?.unchanged?.length)||suggestions.length){
-   const label=!sameContext?`Open ${reading.market} · ${reading.date} and fill`:
-    suggestions.length?(result?.applied?.length?'Apply remaining suggestions':'Apply chart suggestions'):'Fill Session paths';
-   const apply=action(label,()=>{
-    // Evaluate the current view again so a result left open in chat can be used after changing Replay.
-    const applied=applyReading(reading,{openMatching:true});
-    feedback.textContent=applied.message;
-    if(applied.applied?.length||applied.unchanged?.length){apply.disabled=true;showSessionPaths();}
-   });
-  }
-  section.append(actions);return section;
+  feedback.textContent='The AI did not identify a usable completed outcome for NTA, Asia or London.';
+  action('View Session paths',showSessionPaths);
+  return section;
  }
  async function resumePathFill(){
   let pendingPath;

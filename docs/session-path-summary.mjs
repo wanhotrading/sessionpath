@@ -17,6 +17,25 @@ function chartMinute(date, cutoff) {
   return +time[2] * 60 + +time[3] - (time[1] === priorDate ? 1440 : 0);
 }
 
+function visualPathCandidates(body) {
+  return validateVisualTags(body?.visualTags) ? body.visualTags.filter(row => Object.hasOwn(ends, row.session) && row.status === 'candidate') : [];
+}
+
+export function hasChartPathSuggestions(body) {
+  return visualPathCandidates(body).length > 0;
+}
+
+export function confirmChartPathOutcomes(body, { market, date, time }) {
+  const cutoff = date + 'T' + time;
+  const minute = chartMinute(date, cutoff);
+  if (minute === null) return null;
+  const outcomes = visualPathCandidates(body)
+    .filter(row => minute >= ends[row.session])
+    .map(({session, tag}) => ({session, tag, source: 'tentative'}));
+  const reading = {market, date, cutoff, minute, outcomes};
+  return validPathReading(reading) ? reading : null;
+}
+
 export function chartPathOutcomes(body) {
   const observation = body?.chartObservation;
   const market = observation?.market;
@@ -33,7 +52,7 @@ export function chartPathOutcomes(body) {
   const minute = chartMinute(date, cutoff);
   if (minute === null || supplied?.cutoff && cutoff > supplied.cutoff) return null;
   const formal = Array.isArray(body.shapeTags) ? body.shapeTags : [];
-  const visual = validateVisualTags(body.visualTags) ? body.visualTags : [];
+  const visual = visualPathCandidates(body);
   const outcomes = [];
   for (const [session, end] of Object.entries(ends)) {
     if (minute < end) continue;
@@ -43,7 +62,7 @@ export function chartPathOutcomes(body) {
       outcomes.push({ session, tag: measured.tag, source: measured.status });
       continue;
     }
-    const candidate = visual.find(row => row.session === session && row.status === 'candidate');
+    const candidate = visual.find(row => row.session === session);
     if (candidate) outcomes.push({ session, tag: candidate.tag, source: candidate.confidence === 'clear' ? 'visual' : 'tentative' });
   }
   return { market, date, cutoff, minute, outcomes };
@@ -58,32 +77,40 @@ export function validPathReading(reading) {
       tags.has(row.tag) && Object.hasOwn(rank, row.source));
 }
 
-export function applyChartPathOutcomes(state, reading, { market, date }) {
+export function applyChartPathOutcomes(state, reading, { market, date, replace = false }) {
   if (!validPathReading(reading)) return { applied: [], message: 'The chart details or outcomes could not be confirmed.' };
   if (reading.market !== market) return { applied: [], message: 'Select ' + reading.market + ' to use these outcomes.' };
   if (reading.date !== date) return { applied: [], message: 'Select ' + reading.date + ' in Replay to use these outcomes.' };
   const applied = [];
   const unchanged = [];
+  const conflicts = [];
   state.sessionChoiceSources ??= {};
   for (const { session, tag, source } of reading.outcomes) {
     const previous = state.sessionChoiceSources[session];
     const selected = state.sessionChoices[session];
     if (selected && (!previous || rank[previous] > rank[source] ||
         rank[previous] === rank[source] && (selected === tag || reading.minute < state.chartPathMinute))) {
-      unchanged.push(session);
-      continue;
+      if (selected === tag) {
+        unchanged.push(session);
+        continue;
+      }
+      if (!replace) {
+        conflicts.push(session);
+        continue;
+      }
     }
     state.sessionChoices[session] = tag;
     state.sessionChoiceSources[session] = source;
     applied.push(session);
   }
-  if (!applied.length) return { applied, unchanged, message: unchanged.length ?
-    'Session paths kept your existing selections.' : 'No completed-session outcomes to fill.' };
+  const conflictText = conflicts.length ? ' Existing selections kept for ' + conflicts.map(session => names[session]).join(', ') + '.' : '';
+  if (!applied.length) return { applied, unchanged, conflicts, message: conflictText.trim() || (unchanged.length ?
+    'These tags are already selected in Session paths.' : 'No completed-session outcomes to fill.') };
   if (reading.minute >= (state.chartPathMinute ?? -Infinity)) {
     state.chartPathMinute = reading.minute;
     state.chartPathTime = reading.cutoff.replace('T', ' ');
   }
-  return { applied, unchanged, message: 'Session paths filled ' + applied.map(session => names[session]).join(', ') + '.' };
+  return { applied, unchanged, conflicts, message: 'Session paths filled ' + applied.map(session => names[session]).join(', ') + '.' + conflictText };
 }
 
 export function compactPathCards(host, results, { choices, choiceSources, shapes, minute, explore, formatTime }) {

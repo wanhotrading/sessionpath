@@ -1,5 +1,5 @@
 import {createSessionPathMemory,SESSION_PATH_CLOSE} from './session-path-memory.mjs?v=20261124';
-import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=elf-fill-20261120';
+import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=apply-chart-paths-20261124';
 import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=path-only-20261124';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=study-return-20261120';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
@@ -273,7 +273,7 @@ document.addEventListener('sessionpath:chart-path-outcomes',event=>{
  const detail=event.detail;
  if(!detail||!state.ready)return;
  const date=syncSessionPathDate();
- const result=applyChartPathOutcomes(state,detail.reading,{market:instrument.id,date});
+ const result=applyChartPathOutcomes(state,detail.reading,{market:instrument.id,date,replace:detail.replace===true});
  detail.result=result;
  if(!result.applied.length)return;
  $('sequence-explore').checked=false;
