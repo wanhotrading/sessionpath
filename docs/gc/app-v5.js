@@ -1,5 +1,5 @@
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=elf-fill-20261120';
-import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=chart-archive-20261121';
+import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=path-only-20261124';
 import {mountMarketEmblem} from './market-emblem.mjs';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from '../assistant-forecast-adapter.mjs?v=study-return-20261120';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from '../tradingview-live-core.mjs?v=checkpoint-open-20261113';
@@ -223,9 +223,12 @@ function renderSessions(){
   observation.textContent=state.chartPathTime?'Chart observation · '+state.chartPathTime+' NY':cutoff?'Path code observation · '+cutoff+' NY':'';
  }
  for(const s of sessions)if(!explore&&s.end>minute){delete state.sessionChoices[s.id];delete state.sessionChoiceSources[s.id];}
- const results=sessionProbabilities(state.days.filter(day=>day.date<date),state.sessionChoices,$('year').value);
+ const year=$('year').value;
+ const results=sessionProbabilities(state.days.filter(day=>day.date<date),state.sessionChoices,year);
  compactPathCards($('session-cards'),results,{choices:state.sessionChoices,choiceSources:state.sessionChoiceSources,shapes,minute,explore,formatTime:clockLabel});
- $('sessions-section').dispatchEvent(new Event('sessionpath:comparison-filters'));
+ $('sessions-section').dispatchEvent(new CustomEvent('sessionpath:comparison-filters',{
+  detail:{date,year,choices:{...state.sessionChoices},results},
+ }));
 }
 document.addEventListener('sessionpath:chart-path-outcomes',event=>{
  const detail=event.detail;

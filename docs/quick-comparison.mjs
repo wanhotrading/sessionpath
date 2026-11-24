@@ -1,4 +1,3 @@
-const SHAPE_END = { NTA: 0, ASIA: 120, LONDON: 510 };
 const PAGE_SIZE = 6;
 import { genieFrames, MOTION } from './panel-motion.mjs';
 const SITE = new URL('./', import.meta.url);
@@ -6,15 +5,22 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CHART_PATH = /^(?:(?:es|gc)\/)?charts\/(?:[a-z0-9._-]+\/)*[a-z0-9._-]+\.(?:png|jpe?g|webp)$/i;
 const PREVIEW_NAME = /^\d{4}-\d{2}-\d{2}-[0-9a-f]{12}\.webp$/;
 
-export function comparisonCandidates(days, { date, minute, dates }, choices = {}) {
-  const tags = Object.entries(choices)
-    .filter(([session, value]) => value && SHAPE_END[session] <= minute)
-    .map(([session, value]) => [session, session + ':' + value]);
-  if (!dates && !tags.length) return [];
-  const byDate = new Map(days.filter(day => day.date < date).map(day => [day.date, day]));
-  const ordered = dates ?? [...byDate.keys()].sort().reverse();
-  return [...new Set(ordered)].map(value => byDate.get(value)).filter(day =>
-    day && tags.every(([session, tag]) => day.phaseComplete?.[session] && day.phaseTags?.includes(tag)));
+export function comparisonCandidates(days, { date, year, choices, results }, allOutcomes = false) {
+  const selected = results.filter(({ session }) => choices[session.id]);
+  if (!selected.length) return { matches: [], outcome: null, hasSelection: false };
+  const next = results[results.indexOf(selected.at(-1)) + 1];
+  const best = next?.bins.reduce((current, bin) =>
+    Number.isFinite(bin.p) && (!current || bin.p > current.p) ? bin : current, null);
+  const outcome = best ? { session: next.session.name, label: best.label } : null;
+  const required = selected.map(({ session }) => [session.id, choices[session.id]]);
+  if (best && !allOutcomes) required.push([next.session.id, best.id]);
+  const matches = days.filter(day =>
+    day.date < date && (!year || String(day.year) === String(year)) &&
+    required.every(([id, value]) => day.phaseComplete?.[id] && day.phaseTags?.includes(id + ':' + value)) &&
+    (!next || day.phaseComplete?.[next.session.id] &&
+      next.bins.some(bin => day.phaseTags?.includes(next.session.id + ':' + bin.id))))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  return { matches, outcome, hasSelection: true };
 }
 
 function dayScreenshots(archive) {
@@ -37,16 +43,13 @@ async function fetchPreviewArchive(market) {
   if (data.version !== 1 || data.market !== market || !Array.isArray(data.images) || data.images.length > 5000) throw Error('Invalid preview archive');
   const images = new Map();
   for (const item of data.images) {
-    const { date, src, contract, preview, comparisonTags } = item || {};
+    const { date, src, contract, preview } = item || {};
     if (!DATE.test(date) || typeof src !== 'string' || !CHART_PATH.test(src) ||
         src.split('/').some(part => part === '.' || part === '..')) continue;
     images.set(date, {
       contract,
       url: new URL(src, SITE).href,
       preview: PREVIEW_NAME.test(preview) ? new URL(preview, folder).href : null,
-      day: Array.isArray(comparisonTags?.phaseTags)
-        ? { date, contract, phaseTags: comparisonTags.phaseTags, phaseComplete: comparisonTags.phaseComplete }
-        : null,
     });
   }
   if (data.images.length && !images.size) throw Error('Preview archive has no valid images');
@@ -79,7 +82,7 @@ function makeCard({ day, image }, index, lazy) {
 
 
 
-export function mountQuickComparison(after, { market, loadArchive, getDays, getChoices }) {
+export function mountQuickComparison(after, { market, loadArchive, getDays }) {
   const section = document.createElement('section');
   section.className = 'quick-comparison';
   section.innerHTML = `
@@ -98,7 +101,7 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
       <div class="quick-comparison-summary">
         <h2 id="quick-comparison-title">Compare similar days</h2>
         <p class="quick-comparison-coverage" role="status"></p>
-        ${['ES', 'GC'].includes(market) ? '<label><input type="checkbox" class="quick-comparison-all-tags"> All archived dates with selected tags</label>' : ''}
+        <label class="quick-comparison-scope" hidden><input type="checkbox" class="quick-comparison-all-tags"> All next-session outcomes</label>
       </div>
       <div class="quick-comparison-navigation" hidden>
         <button type="button" class="quiet quick-comparison-back" hidden>Back to grid</button>
@@ -118,6 +121,7 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
     </figure>`;
   document.body.append(panel);
   const coverage = panel.querySelector('.quick-comparison-coverage');
+  const scope = panel.querySelector('.quick-comparison-scope');
   const allTags = panel.querySelector('.quick-comparison-all-tags');
   const controls = panel.querySelector('.quick-comparison-navigation');
   const position = panel.querySelector('.quick-comparison-position');
@@ -132,9 +136,12 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
   const original = panel.querySelector('.quick-comparison-original');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const narrow = matchMedia('(max-width: 700px)');
-  let forecast;
-  let source;
-  let loading;
+  let selection;
+  const images = new Map();
+  let previewsLoading;
+  let previewsSettled = false;
+  let originalsLoading;
+  let originalsSettled = false;
   let animation;
   let frames;
   let closing = false;
@@ -198,24 +205,20 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
 
   function render() {
     if (!panel.open || closing) return;
-    const images = source?.();
-    const days = getDays() || [];
-    const canMatch = Boolean(forecast?.date && (days.length || images?.size));
-    const choices = canMatch ? getChoices(forecast.date) : {};
-    const tagMode = Boolean(allTags?.checked);
-    const hasTags = Object.entries(choices).some(([session, value]) => value && SHAPE_END[session] <= forecast?.minute);
-    const archiveDays = tagMode && images ? [...images.values()].flatMap(image => image.day ? [image.day] : []) : [];
-    const candidates = tagMode ? [...archiveDays] : days;
-    const query = tagMode ? { ...forecast, dates: null } : forecast;
-    const matches = canMatch ? comparisonCandidates(candidates, query, choices) : [];
-    const result = images ? matches.flatMap(day => images.has(day.date) ? [{ day, image: images.get(day.date) }] : []) : [];
-    const message = !canMatch ? 'Waiting for the forecast and historical data.' :
-      tagMode && !hasTags ? 'Select a completed session tag to compare archived charts.' :
-      !images ? 'Loading archived charts…' :
-      !matches.length ? 'No historical matches for the active forecast and selected outcomes.' :
-      result.length && tagMode ? result.length.toLocaleString() + ' archived charts match the selected tags.' :
-      result.length ? result.length.toLocaleString() + ' of ' + matches.length.toLocaleString() + ' matched days have screenshots.' :
-      'No screenshots are available for these matched days.';
+    const days = getDays();
+    const ready = Boolean(selection && days);
+    const { matches, outcome, hasSelection } = ready
+      ? comparisonCandidates(days, selection, allTags.checked) : { matches: [] };
+    scope.hidden = !outcome;
+    const result = matches.flatMap(day => images.has(day.date) ? [{ day, image: images.get(day.date) }] : []);
+    const checking = result.length < matches.length && !originalsSettled;
+    if (checking && previewsSettled) prepareOriginals();
+    const coverageText = result.length.toLocaleString() + ' of ' + matches.length.toLocaleString() + ' matched days have screenshots.';
+    const message = !ready ? 'Loading Session paths history…' :
+      !hasSelection ? 'Select a Session paths outcome to find similar days.' :
+      !matches.length ? 'No historical days match the selected Session paths outcomes.' :
+      (outcome && !allTags.checked ? outcome.session + ' · ' + outcome.label + '. ' : '') +
+        (checking ? result.length ? coverageText + ' Checking for more…' : 'Loading archived screenshots…' : coverageText);
     if (coverage.textContent !== message) coverage.textContent = message;
     const key = result.map(({ day, image }) => day.date + '|' + (image.preview || image.url)).join('\n');
     if (key === signature) return;
@@ -235,19 +238,26 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
     scheduled = true;
     requestAnimationFrame(() => { scheduled = false; render(); });
   }
-  allTags?.addEventListener('change', refresh);
+  allTags.addEventListener('change', refresh);
 
   function motionEnabled() {
     return !reduced.matches && !document.body.classList.contains('motion-paused');
   }
 
   function prepareArchive() {
-    loading ??= fetchPreviewArchive(market)
-      .then(images => { source = () => images; })
-      .catch(async () => {
-        const archive = await loadArchive();
-        source = () => dayScreenshots(archive());
-      }).catch(() => { source = () => new Map(); }).finally(refresh);
+    previewsLoading ??= fetchPreviewArchive(market)
+      .then(previews => { for (const [date, image] of previews) images.set(date, image); })
+      .catch(() => { /* Fall back to the main chart archive when needed. */ })
+      .finally(() => { previewsSettled = true; refresh(); });
+  }
+
+  function prepareOriginals() {
+    originalsLoading ??= Promise.resolve().then(loadArchive)
+      .then(archive => {
+        for (const [date, image] of dayScreenshots(archive())) if (!images.has(date)) images.set(date, image);
+      })
+      .catch(() => { /* Keep any available previews. */ })
+      .finally(() => { originalsSettled = true; refresh(); });
   }
 
   function openComparison() {
@@ -301,11 +311,9 @@ export function mountQuickComparison(after, { market, loadArchive, getDays, getC
   next.addEventListener('click', () => { if (!closing) navigate(1); });
 
   return {
-    setForecast(value) {
-      if (forecast?.date === value.date && forecast?.minute === value.minute && forecast?.dates === value.dates) return;
-      forecast = value;
+    setSelection(value) {
+      selection = value;
       refresh();
     },
-    refresh,
   };
 }

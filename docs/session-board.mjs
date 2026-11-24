@@ -1,5 +1,5 @@
 import { mountDashboardTiming } from './bbox-timing/dashboard-window.mjs';
-import { mountQuickComparison } from './quick-comparison.mjs?v=chart-archive-20261121';
+import { mountQuickComparison } from './quick-comparison.mjs?v=path-only-20261124';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
 import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
@@ -122,7 +122,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   followupPanel.id = 'research-followup';
   right.append(paths, followupPanel);
   const quickComparison = mountQuickComparison(paths, { market, ...comparison });
-  paths.addEventListener('sessionpath:comparison-filters', quickComparison.refresh);
+  paths.addEventListener('sessionpath:comparison-filters', event => quickComparison.setSelection(event.detail));
   if (['CL','NQ','ES'].includes(market)) {
     const timing = node('section');
     followupPanel.before(timing);
@@ -279,7 +279,6 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       [['price', snapshot.reference_price], ['avr', snapshot.avr], ['rangeHigh', snapshot.range_high], ['rangeLow', snapshot.range_low]]
         .every(([key, value]) => Math.abs(q[key] - value) < 1e-7);
     showContainment(nyCard, matchesSnapshot && q.date === $('trading-date').value ? nyModel.box : null);
-    quickComparison.setForecast({ date: nyCard.record.date, minute: 510, dates: matchesSnapshot ? nyModel.box.dates : null });
   }
 
   function update() {
@@ -336,7 +335,6 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       }
       cancelForecastTextMotion(card.panel);
       card.key = key;
-      quickComparison.setForecast({ date: forecastDate, minute: window.minute, dates: null });
       card.record = record ? {...record, date:forecastDate} : null;
       card.code = '';
       card.copy.disabled = true;
@@ -364,7 +362,6 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
         try {
           const result = overnightEstimate(record, index, forecastDate);
           card.code = result.code;
-          quickComparison.setForecast({ date: forecastDate, minute: window.minute, dates: result.dates });
           if (result.count) card.count.textContent = result.count.toLocaleString() + ' matched cases';
           showContainment(card, result);
         } catch { card.info.textContent = 'Forecast code unavailable'; }
