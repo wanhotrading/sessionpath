@@ -8,6 +8,8 @@ const MARKETS=['CL','NQ','ES','GC'];
 const WINDOWS=['03:00-05:00','05:00-08:30','08:30-16:00'];
 const CONCEPTS=['mean_box','containment','avr_expansion','extension'];
 const STORAGE='sessionpath-assistant-chat-v1';
+const READING_CACHE='sessionpath.chart-reading.v1';
+const READING_CACHE_LIMIT=8;
 const PATH_HANDOFF='sessionpath-assistant-path-handoff';
 const ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chat';
 const CHART_ENDPOINT='https://sessionpath-assistant.jjj-jason2345.workers.dev/api/chart';
@@ -37,6 +39,29 @@ const nyDate=now=>{const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{t
 const monthWords='(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
 const dateMentionPattern=new RegExp('\\b'+monthWords+'\\.?\\s*\\d{1,2}\\b|\\b\\d{1,2}(?:st|nd|rd|th)?\\s*'+monthWords+'\\b|\\b(?:today|yesterday)\\b|\\b\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}\\b|\\b\\d{1,2}\\/\\d{1,2}\\b|\\d{1,2}月|昨天|昨日|今天|今日','iu');
 const mentionsDate=query=>dateMentionPattern.test(query);
+
+async function chartReadingKey(win, model, day, request){
+ if(!chartReader(model)||!win.crypto?.subtle)return null;
+ try{
+  const bytes=new TextEncoder().encode(JSON.stringify([model,day,request]));
+  const hash=await win.crypto.subtle.digest('SHA-256',bytes);
+  return Array.from(new Uint8Array(hash),byte=>byte.toString(16).padStart(2,'0')).join('');
+ }catch{return null;}
+}
+function readChartCache(storage){
+ try{
+  const raw=storage.getItem(READING_CACHE);
+  if(!raw||raw.length>150000)return [];
+  const entries=JSON.parse(raw);
+  return Array.isArray(entries)?entries.slice(0,READING_CACHE_LIMIT):[];
+ }catch{return [];}
+}
+function rememberChartReading(storage,key,body){
+ try{
+  const entries=readChartCache(storage).filter(entry=>entry?.key!==key).slice(0,READING_CACHE_LIMIT-1);
+  storage.setItem(READING_CACHE,JSON.stringify([{key,body},...entries]));
+ }catch{/* Storage can be disabled. */}
+}
 
 function chartReader(model){return Object.hasOwn(CHART_READERS,model)?CHART_READERS[model]:null;}
 
@@ -216,8 +241,12 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   const check=new AbortController();chartConfigController=check;
   const timeout=setTimeout(()=>check.abort(),3000);
   try{
-   const reader=chartReader(await getChartConfiguration({signal:check.signal}));
-   if(reader&&!check.signal.aborted&&!destroyed&&version===attachmentVersion&&attachment)disclosure.textContent=`Configured reader · ${reader.label}. ${CHART_IMAGE_DISCLOSURE}`;
+   const model=await getChartConfiguration({signal:check.signal});
+   const reader=chartReader(model);
+   if(reader&&!check.signal.aborted&&!destroyed&&version===attachmentVersion&&attachment){
+    disclosure.textContent=`Configured reader · ${reader.label}. ${CHART_IMAGE_DISCLOSURE}`;
+    return model;
+   }
   }catch{/* The generic disclosure covers both destinations if the configuration is unavailable. */}
   finally{clearTimeout(timeout);if(chartConfigController===check)chartConfigController=null;}
  }
@@ -229,7 +258,7 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    if(!normalized||typeof normalized.dataUrl!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/u.test(normalized.dataUrl)||normalized.dataUrl.length>MAX_IMAGE_URL)throw new Error('The screenshot could not be prepared. Crop it and try again.');
    const binary=win.atob(normalized.dataUrl.split(',')[1]),data=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
    const blob=new win.Blob([data],{type:'image/jpeg'}),previewURL=win.URL.createObjectURL(blob);if(attachment?.previewURL)win.URL.revokeObjectURL(attachment.previewURL);
-   resetChartObservation();attachment={dataUrl:normalized.dataUrl,previewURL,name:plain(file?.name,240)?file.name:'Chart screenshot'};preview.src=previewURL;attachmentName.textContent=attachment.name;attachmentSize.textContent=`${normalized.width} × ${normalized.height} · ready to send`;attachmentBox.hidden=false;host.dataset.hasImage='true';prepared=true;void updateChartDisclosure(version);return true;
+   resetChartObservation();attachment={dataUrl:normalized.dataUrl,previewURL,name:plain(file?.name,240)?file.name:'Chart screenshot'};preview.src=previewURL;attachmentName.textContent=attachment.name;attachmentSize.textContent=`${normalized.width} × ${normalized.height} · ready to send`;attachmentBox.hidden=false;host.dataset.hasImage='true';prepared=true;attachment.reader=updateChartDisclosure(version);return true;
   }catch(error){if(!destroyed&&version===attachmentVersion)status.textContent=plain(error?.message,400)?error.message:'The screenshot could not be prepared.';return false;}
   finally{if(!destroyed&&version===attachmentVersion){const message=status.textContent;preparingImage=false;setBusy(false,prepared?'Screenshot ready. Press Send when you are ready.':message);}filePicker.value='';}
  }
@@ -320,8 +349,9 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
    if(result.applied?.length||result.unchanged?.length)showSessionPaths();else open();
   }catch(error){if(!destroyed){bubble('assistant',error.message,{remember:false});open();}}
  }
- function renderChart(body,query,context){
+ function renderChart(body,query,context,{reused=false}={}){
   const item=bubble('assistant','Chart reading',{remember:false});item.classList.add('sp-chat-chart-reading');
+  if(reused)item.append(element('p','sp-chat-note','Reused this tab’s reading for the same screenshot and question.'));
   item.append(renderPathFill(body));
   const observation=body.observationContext;
   const contextLabel=observation?`Historical screenshot · chart date ${observation.date} · NY${observation.cutoff?` · last completed close ${observation.cutoff.slice(11)}`:''}. Selected context: ${context.market} · ${context.window} NY${context.date?` · ${context.date}`:''}.`:`Selected context: ${context.market} · ${context.window} NY · ${context.date??'live / today'}.`;
@@ -390,12 +420,23 @@ export function mountAssistantChat({instrument,document:doc=globalThis.document,
   query=query.trim();controller?.abort();controller=new AbortController();const signal=controller.signal;let timedOut=false;open();setBusy(true,chart?'Reading your screenshot…':'Understanding your request…');if(!resumedIntent)bubble('user',query,{remember:!chart});input.value='';
   try{
    if(chart){
-    const context=contextNow(),timeout=setTimeout(()=>{timedOut=true;controller.abort();},195000);let response,body;
-    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:JSON.stringify({message:query,context,referenceVersion:CHART_REFERENCE_VERSION,image:{dataUrl:chart.dataUrl},...(observation?{observation}:{})}),signal});if(signal.aborted||destroyed)throw abortError();body=await readChartResponse(response,{signal});}finally{clearTimeout(timeout);}
+    const context=contextNow(),request={message:query,context,referenceVersion:CHART_REFERENCE_VERSION,
+     image:{dataUrl:chart.dataUrl},...(observation?{observation}:{})};
+    const model=await chart.reader;
+    const key=await chartReadingKey(win,model,nyDate(now()),request);
+    if(signal.aborted||destroyed)throw abortError();
+    const previous=key&&readChartCache(storage).find(entry=>entry?.key===key)?.body;
+    if(previous?.model===model&&validateChartReading(previous,context,observation)){
+     renderChart(previous,query,context,{reused:true});clearAttachment();return;
+    }
+    const timeout=setTimeout(()=>{timedOut=true;controller.abort();},195000);let response,body;
+    try{response=await fetchImpl(CHART_ENDPOINT,{method:'POST',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:JSON.stringify(request),signal});if(signal.aborted||destroyed)throw abortError();body=await readChartResponse(response,{signal});}finally{clearTimeout(timeout);}
     if(signal.aborted||destroyed)throw abortError();
     if(!response.ok||body.ok!==true)throw new Error(plain(body?.error?.message,400)?body.error.message:response.status===429?'Chart-reading limit reached. Please try again later.':'The chart reader is temporarily unavailable. Please try again.');
     if(!validateChartReading(body,context,observation))throw new Error('The chart reading was incomplete. Please refresh and try again.');
-    renderChart(body,query,context);clearAttachment();return;
+    renderChart(body,query,context);
+    if(key&&body.model===model)rememberChartReading(storage,key,body);
+    clearAttachment();return;
    }
    let intent=resumedIntent;
    if(!intent){

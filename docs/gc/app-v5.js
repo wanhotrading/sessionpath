@@ -1,3 +1,4 @@
+import {createSessionPathMemory,SESSION_PATH_CLOSE} from '../session-path-memory.mjs?v=20261124';
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=elf-fill-20261120';
 import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=path-only-20261124';
 import {mountMarketEmblem} from './market-emblem.mjs';
@@ -18,7 +19,7 @@ import {setupWorkspace} from './workspace-v7.mjs?v=quick-comparison-20261119';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=saved-forecast-20261118';
 import {observedUD,makeForecastCode,parseForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
-import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine} from './planner-v3.mjs';
+import {sessions,shapes,shapeName,enrichResearch,sessionProbabilities,boxEstimate,makePine,nyTimestamp} from './planner-v3.mjs';
 import {clockMinute,clockLabel,bucket,hasTags,deriveRows,selectMatches,summarize,rangeContext,pathClass,quantile} from './window-engine.mjs';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number.isFinite(v)?v.toFixed(2):'—',pct=v=>Number.isFinite(v)?`${Math.round(v*100)}%`:'—',pt=v=>Number.isFinite(v)?`${v.toFixed(2)} pt`:'Add AVR';
@@ -193,10 +194,18 @@ function migrateCheckpoints(){
  const convert=id=>{const m=/^GAP_FILLED_(\d\d):(\d\d)$/.exec(id);return m?`GAP_30_${Math.floor((+m[1]*60 + +m[2])/30)*30}`:id;};
  state.checkpoints=state.checkpoints.map(c=>{const tags=[...new Set(c.tags.map(convert))].filter(t=>allowed.has(t));return {...c,tags,inputs:{...c.inputs,'ud-units':c.inputs['ud-units']||'percent',window:c.condition.endMinute<=300?'1930-0500':'1930-0830'},condition:{...c.condition,tags,observations:[]}};});
 }
+const pathMemory=createSessionPathMemory({
+ market:instrument.id,shapes,closeAt:date=>nyTimestamp(date,SESSION_PATH_CLOSE),
+ onExpire:date=>{
+  if(!$('replay-toggle').checked&&state.sessionChoiceDate===date){resetSessionPath();renderSessions();}
+ },
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pathMemory.expire();});
 function resetSessionPath(){
  state.sessionChoices={};
  state.sessionChoiceSources={};
  state.sessionChoiceDate=$('trading-date').value;
+ state.sessionChoiceReplay=$('replay-toggle').checked;
  state.sessionPathCutoff=null;
  state.chartPathMinute=null;
  state.chartPathTime=null;
@@ -204,18 +213,27 @@ function resetSessionPath(){
  $('session-path-code-form')?.reset();
  $('session-path-code-status').textContent='';
 }
-function syncSessionPathDate(){
- const date=$('trading-date').value;
- if(state.sessionChoiceDate!==date)resetSessionPath();
+function syncSessionPathDate(clock=nyClock()){
+ const date=$('trading-date').value,replay=$('replay-toggle').checked;
+ if(state.sessionChoiceDate!==date||state.sessionChoiceReplay!==replay){
+  resetSessionPath();
+  const saved=replay?null:pathMemory.read(date,clock);
+  if(saved){
+   const {explore,...settings}=saved;
+   Object.assign(state,settings);
+   $('sequence-explore').checked=explore;
+  }
+ }
  return date;
 }
-function renderSessions(){
- const date=syncSessionPathDate();
+function renderSessions(remember=false){
  if(!state.ready)return;
+ const clock=nyClock(),date=syncSessionPathDate(clock);
  const cutoff=state.sessionPathCutoff;
  const codeMinute=cutoff?clockMinute(cutoff):-Infinity;
  const boardMinute=state.boardMinute?.date===date?state.boardMinute.minute:null;
- const minute=Math.max(codeMinute,state.chartPathMinute??-Infinity,boardMinute??clockMinute($('asof').value));
+ const elapsed=!state.sessionChoiceReplay&&clock.date===date?clock.minute:-Infinity;
+ const minute=Math.max(codeMinute,state.chartPathMinute??-Infinity,boardMinute??clockMinute($('asof').value),elapsed);
  const explore=$('sequence-explore').checked;
  const observation=$('session-path-code-observation');
  if(observation){
@@ -223,6 +241,10 @@ function renderSessions(){
   observation.textContent=state.chartPathTime?'Chart observation · '+state.chartPathTime+' NY':cutoff?'Path code observation · '+cutoff+' NY':'';
  }
  for(const s of sessions)if(!explore&&s.end>minute){delete state.sessionChoices[s.id];delete state.sessionChoiceSources[s.id];}
+ if(remember&&!state.sessionChoiceReplay)pathMemory.write(date,clock,{
+  sessionChoices:state.sessionChoices,sessionChoiceSources:state.sessionChoiceSources,explore,
+  sessionPathCutoff:cutoff,chartPathMinute:state.chartPathMinute,chartPathTime:state.chartPathTime,
+ });
  const year=$('year').value;
  const results=sessionProbabilities(state.days.filter(day=>day.date<date),state.sessionChoices,year);
  compactPathCards($('session-cards'),results,{choices:state.sessionChoices,choiceSources:state.sessionChoiceSources,shapes,minute,explore,formatTime:clockLabel});
@@ -239,7 +261,7 @@ document.addEventListener('sessionpath:chart-path-outcomes',event=>{
  if(!result.applied.length)return;
  $('sequence-explore').checked=false;
  $('session-path-code-status').textContent=result.message;
- renderSessions();
+ renderSessions(true);
 });
 function renderBoxEmpty(message){$('box-result').innerHTML=`<p class="field-help">${esc(message)}</p>`;state.pine=null;$('pine-source').value='';$('download-pine').disabled=true;$('copy-pine').disabled=true;$('pine-status').textContent='';$('forecast-code').value='';$('copy-forecast-code').disabled=true;}
 function renderBox(){
@@ -264,10 +286,10 @@ $('session-cards').addEventListener('change',event=>{
   const index=sessions.findIndex(session=>session.id===id);
   for(const session of sessions.slice(index+1)){delete state.sessionChoices[session.id];delete state.sessionChoiceSources[session.id];}
  }
- renderSessions();
+ renderSessions(true);
 });
-$('clear-sequence').addEventListener('click',()=>{resetSessionPath();renderSessions();});
-$('sequence-explore').addEventListener('change',renderSessions);
+$('clear-sequence').addEventListener('click',()=>{resetSessionPath();renderSessions(true);});
+$('sequence-explore').addEventListener('change',()=>renderSessions(true));
 $('box-horizon').addEventListener('change',renderBox);
 $('copy-forecast-code').addEventListener('click',async()=>{const field=$('forecast-code');if(!field.value)return;try{await navigator.clipboard.writeText(field.value);flashCopyStatus($('pine-status'),'Code copied!');}catch{field.focus();field.select();flashCopyStatus($('pine-status'),'Code selected. Press Ctrl+C.',0);}});
 $('download-pine').addEventListener('click',()=>{if(!state.pine)return;const url=URL.createObjectURL(new Blob([state.pine],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`SessionPath-${instrument.id}-${state.query.date}-${clockLabel(state.query.minute).replace(':','')}.pine`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('pine-status').textContent='Indicator exported for these inputs.';});
