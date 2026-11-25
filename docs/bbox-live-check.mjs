@@ -4,6 +4,7 @@ import { validatePersonalRead } from './tradingview-live-core.mjs?v=feed-waterma
 
 const firstClose = 185;
 const deadline = 510;
+const closedMessage = 'The live BBOX return window has ended at 08:30 NY.';
 const barLength = 5;
 const msPerBar = barLength * 60_000;
 const time = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
@@ -190,7 +191,13 @@ export function mountLiveBBoxCheck(host, {
   function refreshClock() {
     const now = clock.read();
     clockLabel.textContent = 'New York · ' + now.clock + ' ' + (now.zone || 'ET');
-    if (!active?.tracking) return;
+    if (!active?.tracking) {
+      if (!active && !isReplay()) {
+        if (now.minute >= deadline) summary.textContent = closedMessage;
+        else if (summary.textContent === closedMessage) summary.textContent = '';
+      }
+      return;
+    }
     if (active.observation.date !== now.date || now.minute >= deadline + 2) {
       finish('Tracking reached 08:30 NY.', deadline);
     } else if (now.minute >= deadline) {
@@ -226,6 +233,7 @@ export function mountLiveBBoxCheck(host, {
   replayToggle?.addEventListener('change', () => {
     clear();
     if (isReplay()) summary.textContent = 'Choose Back to today for a live check.';
+    else refreshClock();
   });
   doc.getElementById('trading-date')?.addEventListener('change', () => {
     if (!isReplay()) return;
@@ -263,6 +271,7 @@ export function mountLiveBBoxCheck(host, {
       summary.textContent = 'The first check is the 03:05 NY close.';
       return;
     }
+    if (now.minute >= deadline) { summary.textContent = closedMessage; return; }
     if (!ready()) { summary.textContent = 'Loading forecast history. Check again shortly.'; return; }
     check.disabled = true;
     summary.textContent = 'Checking the latest five-minute close…';
@@ -277,6 +286,7 @@ export function mountLiveBBoxCheck(host, {
       const body = await response.json();
       if (run !== revision) return;
       const checked = clock.read();
+      if (checked.minute >= deadline) { summary.textContent = closedMessage; return; }
       const packet = validatePersonalRead(body, { market, now: checked.epoch });
       if (!packet) throw new Error('Waiting for a verified five-minute close.');
       const observation = locateBBoxObservation(packet, checked, estimateCurrent);
@@ -288,7 +298,6 @@ export function mountLiveBBoxCheck(host, {
         boxes.append(chip);
       }
       result.append(classification, boxes);
-      if (observation.minute >= deadline) { summary.textContent = 'The 08:30 NY return window has ended.'; return; }
       if (!observation.side) { summary.textContent = 'Price is already inside the BBOX.'; return; }
       const q = { date: observation.date, year: year(), anchor: Math.floor(observation.minute / 30) * 30,
         now: observation.minute, end: deadline, side: observation.side, group: observation.group, observation: observation.minute };
@@ -331,7 +340,10 @@ export function mountLiveBBoxCheck(host, {
       setCode(model.remaining.n ? model.decay[0] : null, q);
       refreshClock();
     } catch (error) {
-      if (run === revision) summary.textContent = error.name === 'AbortError' ? 'TradingView check timed out. Check again to retry.' : error.message;
+      if (run === revision) {
+        if (clock.read().minute >= deadline) summary.textContent = closedMessage;
+        else summary.textContent = error.name === 'AbortError' ? 'TradingView check timed out. Check again to retry.' : error.message;
+      }
     } finally {
       view.clearTimeout(timer);
       if (revision === run) check.disabled = false;
