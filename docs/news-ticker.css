@@ -71,6 +71,9 @@
 html[data-page-hidden="true"] .sp-news-track,
 .motion-paused .sp-news-track,
 .sp-news-ticker[data-paused="true"] .sp-news-track { animation-play-state: paused; }
+@media (hover: hover) {
+  .sp-news-ticker:hover .sp-news-track { animation-play-state: paused; }
+}
 @media (prefers-reduced-motion: reduce) {
   .sp-news-ticker .sp-news-track { animation: none; width: 100%; }
   .sp-news-ticker .sp-news-track[data-moving="true"] .sp-news-headline { flex: 1 1 auto; max-width: 100%; padding-inline-end: 10px; }

@@ -1,5 +1,5 @@
 import {mountUnreadNews} from './news-queue.mjs?v=unread-carousel-1';
-import {mountNewsTicker} from './news-ticker.mjs?v=bbox-news-20261124';
+import {mountNewsTicker, withMarketLabels} from './news-ticker.mjs?v=headline-markets-20261124';
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
 import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=official-news-20261124';
@@ -27,6 +27,10 @@ function element(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function displayNewsHeadline(item) {
+  return withMarketLabels(traditionalNewsText(item), item.markets);
 }
 
 function readFilters() {
@@ -260,7 +264,7 @@ export function setupNewsDesk() {
   const modalOrder = [...document.querySelectorAll('dialog[open]')];
   const unreadQueue = mountUnreadNews({
     toast, heading: toastHeading, summary: toastHeadline, detail: toastDetail, trigger, unreadButton,
-    newsTime, textFor: traditionalNewsText, sourceNames: SOURCE_NAMES, safeUrl: safeHeadlineUrl,
+    newsTime, textFor: displayNewsHeadline, sourceNames: SOURCE_NAMES, safeUrl: safeHeadlineUrl,
     onEmpty: () => { reopenUnread = false; hideToast(); }
   });
 
@@ -399,8 +403,8 @@ export function setupNewsDesk() {
     const seen = new Set();
     const headlines = [];
     for (const item of items) {
-      const headline = ['dot','official'].includes(item.source) ? item.markets.join(' / ')+' · '+item.title : traditionalNewsText(item);
-      const key = item.eventKey || headline?.toLocaleLowerCase().trim();
+      const headline = displayNewsHeadline(item);
+      const key = item.eventKey || item.title?.toLocaleLowerCase().trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
       const source = item.source==='wallstreetcn' ? 'WallstreetCN' : item.source==='cnbc' ? 'CNBC' :
@@ -547,7 +551,7 @@ export function setupNewsDesk() {
       const time = element('time', 'news-headline-time', newsTime(item.publishedAt));
       if (Number.isFinite(Date.parse(item.publishedAt))) time.dateTime = item.publishedAt;
       meta.append(time);
-      const link = element('a', 'news-headline-link', traditionalNewsText(item) || 'Open headline');
+      const link = element('a', 'news-headline-link', displayNewsHeadline(item) || 'Open headline');
       link.href = safeHeadlineUrl(item.url);
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
@@ -561,7 +565,6 @@ export function setupNewsDesk() {
       }
       row.append(meta, link, categories);
       if (['dot','official'].includes(item.source)) {
-        meta.append(element('span','news-headline-source',item.markets.join(' / ')));
         row.append(element('p','news-event-summary',item.analysis.rationale));
         const evidence=element('div','news-headline-categories');
         for (const src of item.sources) {

@@ -5,6 +5,14 @@ function make(doc, tag, className, text = '') {
   return el;
 }
 
+const marketGroups = [['CL'], ['NQ', 'ES'], ['GC']];
+
+export function withMarketLabels(headline, markets) {
+  if (!headline || !Array.isArray(markets)) return headline;
+  const labels = marketGroups.map(group => group.filter(market => markets.includes(market)).join(' '));
+  return [headline, ...labels.filter(Boolean).map(label => '(' + label + ')')].join(' ');
+}
+
 export function mountNewsTicker(doc = document) {
   const view = doc.defaultView, bar = make(doc, 'section', 'sp-news-ticker');
   bar.setAttribute('aria-label', 'Market headlines');
