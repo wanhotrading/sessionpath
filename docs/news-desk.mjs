@@ -2,8 +2,8 @@ import {mountUnreadNews} from './news-queue.mjs?v=unread-carousel-1';
 import {mountNewsTicker, withMarketLabels} from './news-ticker.mjs?v=headline-markets-20261124';
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
-import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=official-news-20261124';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=official-news-20261124';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=wallstreet-recovery-20261125';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=wallstreet-recovery-20261125';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
 import {connectDiscordNews,discordConnectionView,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-recovery-20261030';
@@ -295,7 +295,7 @@ export function setupNewsDesk() {
     discordRetry.hidden=!connection.canRetry;
     const discordHint=' FinancialJuice: '+connection.help;
     alertHelp.textContent = preferences.alerts
-      ? 'WallstreetCN: 10s · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Browse unread headlines with the up and down arrows. New headlines are kept when you switch tabs; background checks may be slowed by your browser.' + discordHint + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
+      ? 'WallstreetCN checks every 15s via SessionPath · CNBC: 30s · ABC: 60s. Alerts follow your topic/source/search filters. Browse unread headlines with the up and down arrows. New headlines are kept when you switch tabs; background checks may be slowed by your browser.' + discordHint + (preferences.sound && !whistle.ready ? ' Click Test alert to enable the downloaded Twitter sound.' : '') + (whistle.error ? ' '+whistle.error : '')
       : 'Alerts are paused. Open News or refresh to read headlines.';
   }
 
@@ -464,6 +464,8 @@ export function setupNewsDesk() {
       else if (push) label=discordState==='connecting'?'Connecting…':'Reconnecting';
       else if (paused) label = discordReadKey?'Connecting…':'Connect Discord';
       else if (id==='dot' && unavailable) label=source.error;
+      else if (id==='wallstreetcn' && unavailable) label='Reconnecting…';
+      else if (id==='wallstreetcn' && source?.mode==='rss' && !old) label='Connected · Publisher RSS';
       else if (unavailable || failed) label = 'Refresh unavailable';
       else if (!source) label = loading ? 'Checking…' : 'Not checked yet';
       else if (old) label = 'Last checked over 20 min ago';
@@ -594,7 +596,9 @@ export function setupNewsDesk() {
   function receiveSource(result) {
     const id = result.source.id;
     const next = {items:result.items,sources:[result.source],fetchedAt:result.source.fetchedAt};
-    const retained = (feed?.items || []).filter(item => item.source !== id || result.source.status !== 'ok');
+    const receivedIds = new Set(result.items.map(item => item.id));
+    const retained = (feed?.items || []).filter(item =>
+      item.source !== id || result.source.status !== 'ok' && !receivedIds.has(item.id));
     const receivedAlerts = collectNewsAlerts(alertState, next, {includeContext:preferences.context});
     alertState = receivedAlerts.state; saveSeen();
     const reports = new Map((feed?.sources || []).map(source=>[source.id,source])); reports.set(id,result.source);
@@ -648,6 +652,7 @@ export function setupNewsDesk() {
   sourceSelect.addEventListener('change', () => { filters.source = sourceSelect.value; saveFilters(); render(); });
   search.addEventListener('input', () => { filters.search = search.value; saveFilters(); render(); });
   refresh.addEventListener('click', refreshNews);
+  window.addEventListener('online', refreshNews);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       reopenUnread ||= !toast.hidden && unreadQueue.hasUnread();

@@ -1,4 +1,5 @@
 import {DurableObject} from 'cloudflare:workers';
+import {collectWallstreet, wallstreetRead} from './wallstreetcn.mjs';
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -109,6 +110,7 @@ async function readSource(source, previous, now) {
 
 export class OfficialNews extends DurableObject {
   scanInProgress;
+  wallstreetInProgress;
 
   async start() {
     if (await this.ctx.storage.getAlarm() === null) {
@@ -118,7 +120,34 @@ export class OfficialNews extends DurableObject {
 
   async alarm() {
     await this.ctx.storage.setAlarm(Date.now() + MINUTE);
-    await this.scan();
+    await this.scanAll();
+  }
+
+  async scanAll() {
+    const scans = await Promise.allSettled([this.scan(),this.scanWallstreet()]);
+    const failed = scans.find(result=>result.status==='rejected');
+    if (failed) throw failed.reason;
+  }
+
+  async scanWallstreet() {
+    this.wallstreetInProgress ??= this.collectWallstreet().finally(() => { this.wallstreetInProgress = undefined; });
+    await this.wallstreetInProgress;
+  }
+
+  async collectWallstreet() {
+    const prior = await this.ctx.storage.get('wallstreetcn') || {};
+    const state = await collectWallstreet(prior,{now:Date.now(),readBody:boundedText});
+    if (state !== prior) await this.ctx.storage.put('wallstreetcn',state);
+  }
+
+  async wallstreetFeed() {
+    await this.start();
+    let state = await this.ctx.storage.get('wallstreetcn');
+    if (!state) {
+      await this.scanWallstreet();
+      state = await this.ctx.storage.get('wallstreetcn') || {};
+    }
+    return wallstreetRead(state,Date.now());
   }
 
   async scan() {
@@ -157,13 +186,15 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const headers = {'Access-Control-Allow-Origin':'*', 'X-Content-Type-Options':'nosniff'};
-    if (url.pathname !== '/api/news' || request.method !== 'GET') return new Response('Not found', {status:404, headers});
+    const wallstreet = url.pathname === '/api/wallstreetcn';
+    if ((!wallstreet && url.pathname !== '/api/news') || request.method !== 'GET') return new Response('Not found', {status:404, headers});
     url.search = '';
     const key = new Request(url.href);
     const cached = await caches.default.match(key);
     if (cached) return cached;
-    const data = await env.NEWS.getByName('official-v1').feed();
-    if (!data.checkedAt) return Response.json(data, {headers:{...headers,'Cache-Control':'no-store'},status:503});
+    const news = env.NEWS.getByName('official-v1');
+    const data = wallstreet ? await news.wallstreetFeed() : await news.feed();
+    if (!wallstreet && !data.checkedAt) return Response.json(data, {headers:{...headers,'Cache-Control':'no-store'},status:503});
     const response = Response.json(data, {headers:{...headers,'Cache-Control':'public, max-age=10'}});
     ctx.waitUntil(caches.default.put(key, response.clone()));
     return response;
@@ -171,7 +202,7 @@ export default {
   async scheduled(_, env) {
     const news = env.NEWS.getByName('official-v1');
     await news.start();
-    await news.scan();
+    await news.scanAll();
   },
 };
 

@@ -5,7 +5,7 @@ export const NEWS_SOURCES = Object.freeze([
   officialSource,
   dotSource,
   Object.freeze({id: 'financialjuice', name: 'FinancialJuice', paused:true, pauseReason:'Automatic requests paused while access is checked', pollMs: 60000, kind:'rss', hosts:['financialjuice.com','www.financialjuice.com'], url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
-  Object.freeze({id: 'wallstreetcn', name: 'WallstreetCN · 华尔街见闻', pollMs: 10000, kind:'json', hosts:['wallstreetcn.com','www.wallstreetcn.com','wallstcn.com','www.wallstcn.com'], url: 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=100'}),
+  Object.freeze({id: 'wallstreetcn', name: 'WallstreetCN · 华尔街见闻', pollMs: 15000, kind:'managed-wallstreet', hosts:['wallstreetcn.com','www.wallstreetcn.com','wallstcn.com','www.wallstcn.com'], url: 'https://sessionpath-official-news.jjj-jason2345.workers.dev/api/wallstreetcn'}),
   Object.freeze({id:'cnbc',name:'CNBC · Top news',pollMs:30000,kind:'rss',hosts:['cnbc.com','www.cnbc.com'],url:'https://www.cnbc.com/id/100003114/device/rss/rss.html'}),
   Object.freeze({id:'abcnews',name:'ABC News · World',pollMs:60000,kind:'rss',retentionMs:7*86400000,hosts:['abcnews.go.com','abcnews.com','www.abcnews.com'],url:'https://abcnews.com/abcnews/internationalheadlines'})
 ]);
@@ -140,7 +140,7 @@ function abortError(message = 'Request cancelled.') { const error = new Error(me
 
 export async function loadNewsSource(source, {signal, fetchImpl = globalThis.fetch, now = Date.now, timeoutMs = 8000, parseXML} = {}) {
   if (!NEWS_SOURCES.some(entry => entry.id === source?.id && entry.url === source?.url)) throw Error('Unknown news source.');
-  let retryAfterMs = null;
+  let retryAfterMs = null, wallstreetMode = null;
   const controller = new AbortController();
   let timer, rejectStopped;
   const stopped = new Promise((_, reject) => { rejectStopped = reject; });
@@ -162,11 +162,19 @@ export async function loadNewsSource(source, {signal, fetchImpl = globalThis.fet
       if (source.kind === 'rss') return parseNewsRSS(text, {now: now(), parseXML, source:source.id});
       let json; try { json = JSON.parse(text); } catch { throw Error('The publisher returned invalid JSON.'); }
       if (source.kind==='dot'||source.kind==='verified') return dotItems(json,now(),analyzeNews,source);
+      if (source.kind === 'managed-wallstreet') {
+        if (!['live','rss','offline'].includes(json?.mode)) throw Error('The WallstreetCN feed returned an unknown connection status.');
+        wallstreetMode = json.mode;
+      }
       return normalizeWallstreetCN(json, {now: now()});
     };
     const items = await Promise.race([stopped, read()]);
     const latestAt = items.reduce((latest, item) => !latest || item.publishedAt > latest ? item.publishedAt : latest, null);
-    return {items, source: {id: source.id, name: source.name, status: 'ok', fetchedAt: new Date(now()).toISOString(), latestAt}};
+    const recovering = wallstreetMode === 'offline';
+    return {items, source: {id: source.id, name: source.name, status: recovering ? 'error' : 'ok',
+      fetchedAt: new Date(now()).toISOString(), latestAt,
+      mode: wallstreetMode, error: recovering ? 'WallstreetCN is temporarily unavailable. SessionPath is retrying automatically.' : null}};
+
   } catch (error) {
     return {items: [], source: {id: source.id, name: source.name, status: 'error', fetchedAt: startedAt, latestAt: null, retryAfterMs, error: signal?.aborted ? 'Request cancelled.' : error?.name === 'AbortError' ? (error.message === 'The publisher did not respond in time.' ? error.message : 'The publisher did not respond in time.') : error?.message || 'This publisher could not be reached.'}};
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
