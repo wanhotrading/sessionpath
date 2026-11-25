@@ -390,3 +390,27 @@ body.session-board-active[data-device-view="mobile"] .sp-assistant { bottom: cal
 .sp-chat-path-fill-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .sp-chat-path-fill-actions button { border-color: #b59df086; color: #eee4ff; }
 .sp-chat-path-fill-actions:empty { display: none; }
+
+/* Keep the historical rank at the top-right, including on narrow screens. */
+.bbox-check-header:has(.bbox-return-quartile:not([hidden])) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title quartile" "clock action";
+}
+.bbox-check-header h2 { grid-area: title; }
+.bbox-check-clock { grid-area: clock; }
+.bbox-check-button { grid-area: action; justify-self: end; }
+.bbox-return-quartile {
+  grid-area: quartile;
+  justify-self: end;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #141d30;
+  color: #f2f4fa;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.bbox-return-quartile[data-band="upper"] { color: #ffc17a; }
+.bbox-return-quartile[data-band="lower"] { color: #d3b4ff; }

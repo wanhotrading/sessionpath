@@ -2,7 +2,7 @@ import { curveGeometry } from './bbox-curve.mjs?v=live-time-20261023';
 import { createOnlineClock, nyClockParts } from './ny-online-clock.mjs?v=automatic-bbox-20261118';
 import { validatePersonalRead } from './tradingview-live-core.mjs?v=feed-watermark-20261118';
 
-import { afternoonStart, afternoonEnd, readAfternoonArchive, afternoonReturnStats } from './bbox-ny-return.mjs?v=bbox-live-ny-20261125';
+import { afternoonStart, afternoonEnd, readAfternoonArchive, afternoonReturnStats, returnQuartile, minimumQuartileSample } from './bbox-ny-return.mjs?v=bbox-return-quartiles-20261125';
 
 const firstClose = 185;
 const closedMessage = 'The live BBOX return window ended at 16:00 NY.';
@@ -154,7 +154,9 @@ export function mountLiveBBoxCheck(host, {
   clockLabel.setAttribute('aria-label', 'New York time');
   const check = text(doc, 'button', 'quiet bbox-check-button', 'Check now');
   check.type = 'button';
-  header.append(title, clockLabel, check);
+  const quartileBadge = text(doc, 'span', 'bbox-return-quartile');
+  quartileBadge.hidden = true;
+  header.append(title, clockLabel, check, quartileBadge);
   const summary = text(doc, 'p', 'bbox-check-note');
   summary.setAttribute('role', 'status');
   const result = text(doc, 'div', 'bbox-check-result');
@@ -205,7 +207,18 @@ export function mountLiveBBoxCheck(host, {
     refreshCode?.();
   }
 
+  function showQuartile(minute) {
+    const index = (minute - active.observation.minute) / barLength;
+    const quartile = returnQuartile(active.points[index], active.peerCurves.map(curve => curve[index]));
+    quartileBadge.hidden = !quartile;
+    if (!quartile) return;
+    quartileBadge.dataset.band = quartile.band;
+    quartileBadge.textContent = { upper: 'Top quartile', middle: 'Middle half', lower: 'Bottom quartile' }[quartile.band];
+    quartileBadge.title = 'Compared with other historical groups for this market, BBOX side and time.';
+  }
+
   function finish(message, minute) {
+    quartileBadge.hidden = true;
     active.tracking = false;
     active.current = minute ?? active.current;
     active.setCurrent(active.current, false);
@@ -215,6 +228,7 @@ export function mountLiveBBoxCheck(host, {
 
   function resetResult() {
     run++;
+    quartileBadge.hidden = true;
     active = null;
     pendingEpoch = lastAccepted = null;
     code = '';
@@ -238,9 +252,11 @@ export function mountLiveBBoxCheck(host, {
       finish(active.q.end === afternoonEnd ? 'The 16:00 NY window ended. The final close was not received.' :
         'Waiting for the first New York close to start the 16:00 estimate.');
     } else if (now.minute >= active.q.end) {
+      quartileBadge.hidden = true;
       setCode(null, active.q);
       summary.textContent = 'Waiting for the ' + time(active.q.end) + ' NY close.';
     } else if (now.completed - active.current >= 10) {
+      quartileBadge.hidden = true;
       setCode(null, active.q);
       active.setCurrent(active.current, false);
       summary.textContent = 'Waiting for a fresh verified close. The chart is paused.';
@@ -341,6 +357,7 @@ export function mountLiveBBoxCheck(host, {
         } else {
           active.current = next.minute;
           active.setCurrent(next.minute, true);
+          showQuartile(next.minute);
           summary.textContent = active.note;
           setCode(active.points.find(point => point.minute === next.minute), active.q);
         }
@@ -351,6 +368,7 @@ export function mountLiveBBoxCheck(host, {
 
     const revision = ++run;
     active = null;
+    quartileBadge.hidden = true;
     code = '';
     refreshCode = null;
     pendingEpoch = epoch;
@@ -377,7 +395,10 @@ export function mountLiveBBoxCheck(host, {
             (model.remaining.n < 25 ? ' Small historical sample.' : '');
           summary.textContent = note;
           const setCurrent = interactiveCurve(result, model.decay, observation.minute, deadline);
-          active = { tracking: true, observation, current: observation.minute, lastEpoch: epoch, points: model.decay, q, setCurrent, note };
+          const peerCurves = model.peerCurves ?? (model.remaining.n >= minimumQuartileSample ?
+            [1, 2, 3].map(group => (group === q.group ? model : stats(days, { ...q, group })).decay) : []);
+          active = { tracking: true, observation, current: observation.minute, lastEpoch: epoch, points: model.decay, q, setCurrent, note, peerCurves };
+          showQuartile(observation.minute);
           if (!observation.afternoon) addTransfer();
           setCode(model.decay[0], q);
         }

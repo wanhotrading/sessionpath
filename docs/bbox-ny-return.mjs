@@ -4,7 +4,7 @@ export const afternoonStart = 510;
 export const afternoonEnd = 960;
 const step = 5;
 const closes = (afternoonEnd - afternoonStart) / step;
-const minimumMatches = 25;
+export const minimumQuartileSample = 25;
 
 export function readAfternoonArchive(data, market) {
   if (data?.version !== 1 || data.market !== market || data.start !== afternoonStart ||
@@ -32,8 +32,8 @@ export function afternoonReturnStats(days, { date, year, observation, side, grou
   }
 
   const sideReturns = [];
-  const distanceReturns = [];
-  const groupReturns = [];
+  const distanceReturns = Array.from({ length: 5 }, () => []);
+  const groupReturns = Array.from({ length: 5 }, () => Array.from({ length: 4 }, () => []));
   const band = bboxDistanceBand(distance);
   for (const { date: priorDate, bytes } of days) {
     if (priorDate >= date || (year && priorDate.slice(0, 4) !== String(year))) continue;
@@ -42,16 +42,28 @@ export function afternoonReturnStats(days, { date, year, observation, side, grou
     if (condition < 0 || condition >= 40 || (condition < 20 ? 1 : -1) !== side) continue;
     const returnIndex = bytes[2 * index + 1];
     sideReturns.push(returnIndex);
-    if (!band || condition % 5 !== band) continue;
-    distanceReturns.push(returnIndex);
-    if (group && Math.floor((condition % 20) / 5) === group) groupReturns.push(returnIndex);
+    const caseBand = condition % 5;
+    const caseGroup = Math.floor((condition % 20) / 5);
+    distanceReturns[caseBand].push(returnIndex);
+    groupReturns[caseBand][caseGroup].push(returnIndex);
   }
 
-  const matchesGroup = groupReturns.length >= minimumMatches;
-  const matchesDistance = matchesGroup || distanceReturns.length >= minimumMatches;
-  const returns = matchesGroup ? groupReturns : matchesDistance ? distanceReturns : sideReturns;
+  const sameDistance = distanceReturns[band];
+  const sameGroup = group ? groupReturns[band][group] : null;
+  const matchesGroup = band > 0 && (sameGroup?.length ?? 0) >= minimumQuartileSample;
+  const matchesDistance = matchesGroup || (band > 0 && sameDistance.length >= minimumQuartileSample);
+  const returns = matchesGroup ? sameGroup : matchesDistance ? sameDistance : sideReturns;
   const criteria = matchesGroup ? 'BBOX side, AVR distance and SessionPath position' :
     matchesDistance ? 'BBOX side and AVR distance' : 'BBOX side';
+  const peers = matchesGroup ? groupReturns.slice(1).flatMap(groups => groups.slice(1)) :
+    matchesDistance ? distanceReturns.slice(1) : [];
+  const decay = returnCurve(returns, index);
+  const peerCurves = peers.filter(pool => pool.length >= minimumQuartileSample)
+    .map(pool => pool === returns ? decay : returnCurve(pool, index));
+  return { decay, remaining: decay[0], criteria, peerCurves };
+}
+
+function returnCurve(returns, index) {
   const counts = new Uint32Array(closes + 1);
   for (const close of returns) {
     if (close > index && close <= closes) counts[close]++;
@@ -64,5 +76,21 @@ export function afternoonReturnStats(days, { date, year, observation, side, grou
     remainingReturns -= counts[close];
     decay.push({ minute: afternoonStart + close * step, ...rate(remainingReturns, pending) });
   }
-  return { decay, remaining: decay[0], criteria };
+  return decay;
+}
+
+export function returnQuartile(point, peers) {
+  if (!Number.isFinite(point?.p) || point.n < minimumQuartileSample) return null;
+  const eligible = peers.filter(peer => Number.isFinite(peer?.p) && peer.n >= minimumQuartileSample);
+  if (eligible.length < 2) return null;
+  // Weight each conditional rate by the number of dates still at risk, splitting ties.
+  let below = 0;
+  let total = 0;
+  for (const peer of eligible) {
+    const difference = point.k * peer.n - peer.k * point.n;
+    below += difference > 0 ? peer.n : difference === 0 ? peer.n / 2 : 0;
+    total += peer.n;
+  }
+  const rank = below / total;
+  return { rank, band: rank >= .75 ? 'upper' : rank <= .25 ? 'lower' : 'middle' };
 }
