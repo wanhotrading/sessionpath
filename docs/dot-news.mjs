@@ -2,7 +2,7 @@
 // field as data and render it as text. Corroboration is by source, not by URL count.
 const officialDomains = new Map([
   ['eia.gov','EIA'], ['opec.org','OPEC'], ['ukmto.org','UKMTO'], ['centcom.mil','CENTCOM'],
-  ['federalreserve.gov','Federal Reserve'], ['bls.gov','BLS'], ['bea.gov','BEA'], ['census.gov','Census'],
+  ['federalreserve.gov','Federal Reserve'], ['bls.gov','BLS'], ['bea.gov','BEA'], ['apps.bea.gov','BEA'], ['census.gov','Census'],
   ['treasury.gov','US Treasury'], ['ofac.treasury.gov','US Treasury'], ['ustr.gov','USTR'],
   ['whitehouse.gov','White House'], ['commerce.gov','US Commerce'], ['energy.gov','US Energy'],
 ]);
@@ -11,21 +11,31 @@ const newsDomains = new Map([
   ['cnbc.com','CNBC'], ['ft.com','Financial Times'], ['wsj.com','Wall Street Journal'],
 ]);
 const officialAccounts = new Set(['eiagov','opecsecretariat','uk_mto','centcom','federalreserve','bls_gov','bea_news','censusbureau','ustreasury','ustraderep','whitehouse','potus','realdonaldtrump']);
-const newsAccounts = new Map([['reuters','Reuters'],['reutersbiz','Reuters'],['ap','AP'],['afp','AFP'],['business','Bloomberg'],['cnbc','CNBC']]);
+const newsAccounts = new Map([['reuters','Reuters'],['reutersbiz','Reuters'],['ap','AP'],['afp','AFP'],['business','Bloomberg'],['markets','Bloomberg'],['cnbc','CNBC']]);
 const marketNames = ['CL','NQ','ES','GC'];
 const topics = ['oil','shipping','geopolitics','fed','macro','sanctions','policy'];
 const hostnames = [...officialDomains.keys(), ...newsDomains.keys()];
 const DAY=86400000;
 export const dotSource = Object.freeze({
   id:'dot', name:'Dot · Breaking news', kind:'dot', pollMs:45000,
-  hosts:['x.com', ...hostnames, ...hostnames.map(host=>'www.'+host)],
+  hosts:['x.com', 'truthsocial.com', ...hostnames, ...hostnames.map(host=>'www.'+host)],
   url:'https://raw.githubusercontent.com/wanhotrading/sessionpath/dot-news/news/dot-feed.json',
+});
+export const officialSource = Object.freeze({
+  id:'official', name:'Official releases', kind:'verified', pollMs:15000,
+  hosts:['www.federalreserve.gov','www.bea.gov','bea.gov','apps.bea.gov','www.eia.gov'],
+  url:'https://sessionpath-official-news.jjj-jason2345.workers.dev/api/news',
 });
 function source(value) {
   if(typeof value!=='string'||value.length>600)return null;
   try{
     const url=new URL(value), host=url.hostname.replace(/^www\./,'');
     if(url.protocol!=='https:'||url.username||url.password||url.port||url.pathname==='/')return null;
+    if (host === 'truthsocial.com') {
+      const post = /^(?:\/@realdonaldtrump\/posts|\/users\/realdonaldtrump\/statuses)\/(\d{17,22})\/?$/iu.exec(url.pathname);
+      if (!post) return null;
+      return {name:'Donald Trump · Truth Social',official:true,url:'https://truthsocial.com/@realDonaldTrump/posts/'+post[1]};
+    }
     if(host==='x.com'){
       const handle=/^\/(\w{1,15})\/status\/\d{17,20}\/?$/u.exec(url.pathname)?.[1]?.toLowerCase();
       if(!handle)return null;
@@ -42,12 +52,13 @@ function source(value) {
 const dated = value => typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)?Date.parse(value):NaN;
 const clean = (value,max) => typeof value==='string'&&value.length<=max&&value.trim()&&!/[<>\u0000-\u001f]/u.test(value)?value.trim():null;
 
-export function dotItems(payload, now, analyze) {
-  if(payload?.version!==1||!Array.isArray(payload.items)||payload.items.length>30)throw Error('Unreadable Dot feed');
+export function dotItems(payload, now, analyze, config = dotSource) {
+  const direct = config.id === officialSource.id;
+  if(payload?.version!==1||!Array.isArray(payload.items)||payload.items.length>30)throw Error('Unreadable '+config.name+' feed');
   if(payload.checkedAt===null&&payload.items.length===0)throw Error('Waiting for first Dot scan');
   const checked=dated(payload.checkedAt);
   if(!Number.isFinite(checked)||checked>now+5*60000)throw Error('Dot scan date is invalid');
-  if(now-checked>2*3600000)throw Error('Dot scan overdue');
+  if(now-checked>(direct ? 6*60000 : 2*3600000))throw Error(config.name+' scan overdue');
   return payload.items.flatMap(event=>{
     if(typeof event?.eventKey!=='string'||!/^[a-z0-9][a-z0-9-]{5,119}$/u.test(event.eventKey)||
        !topics.includes(event.topic)||!['new','update','correction'].includes(event.kind)||
@@ -56,6 +67,7 @@ export function dotItems(payload, now, analyze) {
     const title=clean(event.headline,180),why=clean(event.why,350),stamp=dated(event.publishedAt);
     if(!title||!why||!Number.isFinite(stamp)||stamp>Math.min(now,checked)+60000||stamp<now-DAY)return [];
     const proof=[...new Map(event.evidence.map(source).filter(Boolean).map(e=>[e.url,e])).values()];
+    if (direct && (proof.length !== 1 || !proof[0].official || !config.hosts.includes(new URL(proof[0].url).hostname))) return [];
     if(!proof.some(e=>e.official)&&new Set(proof.map(e=>e.name)).size<2)return [];
     const markets=[...new Set(event.markets)];
     const categories=new Set();
@@ -67,7 +79,7 @@ export function dotItems(payload, now, analyze) {
     if(markets.includes('GC'))categories.add('gold');
     if(!categories.size)return [];
     const prefix=event.kind==='new'?'':event.kind==='update'?'Update · ':'Correction · ';
-    const item={id:'dot:'+event.eventKey, source:'dot', title:prefix+title, raw_text:title, url:proof.find(e=>e.official)?.url||proof[0].url,
+    const item={id:config.id+':'+event.eventKey, source:config.id, title:prefix+title, raw_text:title, url:proof.find(e=>e.official)?.url||proof[0].url,
       publishedAt:new Date(stamp).toISOString(), receivedAt:new Date(checked).toISOString(),
       categories:[...categories],markets,sources:proof,eventKey:event.eventKey,kind:event.kind};
     item.analysis={...analyze(item,{now}),priority:'P1',event_type:markets.join(' · '),rationale:why,

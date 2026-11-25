@@ -1,7 +1,8 @@
-import {dotSource,dotItems} from './dot-news.mjs?v=bbox-news-20261124';
+import {dotSource,officialSource,dotItems} from './dot-news.mjs?v=official-news-20261124';
 import {extraNewsCategories, analyzeNews} from './news-analysis.mjs?v=discord-topics-20261023';
 // Public publisher feeds only. No account, proxy, article body, or stored credentials.
 export const NEWS_SOURCES = Object.freeze([
+  officialSource,
   dotSource,
   Object.freeze({id: 'financialjuice', name: 'FinancialJuice', paused:true, pauseReason:'Automatic requests paused while access is checked', pollMs: 60000, kind:'rss', hosts:['financialjuice.com','www.financialjuice.com'], url: 'https://www.financialjuice.com/feed.ashx?xy=rss'}),
   Object.freeze({id: 'wallstreetcn', name: 'WallstreetCN · 华尔街见闻', pollMs: 10000, kind:'json', hosts:['wallstreetcn.com','www.wallstreetcn.com','wallstcn.com','www.wallstcn.com'], url: 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=100'}),
@@ -160,7 +161,7 @@ export async function loadNewsSource(source, {signal, fetchImpl = globalThis.fet
       if (controller.signal.aborted) throw abortError();
       if (source.kind === 'rss') return parseNewsRSS(text, {now: now(), parseXML, source:source.id});
       let json; try { json = JSON.parse(text); } catch { throw Error('The publisher returned invalid JSON.'); }
-      if (source.kind==='dot') return dotItems(json,now(),analyzeNews);
+      if (source.kind==='dot'||source.kind==='verified') return dotItems(json,now(),analyzeNews,source);
       return normalizeWallstreetCN(json, {now: now()});
     };
     const items = await Promise.race([stopped, read()]);
