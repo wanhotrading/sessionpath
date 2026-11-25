@@ -110,6 +110,17 @@ async function readSource(source, previous, now) {
 export class OfficialNews extends DurableObject {
   scanInProgress;
 
+  async start() {
+    if (await this.ctx.storage.getAlarm() === null) {
+      await this.ctx.storage.setAlarm(Date.now() + MINUTE);
+    }
+  }
+
+  async alarm() {
+    await this.ctx.storage.setAlarm(Date.now() + MINUTE);
+    await this.scan();
+  }
+
   async scan() {
     this.scanInProgress ??= this.collect().finally(() => { this.scanInProgress = undefined; });
     await this.scanInProgress;
@@ -127,8 +138,9 @@ export class OfficialNews extends DurableObject {
   }
 
   async feed() {
+    await this.start();
     let state = await this.ctx.storage.get('official-news');
-    if (!state) {
+    if (sources.some(source => !state?.[source.id])) {
       await this.scan();
       state = await this.ctx.storage.get('official-news') || {};
     }
@@ -157,7 +169,9 @@ export default {
     return response;
   },
   async scheduled(_, env) {
-    await env.NEWS.getByName('official-v1').scan();
+    const news = env.NEWS.getByName('official-v1');
+    await news.start();
+    await news.scan();
   },
 };
 
