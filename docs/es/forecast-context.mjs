@@ -1,6 +1,6 @@
 import {tint,revealContext,moveMarker} from './forecast-motion.mjs';
 import {expansionPercentile,tintExpansionPercentile} from './expansion-colour.mjs';
-import {mountUtilizationDirection,renderUtilizationDirection} from './utilization-ui.mjs';
+import {mountUtilizationDirection,renderUtilizationDirection} from './utilization-ui.mjs?v=tools-zero-20261125';
 import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {instrument,assetPath} from './instrument.mjs';
 import {regime,rate,average,quantile,finite,inputNumber} from './research-core.mjs';

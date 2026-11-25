@@ -14,9 +14,15 @@ export function summarizeDirection(rows,window='ny',method='nyOwnWide'){
  const metric=r=>window==='ny'?r.ny?.[method]:r[window],rs=rows.filter(r=>metric(r));
  return {n:rs.length,U:proportion(rs.filter(r=>metric(r).tilt==='U').length,rs.length),D:proportion(rs.filter(r=>metric(r).tilt==='D').length,rs.length),tie:proportion(rs.filter(r=>metric(r).tilt==='TIE').length,rs.length),meanUp:average(rs.map(r=>metric(r).up)),meanDown:average(rs.map(r=>metric(r).down)),finalUp:proportion(rs.filter(r=>metric(r).finalDirection==='U').length,rs.length),thin:rs.filter(r=>r.three?.cases<50||r.five?.cases<50||metric(r).cases<50).length};
 }
-export function selectUtilizationRows(rows,{date,year='',method='nyOwnWide',bands=[],directions=[],minimumCases=0}={}){
+export function selectUtilizationRows(rows,{date,year='',method='nyOwnWide',bands=[],directions=[],zeroSides=[],minimumCases=0}={}){
  if(!NY_METHODS.includes(method))throw Error('Choose a supported NY forecast method.');
  const base=rows.filter(r=>(!date||r.date<date)&&(!year||r.year===String(year))&&r.three&&r.five&&r.ny?.[method]&&[r.three,r.five,r.ny[method]].every(w=>w.cases>=minimumCases));
- const matched=base.filter(r=>[r.three.upBand,r.three.downBand,r.five.upBand,r.five.downBand].every((b,i)=>bands[i]==null||b===Number(bands[i]))&&[r.three.tilt,r.five.tilt].every((d,i)=>!directions[i]||d===directions[i]));
+ const matched=base.filter(r=>{
+  const usages=[r.three.up,r.three.down,r.five.up,r.five.down];
+  const usageBands=[r.three.upBand,r.three.downBand,r.five.upBand,r.five.downBand];
+  return usages.every((value,i)=>!zeroSides[i]||value===0)&&
+   usageBands.every((b,i)=>bands[i]==null||b===Number(bands[i]))&&
+   [r.three.tilt,r.five.tilt].every((d,i)=>!directions[i]||d===directions[i]);
+ });
  return {base,matched,baseline:summarizeDirection(base,'ny',method),selected:summarizeDirection(matched,'ny',method)};
 }

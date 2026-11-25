@@ -6,7 +6,7 @@ import {instrument} from './instrument.mjs?v=tables-20261105';
 import {deriveRows,bucket,mean,quantile,wilson,clockLabel} from './window-engine.mjs';
 import {shapes} from './planner-v3.mjs';
 import {makeForecastCode} from './indicator-v5.mjs?v=ny-timing-20261102';
-import {mountNYContext,readNYPrinted,renderForecastContext,renderNYStrength} from './forecast-context.mjs';
+import {mountNYContext,readNYPrinted,renderForecastContext,renderNYStrength} from './forecast-context.mjs?v=tools-zero-20261125';
 import {nyPositionSelection,archivedNYPositions} from './ny-position-helper.mjs';
 import {computeNYPositionAutofill} from './ny-position-autofill-core.mjs';
 import {nyResearchMethod} from './ny-method-metadata.mjs';

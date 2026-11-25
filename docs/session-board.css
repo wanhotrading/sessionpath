@@ -338,8 +338,7 @@ span.session-board-market-emblem {
   .session-board-market-emblem { flex-basis: 23px; width: 23px; height: 23px; }
   .session-board .session-board-market select { padding-inline: 5px; font-size: 12px; }
 }
-.session-board-utilities { display: flex; justify-content: flex-end; }
-.session-board-active #workspace .session-board-utilities .workspace-tools-toggle {
+.session-board-active #sessions-section .workspace-tools-toggle {
   position: static;
   width: auto;
   height: auto;
@@ -347,6 +346,15 @@ span.session-board-market-emblem {
   border-radius: 8px;
   font-size: 13px;
 }
+.session-board-active #workspace-tools-dialog .session-board-utilization { margin-top: 0; }
+#workspace-tools-dialog .session-board-utilization .ny-controls,
+#workspace-tools-dialog .session-board-utilization .context-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+#workspace-tools-dialog .session-board-utilization fieldset { min-width: 0; margin: 0; }
+#workspace-tools-dialog .session-board-utilization .table-wrap { overflow-x: auto; }
 .session-board-tools-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 14px; }
 body.session-board-active[data-device-view="mobile"] .sp-assistant { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
 

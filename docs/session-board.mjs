@@ -157,9 +157,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
 
   const toolsButton = $('workspace-tools-toggle');
   toolsButton.textContent = 'Tools';
-  const lowerTools = node('div', 'session-board-utilities');
-  lowerTools.append(toolsButton);
-  $('projection').append(lowerTools);
+  paths.querySelector('.section-heading .button-row').append(toolsButton);
   const toolSettings = node('div', 'session-board-tools-settings');
   const playbook = topbar.querySelector('.top-actions a');
   const help = $('method-btn');
