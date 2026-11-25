@@ -2,9 +2,10 @@ import { curveGeometry } from './bbox-curve.mjs?v=live-time-20261023';
 import { createOnlineClock, nyClockParts } from './ny-online-clock.mjs?v=automatic-bbox-20261118';
 import { validatePersonalRead } from './tradingview-live-core.mjs?v=feed-watermark-20261118';
 
+import { afternoonStart, afternoonEnd, readAfternoonArchive, afternoonReturnStats } from './bbox-ny-return.mjs?v=bbox-live-ny-20261125';
+
 const firstClose = 185;
-const deadline = 510;
-const closedMessage = 'The live BBOX return window has ended at 08:30 NY.';
+const closedMessage = 'The live BBOX return window ended at 16:00 NY.';
 const barLength = 5;
 const msPerBar = barLength * 60_000;
 const time = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
@@ -22,27 +23,33 @@ export function locateBBoxObservation(packet, clock, estimate) {
     throw new Error('Waiting for a verified five-minute close.');
   }
   const close = nyClockParts(epoch);
-  if (packet.session_date !== clock.date || close.date !== clock.date || close.minute !== clock.completed) {
-    throw new Error('Waiting for the latest five-minute close. Check again shortly.');
+  const age = clock.completed - close.minute;
+  if (packet.session_date !== clock.date || close.date !== clock.date || age < 0 || age > 5) {
+    throw new Error('Waiting for the latest five-minute close.');
   }
   if (close.minute < firstClose) throw new Error('The first check is the 03:05 NY close.');
+  if (close.minute > afternoonEnd) throw new Error(closedMessage);
   // The 05:00 close belongs to the candle that opened at 04:55.
-  const window = close.minute <= 300 ? { cutoff: '03:00', minute: 180, endMinute: 300 } :
-    close.minute <= deadline ? { cutoff: '05:00', minute: 300, endMinute: deadline } :
-    { cutoff: '08:30', minute: deadline, endMinute: 960 };
-  const snapshot = packet.snapshots?.find(item => item.cutoff === window.cutoff);
+  const afternoon = close.minute >= afternoonStart;
+  const window = afternoon ? { cutoff: '08:30', minute: afternoonStart, endMinute: afternoonEnd } :
+    close.minute <= 300 ? { cutoff: '03:00', minute: 180, endMinute: 300 } :
+    { cutoff: '05:00', minute: 300, endMinute: afternoonStart };
+  const snapshots = packet.snapshots || [];
+  const exact = snapshots.find(item => item.cutoff === window.cutoff);
+  const snapshot = exact ?? (afternoon ? snapshots.at(-1) : null);
   if (!snapshot || !Number.isFinite(snapshot.prior_low) || !Number.isFinite(snapshot.prior_high) ||
       snapshot.prior_low >= snapshot.prior_high) throw new Error('Waiting for the ' + window.cutoff + ' forecast inputs.');
-  const mean = estimate(snapshot, window, close.date);
-  if (!mean || !Number.isFinite(mean.low) || !Number.isFinite(mean.high) || mean.low > mean.high) {
-    throw new Error('The ' + window.cutoff + ' SessionPath box has no eligible forecast.');
-  }
+  const forecast = exact ? estimate(exact, window, close.date) : null;
+  const mean = forecast && Number.isFinite(forecast.low) && Number.isFinite(forecast.high) &&
+    forecast.low <= forecast.high ? forecast : null;
+  if (!mean && !afternoon) throw new Error('The ' + window.cutoff + ' SessionPath box has no eligible forecast.');
   const price = packet.last_price;
   const bbox = { low: snapshot.prior_low, high: snapshot.prior_high };
   const side = sideOf(price, bbox.low, bbox.high);
-  const sessionSide = sideOf(price, mean.low, mean.high);
-  const group = !side ? null : sessionSide === side ? 1 : sessionSide === -side ? 2 : 3;
-  return { date: close.date, minute: close.minute, epoch, price, side, group, sessionSide, bbox, mean, window };
+  const sessionSide = mean ? sideOf(price, mean.low, mean.high) : null;
+  const group = !side || !mean ? null : sessionSide === side ? 1 : sessionSide === -side ? 2 : 3;
+  const distance = side && snapshot.avr > 0 ? Math.abs(price - (side > 0 ? bbox.high : bbox.low)) / snapshot.avr : null;
+  return { date: close.date, minute: close.minute, epoch, price, side, group, sessionSide, bbox, mean, window, distance, afternoon };
 }
 
 export function advanceBBoxObservation(observation, lastEpoch, packet) {
@@ -50,10 +57,10 @@ export function advanceBBoxObservation(observation, lastEpoch, packet) {
   if (packet.session_date !== observation.date || !Number.isFinite(epoch) || epoch % msPerBar !== 0 ||
       epoch <= lastEpoch || !Number.isFinite(packet.last_price)) return null;
   const close = nyClockParts(epoch);
-  if (close.date !== observation.date || close.minute > deadline) return null;
+  const end = observation.afternoon ? afternoonEnd : afternoonStart;
+  if (close.date !== observation.date || close.minute > end) return null;
   const returned = !sideOf(packet.last_price, observation.bbox.low, observation.bbox.high);
-  const gap = !returned && epoch - lastEpoch !== msPerBar;
-  return { epoch, minute: close.minute, returned, gap };
+  return { epoch, minute: close.minute, returned, gap: epoch - lastEpoch !== msPerBar };
 }
 
 function text(doc, tag, className, value = '') {
@@ -63,10 +70,10 @@ function text(doc, tag, className, value = '') {
   return el;
 }
 
-function interactiveCurve(host, points, current) {
+function interactiveCurve(host, points, current, end) {
   const doc = host.ownerDocument;
   const chart = text(doc, 'div', 'br-decay bbox-check-curve');
-  const g = curveGeometry(points, deadline, current);
+  const g = curveGeometry(points, end, current);
   chart.innerHTML = `<svg viewBox="0 0 640 265" role="img" aria-label="Remaining chance of a close inside the BBOX">
     ${g.axis.ticks.map(p => `<line x1="62" x2="616" y1="${g.y(p)}" y2="${g.y(p)}" class="br-grid"/><text x="49" y="${g.y(p) + 5}" text-anchor="end">${Math.round(p * 100)}%</text>`).join('')}
     ${g.ticks.map(p => `<text x="${g.x(p.minute)}" y="247" text-anchor="middle">${time(p.minute)}</text>`).join('')}
@@ -152,62 +159,95 @@ export function mountLiveBBoxCheck(host, {
   summary.setAttribute('role', 'status');
   const result = text(doc, 'div', 'bbox-check-result');
   host.replaceChildren(header, summary, result);
-  let archive;
+  const archives = new Map();
   let run = 0;
   let active;
   let code = '';
   let request;
   let refreshCode;
   let nyModel;
+  let pendingEpoch = null;
+  let lastAccepted = null;
+
   doc.addEventListener('sessionpath:forecast-export', event => {
     const model = event.detail?.model;
-    if (model?.query?.minute === deadline && model.query.endMinute === 960) nyModel = model;
+    if (model?.query?.minute === afternoonStart && model.query.endMinute === afternoonEnd) nyModel = model;
   });
+
   function estimateCurrent(snapshot, window, date) {
-    if (window.minute !== deadline) return estimate(snapshot, window, date);
+    if (window.minute !== afternoonStart) return estimate(snapshot, window, date);
     const q = nyModel?.query;
-    if (!nyModel?.box || q?.date !== date || ![['price', 'reference_price'], ['avr', 'avr'], ['rangeHigh', 'range_high'], ['rangeLow', 'range_low']]
-      .every(([key, field]) => q[key] != null && Math.abs(q[key] - snapshot[field]) < 1e-7)) return null;
+    if (nyModel?.conditions?.method !== 'Prior Wide' || !nyModel.box || q?.date !== date ||
+        ![['price', 'reference_price'], ['avr', 'avr'], ['rangeHigh', 'range_high'], ['rangeLow', 'range_low']]
+          .every(([key, field]) => q[key] != null && Math.abs(q[key] - snapshot[field]) < 1e-7)) return null;
     return { low: q.price - nyModel.box.downPoints, high: q.price + nyModel.box.upPoints };
   }
 
-  const load = () => archive ??= fetchImpl(archiveURL).then(async response => {
-    if (!response.ok) throw new Error('BBOX history is unavailable. Check again to retry.');
-    const data = await response.json();
-    if (!Array.isArray(data.days)) throw new Error('BBOX history could not be read.');
-    return data.days;
-  }).catch(error => { archive = null; throw error; });
+  function loadHistory(afternoon) {
+    if (archives.has(afternoon)) return archives.get(afternoon);
+    const url = afternoon ? new URL('./bbox-return-ny/' + market + '.json?v=20261125', import.meta.url) : archiveURL;
+    const promise = fetchImpl(url).then(async response => {
+      if (!response.ok) throw new Error('BBOX history is unavailable. Check again to retry.');
+      const data = await response.json();
+      if (afternoon) return readAfternoonArchive(data, market);
+      if (!Array.isArray(data.days)) throw new Error('BBOX history could not be read.');
+      return data.days;
+    }).catch(error => { archives.delete(afternoon); throw error; });
+    archives.set(afternoon, promise);
+    return promise;
+  }
+
+  function setCode(point, q) {
+    code = '';
+    if (active?.tracking && point?.n && point.minute < afternoonStart) {
+      try { code = makeCode({ ...q, now: point.minute }, { remaining: point }, time(q.observation)); } catch {}
+    }
+    refreshCode?.();
+  }
 
   function finish(message, minute) {
-    if (!active?.tracking) return;
     active.tracking = false;
     active.current = minute ?? active.current;
     active.setCurrent(active.current, false);
-    code = '';
-    refreshCode?.();
+    setCode(null, active.q);
     summary.textContent = message;
+  }
+
+  function resetResult() {
+    run++;
+    active = null;
+    pendingEpoch = lastAccepted = null;
+    code = '';
+    refreshCode = null;
+    result.replaceChildren();
+    summary.textContent = '';
   }
 
   function refreshClock() {
     const now = clock.read();
     clockLabel.textContent = 'New York · ' + now.clock + ' ' + (now.zone || 'ET');
+    if (isReplay()) return;
+    if (lastAccepted && lastAccepted.date !== now.date) resetResult();
     if (!active?.tracking) {
-      if (!active && !isReplay()) {
-        if (now.minute >= deadline) summary.textContent = closedMessage;
-        else if (summary.textContent === closedMessage) summary.textContent = '';
+      if (!lastAccepted && !request && pendingEpoch === null && now.minute >= afternoonEnd + 2) {
+        summary.textContent = closedMessage;
       }
       return;
     }
-    if (active.observation.date !== now.date || now.minute >= deadline + 2) {
-      finish('Tracking reached 08:30 NY.', deadline);
-    } else if (now.minute >= deadline) {
-      code = '';
-      refreshCode?.();
-      summary.textContent = 'Waiting for the final 08:30 NY close.';
+    if (now.minute >= active.q.end + 2) {
+      finish(active.q.end === afternoonEnd ? 'The 16:00 NY window ended. The final close was not received.' :
+        'Waiting for the first New York close to start the 16:00 estimate.');
+    } else if (now.minute >= active.q.end) {
+      setCode(null, active.q);
+      summary.textContent = 'Waiting for the ' + time(active.q.end) + ' NY close.';
+    } else if (now.completed - active.current >= 10) {
+      setCode(null, active.q);
+      active.setCurrent(active.current, false);
+      summary.textContent = 'Waiting for a fresh verified close. The chart is paused.';
     }
   }
+
   const sync = () => { void clock.sync().then(refreshClock, () => {}); };
-  refreshClock();
   sync();
   const ticker = view.setInterval(() => { if (!doc.hidden) refreshClock(); }, 1000);
   const resync = view.setInterval(() => { if (!doc.hidden) sync(); }, 300_000);
@@ -219,61 +259,151 @@ export function mountLiveBBoxCheck(host, {
     request?.abort();
   });
 
-  function clear() {
-    run++;
+  function replayChanged() {
     request?.abort();
+    request = null;
+    resetResult();
+    check.disabled = false;
+    if (isReplay()) summary.textContent = 'Choose Back to today for a live check.';
+    else refreshClock();
+  }
+
+  doc.getElementById('replay-toggle')?.addEventListener('change', replayChanged);
+  doc.getElementById('trading-date')?.addEventListener('change', () => {
+    if (isReplay()) replayChanged();
+  });
+
+  function renderClassification(observation) {
+    const classification = text(doc, 'p', 'bbox-check-classification',
+      time(observation.minute) + ' NY close · ' + priceFormat.format(observation.price));
+    const boxes = text(doc, 'div', 'bbox-check-boxes');
+    for (const [label, side, bounds] of [['BBOX', observation.side, observation.bbox], ['SessionPath', observation.sessionSide, observation.mean]]) {
+      if (!bounds) continue;
+      const chip = text(doc, 'span', '', label + ' · ' + sideName(side));
+      chip.title = priceFormat.format(bounds.low) + '–' + priceFormat.format(bounds.high);
+      boxes.append(chip);
+    }
+    result.replaceChildren(classification, boxes);
+  }
+
+  function addTransfer() {
+    const transfer = text(doc, 'div', 'bbox-check-transfer');
+    const copy = text(doc, 'button', 'quiet', 'Copy BBOX return code');
+    const feedback = text(doc, 'span', 'bbox-check-note');
+    feedback.setAttribute('role', 'status');
+    copy.type = 'button';
+    refreshCode = () => {
+      copy.disabled = !code;
+      const field = transfer.querySelector('textarea');
+      if (field) {
+        if (code) field.value = code;
+        else field.remove();
+      }
+    };
+    copy.addEventListener('click', async () => {
+      if (!code) return;
+      try { await view.navigator.clipboard.writeText(code); feedback.textContent = 'Copied.'; }
+      catch {
+        const field = text(doc, 'textarea', 'bbox-check-code');
+        field.readOnly = true;
+        field.value = code;
+        field.setAttribute('aria-label', 'BBOX return code');
+        transfer.querySelector('textarea')?.remove();
+        transfer.append(field);
+        field.select();
+        feedback.textContent = 'Code selected.';
+      }
+    });
+    transfer.append(copy, feedback);
+    result.append(transfer);
+  }
+
+  async function usePacket(packet, now, manual = false) {
+    if (!packet || packet.market !== market || isReplay() || now.minute < firstClose || now.minute >= afternoonEnd + 2) return;
+    const epoch = Date.parse(packet.observed_at);
+    if (lastAccepted && lastAccepted.date !== now.date) resetResult();
+    if (epoch < (lastAccepted?.epoch ?? -Infinity) || (!manual && epoch === lastAccepted?.epoch) ||
+        epoch <= (pendingEpoch ?? -Infinity)) return;
+    const observation = locateBBoxObservation(packet, now, estimateCurrent);
+    const deadline = observation.afternoon ? afternoonEnd : afternoonStart;
+    let gap = false;
+    if (active?.tracking && active.q.end === deadline && active.observation.date === observation.date) {
+      const next = advanceBBoxObservation(active.observation, active.lastEpoch, packet);
+      if (!next && !manual) return;
+      if (next && (next.returned || next.minute === deadline || (!manual && !next.gap))) {
+        lastAccepted = observation;
+        active.lastEpoch = next.epoch;
+        if (next.returned) {
+          finish(next.gap ? 'The ' + time(next.minute) + ' NY close is inside the BBOX.' :
+            'Returned inside the BBOX on the ' + time(next.minute) + ' NY close.', next.minute);
+        } else if (next.minute === deadline) {
+          finish('16:00 NY close verified. Price ended outside the BBOX.', next.minute);
+        } else {
+          active.current = next.minute;
+          active.setCurrent(next.minute, true);
+          summary.textContent = active.note;
+          setCode(active.points.find(point => point.minute === next.minute), active.q);
+        }
+        return;
+      }
+      gap = next?.gap ?? false;
+    }
+
+    const revision = ++run;
     active = null;
     code = '';
     refreshCode = null;
-    result.replaceChildren();
-    summary.textContent = '';
-    check.disabled = false;
-  }
-  const replayToggle = doc.getElementById('replay-toggle');
-  replayToggle?.addEventListener('change', () => {
-    clear();
-    if (isReplay()) summary.textContent = 'Choose Back to today for a live check.';
-    else refreshClock();
-  });
-  doc.getElementById('trading-date')?.addEventListener('change', () => {
-    if (!isReplay()) return;
-    clear();
-    summary.textContent = 'Choose Back to today for a live check.';
-  });
-
-  function setCode(point, q) {
-    code = '';
-    if (active?.tracking && point?.n && point.minute < deadline) {
-      try { code = makeCode({ ...q, now: point.minute }, { remaining: point }, time(q.observation)); } catch {}
+    pendingEpoch = epoch;
+    renderClassification(observation);
+    try {
+      if (observation.minute === afternoonEnd) {
+        summary.textContent = '16:00 NY close verified. Price ended ' + (observation.side ? 'outside' : 'inside') + ' the BBOX.';
+      } else if (!observation.side) {
+        summary.textContent = 'The latest close is inside the BBOX.';
+      } else {
+        summary.textContent = 'Loading BBOX return history…';
+        const q = { date: observation.date, year: year(), anchor: Math.floor(observation.minute / 30) * 30,
+          now: observation.minute, end: deadline, side: observation.side, group: observation.group,
+          observation: observation.minute, distance: observation.distance };
+        const days = await loadHistory(observation.afternoon);
+        if (run !== revision) return;
+        const model = (observation.afternoon ? afternoonReturnStats : stats)(days, q);
+        if (!model.remaining.n) {
+          summary.textContent = 'No earlier cases matched this close and box relationship.';
+        } else {
+          const note = (gap ? 'A close was missed. Tracking restarted at ' + time(observation.minute) + ' NY. ' : '') +
+            'Chance of a close back inside by ' + time(deadline) + ' NY, if still outside.' +
+            (model.criteria ? ' Historical match uses ' + model.criteria + '.' : '') +
+            (model.remaining.n < 25 ? ' Small historical sample.' : '');
+          summary.textContent = note;
+          const setCurrent = interactiveCurve(result, model.decay, observation.minute, deadline);
+          active = { tracking: true, observation, current: observation.minute, lastEpoch: epoch, points: model.decay, q, setCurrent, note };
+          if (!observation.afternoon) addTransfer();
+          setCode(model.decay[0], q);
+        }
+      }
+      lastAccepted = observation;
+      refreshClock();
+    } finally {
+      if (run === revision) pendingEpoch = null;
     }
-    refreshCode?.();
   }
 
   doc.addEventListener('sessionpath:verified-checkpoints', ({ detail: packet }) => {
-    if (!active?.tracking || packet.market !== market || isReplay()) return;
-    const next = advanceBBoxObservation(active.observation, active.lastEpoch, packet);
-    if (!next) return;
-    active.lastEpoch = next.epoch;
-    if (next.returned) { finish('Returned inside the BBOX on the ' + time(next.minute) + ' NY close.', next.minute); return; }
-    if (next.gap) { finish('A completed close is missing. Check again to start a new observation.'); return; }
-    if (next.minute >= deadline) { finish('Tracking reached 08:30 NY.', deadline); return; }
-    active.current = next.minute;
-    active.setCurrent(next.minute, true);
-    setCode(active.points.find(point => point.minute === next.minute), active.q);
+    const now = clock.read();
+    if (!request && (ready() || now.minute >= afternoonStart)) {
+      void usePacket(packet, now).catch(error => { summary.textContent = error.message; });
+    }
   });
 
   check.addEventListener('click', async () => {
-    clear();
-    const revision = run;
     const now = clock.read();
     if (isReplay()) { summary.textContent = 'Choose Back to today for a live check.'; return; }
-    if (now.minute < firstClose) {
-      summary.textContent = 'The first check is the 03:05 NY close.';
-      return;
-    }
-    if (now.minute >= deadline) { summary.textContent = closedMessage; return; }
-    if (!ready()) { summary.textContent = 'Loading forecast history. Check again shortly.'; return; }
+    if (now.minute < firstClose) { summary.textContent = 'The first check is the 03:05 NY close.'; return; }
+    if (now.minute >= afternoonEnd) { refreshClock(); return; }
+    if (!ready() && now.minute < afternoonStart) { summary.textContent = 'Loading forecast history. Check again shortly.'; return; }
     check.disabled = true;
+    const priorStatus = summary.textContent;
     summary.textContent = 'Checking the latest five-minute close…';
     const currentRequest = new view.AbortController();
     request = currentRequest;
@@ -284,69 +414,23 @@ export function mountLiveBBoxCheck(host, {
       const response = await fetchImpl(endpoint, { signal: currentRequest.signal, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' });
       if (!response.ok) throw new Error('TradingView feed unavailable. Check again to retry.');
       const body = await response.json();
-      if (run !== revision) return;
+      if (request !== currentRequest) return;
       const checked = clock.read();
-      if (checked.minute >= deadline) { summary.textContent = closedMessage; return; }
       const packet = validatePersonalRead(body, { market, now: checked.epoch });
       if (!packet) throw new Error('Waiting for a verified five-minute close.');
-      const observation = locateBBoxObservation(packet, checked, estimateCurrent);
-      const classification = text(doc, 'p', 'bbox-check-classification', `${time(observation.minute)} NY close · ${priceFormat.format(observation.price)}`);
-      const boxes = text(doc, 'div', 'bbox-check-boxes');
-      for (const [label, side, bounds] of [['BBOX', observation.side, observation.bbox], ['SessionPath', observation.sessionSide, observation.mean]]) {
-        const chip = text(doc, 'span', '', label + ' · ' + sideName(side));
-        chip.title = priceFormat.format(bounds.low) + '–' + priceFormat.format(bounds.high);
-        boxes.append(chip);
-      }
-      result.append(classification, boxes);
-      if (!observation.side) { summary.textContent = 'Price is already inside the BBOX.'; return; }
-      const q = { date: observation.date, year: year(), anchor: Math.floor(observation.minute / 30) * 30,
-        now: observation.minute, end: deadline, side: observation.side, group: observation.group, observation: observation.minute };
-      const days = await load();
-      if (run !== revision) return;
-      const model = stats(days, q);
-      if (!model.remaining.n) { summary.textContent = 'No earlier cases matched this close and box relationship.'; return; }
-      summary.textContent = 'The curve assumes no completed close has returned yet.';
-      const setCurrent = interactiveCurve(result, model.decay, observation.minute);
-      active = { tracking: true, observation, current: observation.minute, lastEpoch: observation.epoch, points: model.decay, q, setCurrent };
-      const transfer = text(doc, 'div', 'bbox-check-transfer');
-      const copy = text(doc, 'button', 'quiet', 'Copy BBOX return code');
-      const feedback = text(doc, 'span', 'bbox-check-note');
-      feedback.setAttribute('role', 'status');
-      copy.type = 'button';
-      refreshCode = () => {
-        copy.disabled = !code;
-        const field = transfer.querySelector('textarea');
-        if (field) {
-          if (code) field.value = code;
-          else field.remove();
-        }
-      };
-      copy.addEventListener('click', async () => {
-        if (!code) return;
-        try { await view.navigator.clipboard.writeText(code); feedback.textContent = 'Copied.'; }
-        catch {
-          const field = text(doc, 'textarea', 'bbox-check-code');
-          field.readOnly = true;
-          field.value = code;
-          field.setAttribute('aria-label', 'BBOX return code');
-          transfer.querySelector('textarea')?.remove();
-          transfer.append(field);
-          field.select();
-          feedback.textContent = 'Code selected.';
-        }
-      });
-      transfer.append(copy, feedback);
-      result.append(transfer);
-      setCode(model.remaining.n ? model.decay[0] : null, q);
-      refreshClock();
+      await usePacket(packet, checked, true);
+      if (summary.textContent === 'Checking the latest five-minute close…') summary.textContent = priorStatus;
     } catch (error) {
-      if (run === revision) {
-        if (clock.read().minute >= deadline) summary.textContent = closedMessage;
-        else summary.textContent = error.name === 'AbortError' ? 'TradingView check timed out. Check again to retry.' : error.message;
+      if (request === currentRequest) {
+        summary.textContent = error.name === 'AbortError' ? 'TradingView check timed out. Check again to retry.' : error.message;
       }
     } finally {
       view.clearTimeout(timer);
-      if (revision === run) check.disabled = false;
+      if (request === currentRequest) {
+        request = null;
+        check.disabled = false;
+      }
     }
   });
+  refreshClock();
 }

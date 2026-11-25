@@ -1,2 +1,16 @@
-import {loadReadiness} from './gc-readiness.mjs';
-try{await loadReadiness();await import('./startup.mjs?v=bbox-news-20261124');if(document.documentElement.dataset.startup!=='ready')throw Error('GC core forecast data did not load.');await Promise.allSettled(['./auto-fill.mjs?v=personal-only-20261103','./news-desk.mjs?v=bbox-news-20261124','./cot-panel.mjs','./cursor-fireworks.mjs'].map(file=>import(file)));}catch(error){document.documentElement.dataset.startup='pending';delete document.documentElement.dataset.loadingCover;document.body.replaceChildren();const main=document.createElement('main');main.style.cssText='max-width:760px;margin:10vh auto;padding:30px;color:#f0eadd;background:#101624;border:1px solid #ad883a;border-radius:24px;font:18px/1.6 system-ui';const title=document.createElement('h1');title.textContent='SessionPath Gold · preparation';const note=document.createElement('p');note.textContent=error.message;const detail=document.createElement('p');detail.textContent='No GC probabilities are shown until they are recomputed from gold prices. CL, NQ and ES remain separate.';const nav=document.createElement('nav');nav.style.cssText='display:flex;gap:18px;flex-wrap:wrap';for(const [name,url]of [['Crude oil','../?instrument=CL'],['Nasdaq-100','../?instrument=NQ'],['S&P 500','../es/?instrument=ES']]){const a=document.createElement('a');a.textContent=name;a.href=url;a.style.color='#c4acff';nav.append(a);}main.append(title,note,detail,nav);document.body.append(main);}
+// Keep module/network failures visible instead of leaving an empty dashboard.
+const root=document.documentElement;
+root.dataset.startup='loading';
+const syncVisibility=()=>{root.dataset.pageHidden=String(document.hidden);};
+syncVisibility();document.addEventListener('visibilitychange',syncVisibility);
+function recovery(message){
+ const status=document.getElementById('startup-recovery');if(status)return;
+ const box=document.createElement('div');box.id='startup-recovery';box.className='notice';box.setAttribute('role','status');
+ const text=document.createElement('p');text.textContent=message;
+ const retry=document.createElement('button');retry.type='button';retry.className='quiet';retry.textContent='Retry loading';retry.onclick=()=>location.reload();
+ box.append(text,retry);document.getElementById('dataset-status').after(box);
+}
+const timer=setTimeout(()=>{if(root.dataset.startup!=='ready')recovery('Loading is taking longer than usual. Your saved inputs are safe.');},45000);
+try{await import('./app-v5.js?v=bbox-live-ny-20261125');}
+catch(error){console.error('SessionPath startup:',error);root.dataset.startup='failed';recovery('SessionPath could not finish loading. Please retry.');}
+finally{clearTimeout(timer);}

@@ -1,2 +1,16 @@
-import{loadReadiness}from'./es-readiness.mjs';
-try{await loadReadiness();await import('./startup.mjs?v=bbox-news-20261124');if(document.documentElement.dataset.startup!=='ready')throw Error('ES core forecast data did not load.');await Promise.allSettled(['./auto-fill.mjs?v=personal-only-20261103','../news-desk.mjs?v=bbox-news-20261124','./cot-panel.mjs','./cursor-fireworks.mjs'].map(file=>import(file)));}catch(error){document.documentElement.dataset.startup='pending';delete document.documentElement.dataset.loadingCover;document.body.replaceChildren();const main=document.createElement('main');main.style.cssText='max-width:680px;margin:12vh auto;padding:32px;color:#e6e7ef;background:#101624;border:1px solid #59478a;border-radius:24px;font:18px/1.6 system-ui';const h=document.createElement('h1');h.textContent='SessionPath ES · Unable to load';const p=document.createElement('p');p.textContent=error.message;const note=document.createElement('p');note.textContent='Please reload to retry. ES data must pass its independent checks before forecasts appear.';const link=document.createElement('a');link.href='index.html';link.textContent='Retry ES workflow';link.style.color='#bfabff';main.append(h,p,note,link);document.body.append(main);}
+// Keep module/network failures visible instead of leaving an empty dashboard.
+const root=document.documentElement;
+root.dataset.startup='loading';
+const syncVisibility=()=>{root.dataset.pageHidden=String(document.hidden);};
+syncVisibility();document.addEventListener('visibilitychange',syncVisibility);
+function recovery(message){
+ const status=document.getElementById('startup-recovery');if(status)return;
+ const box=document.createElement('div');box.id='startup-recovery';box.className='notice';box.setAttribute('role','status');
+ const text=document.createElement('p');text.textContent=message;
+ const retry=document.createElement('button');retry.type='button';retry.className='quiet';retry.textContent='Retry loading';retry.onclick=()=>location.reload();
+ box.append(text,retry);document.getElementById('dataset-status').after(box);
+}
+const timer=setTimeout(()=>{if(root.dataset.startup!=='ready')recovery('Loading is taking longer than usual. Your saved inputs are safe.');},45000);
+try{await import('./app-v5.js?v=bbox-live-ny-20261125');}
+catch(error){console.error('SessionPath startup:',error);root.dataset.startup='failed';recovery('SessionPath could not finish loading. Please retry.');}
+finally{clearTimeout(timer);}

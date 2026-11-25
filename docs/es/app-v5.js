@@ -9,7 +9,7 @@ import {probabilityMarkup as raised} from './probability-finish.mjs';
 import {flashCopyStatus} from './copy-feedback.mjs';
 import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstrumentSelector,restoreMarketInputs} from './instrument.mjs?v=advance-transition-20261113';
 import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
-import {mountLiveBBoxCheck} from '../bbox-live-check.mjs?v=bbox-return-cutoff-20261125';
+import {mountLiveBBoxCheck} from '../bbox-live-check.mjs?v=bbox-live-ny-20261125';
 import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=tools-zero-20261125';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=chart-archive-20261121';
