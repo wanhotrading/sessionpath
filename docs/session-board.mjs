@@ -96,7 +96,7 @@ function showContainment(card, result) {
   card.containmentSample.textContent = hasCases ? result.inside + '/' + result.n + ' historical windows' : '';
 }
 
-export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute, followup, comparison }) {
+export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, historyURL, parseSaved, preferences, estimate, applyArchivedNY, renderContext, clearContext, activeWindowChanged, replayMinute, followup, comparison, bboxPanel }) {
   const board = node('section', 'session-board');
   board.id = 'session-board';
   board.setAttribute('aria-label', 'Forecast workspace');
@@ -116,6 +116,9 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   actions.append(backToday);
   const grid = node('div', 'session-board-grid');
   const cards = windows.map(newCard);
+  const left = node('div', 'session-board-left');
+  left.append(...cards.map(card => card.panel));
+  if (bboxPanel) left.append(bboxPanel);
   const paths = $('sessions-section');
   const right = node('div', 'session-board-right');
   const followupPanel = node('section', 'research-followup');
@@ -128,7 +131,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     followupPanel.before(timing);
     mountDashboardTiming(timing, {market, replay:()=>$('replay-toggle').checked, getLatest:()=>livePacket});
   }
-  grid.append(...cards.map(card => card.panel), right);
+  grid.append(left, right);
   board.append(grid, actions);
   $('workspace').prepend(board);
   const renderFollowup = mountSessionFollowup(followupPanel, {market, loadResearch: followup.loadResearch, historyURL});

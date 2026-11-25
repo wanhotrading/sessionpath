@@ -137,7 +137,8 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
   gap: 12px;
 }
 
-.session-board-right { display: grid; min-width: 0; gap: 12px; }
+.session-board-left, .session-board-right { display: grid; min-width: 0; align-content: start; gap: 12px; }
+.session-board-active #workspace > #projection:not(:has(#bbox-return-details)) { display: none !important; }
 .session-board #research-followup {
   margin: 0;
   padding: clamp(10px, 1.25vw, 17px);
@@ -353,6 +354,7 @@ body.session-board-active[data-device-view="mobile"] .sp-assistant { bottom: cal
   .session-board-active .sp-assistant { left: auto; right: 14px; width: min(720px, calc(100vw - 235px)); transform: none; }
 }
 .session-board-active #bbox-return-details.bbox-check-panel { width: min(590px, 100%); box-sizing: border-box; }
+.session-board-active .session-board-left > #bbox-return-details.bbox-check-panel { width: 100%; max-width: none; margin: 0; }
 .bbox-check-header { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; }
 .bbox-check-header h2 { margin: 0; margin-right: auto; font-size: 16px; }
 .bbox-check-clock { color: #c6d4ec; font: 650 11px/1.2 ui-monospace, monospace; white-space: nowrap; }

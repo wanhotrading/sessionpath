@@ -1,9 +1,9 @@
 import {mountUnreadNews} from './news-queue.mjs?v=unread-carousel-1';
-import {mountNewsTicker} from './news-ticker.mjs?v=news-ticker-20261118';
+import {mountNewsTicker} from './news-ticker.mjs?v=bbox-news-20261124';
 import {createNewsPoller} from './news-poller.mjs?v=juice-paused-20261022';
 import {directionLabel} from './news-analysis.mjs?v=fast-news-20261022';
-import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=grok-watch-1';
-import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=unread-carousel-1';
+import {NEWS_SOURCES, loadNewsSource, filterNews, formatNewsTime} from './news-feed.mjs?v=bbox-news-20261124';
+import {createNewsAlertState, collectNewsAlerts, serializeNewsAlertState} from './news-alerts.mjs?v=bbox-news-20261124';
 import {createNewsWhistle} from './news-whistle.mjs?v=recorded-twitter-20261023';
 import {prepareTraditionalNews, traditionalNewsText, matchesNewsSearch} from './news-traditional.mjs?v=20261023';
 import {connectDiscordNews,discordConnectionView,DISCORD_SESSION_KEY} from './news-discord.mjs?v=discord-recovery-20261030';
@@ -202,7 +202,7 @@ export function setupNewsDesk() {
       stopDiscord();discordReadKey='';try{sessionStorage.removeItem(DISCORD_SESSION_KEY);}catch{}
       if(feed){feed.items=feed.items.filter(item=>item.transport!=='discord');feed.sources=feed.sources.filter(source=>source.transport!=='discord');}
       unreadQueue.discard(item => item.transport === 'discord');
-      updateTicker(true);renderAlertControls();if(dialog.open)render();return;
+      updateTicker();renderAlertControls();if(dialog.open)render();return;
     }
     discordForm.hidden=!discordForm.hidden;discordToggle.setAttribute('aria-expanded',String(!discordForm.hidden));
     if(!discordForm.hidden)discordKey.focus();
@@ -388,27 +388,31 @@ export function setupNewsDesk() {
   modalObserver.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['open']});
   renderAlertControls();
 
-  let tickerStory = null;
-  const releaseOrder = (a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt) || a.id.localeCompare(b.id);
-  function updateTicker(reset = false) {
-    if (reset) tickerStory = null;
+  function updateTicker() {
     const reports = feed?.sources || [];
     const connected = reports.some(source => source.status === 'ok');
     const checked = NEWS_SOURCES.filter(source => !source.paused)
       .every(source => reports.some(report => report.id === source.id));
-    const newest = filterDisplayNews(feed?.items || [], filters).reduce((current, item) =>
-      !current || releaseOrder(item, current) > 0 ? item : current, null);
-    if (newest && (!tickerStory || releaseOrder(newest, tickerStory) >= 0)) tickerStory = newest;
-    const latest = tickerStory;
-    const headline = latest?.source==='grok' ? [latest.markets.join(' / '),newsTime(latest.publishedAt),latest.title].join(' · ') : latest ? traditionalNewsText(latest) : '';
-    const source = latest && (latest.source === 'wallstreetcn' ? 'WallstreetCN' :
-      latest.source === 'cnbc' ? 'CNBC' : latest.source === 'abcnews' ? 'ABC News' : SOURCE_NAMES[latest.source]);
-    ticker.update(headline ? (source ? source + ' · ' : '') + headline : '',
-      connected ? 'connected' : checked ? 'unavailable' : 'checking');
+    const items = filterDisplayNews(feed?.items || [], filters)
+      .filter(item => safeHeadlineUrl(item.url) && Date.parse(item.publishedAt) >= Date.now()-86400000)
+      .sort((a,b)=>Date.parse(b.publishedAt)-Date.parse(a.publishedAt));
+    const seen = new Set();
+    const headlines = [];
+    for (const item of items) {
+      const headline = item.source==='dot' ? item.markets.join(' / ')+' · '+item.title : traditionalNewsText(item);
+      const key = item.eventKey || headline?.toLocaleLowerCase().trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const source = item.source==='wallstreetcn' ? 'WallstreetCN' : item.source==='cnbc' ? 'CNBC' :
+        item.source==='abcnews' ? 'ABC News' : item.source==='dot' ? 'Dot' : SOURCE_NAMES[item.source];
+      headlines.push((source ? source+' · ' : '')+headline);
+      if(headlines.length===6)break;
+    }
+    ticker.update(headlines, connected ? 'connected' : checked ? 'unavailable' : 'checking');
   }
 
   function saveFilters() {
-    updateTicker(true);
+    updateTicker();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
   }
 
@@ -455,7 +459,7 @@ export function setupNewsDesk() {
       else if (push && source.status==='ok') label='Connected · Discord';
       else if (push) label=discordState==='connecting'?'Connecting…':'Reconnecting';
       else if (paused) label = discordReadKey?'Connecting…':'Connect Discord';
-      else if (id==='grok' && unavailable) label=source.error;
+      else if (id==='dot' && unavailable) label=source.error;
       else if (unavailable || failed) label = 'Refresh unavailable';
       else if (!source) label = loading ? 'Checking…' : 'Not checked yet';
       else if (old) label = 'Last checked over 20 min ago';
@@ -497,7 +501,7 @@ export function setupNewsDesk() {
       : 'Some sources are unavailable. Headlines from connected sources are still shown.';
 
     const rawItems = (Array.isArray(feed?.items) ? feed.items : []).filter(item => item.source !== 'abcnews' || Date.parse(item.publishedAt) >= Date.now()-7*86400000);
-    const relevantItems = rawItems.filter(item => item.source==='grok' || Array.isArray(item.categories) && item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category)));
+    const relevantItems = rawItems.filter(item => item.source==='dot' || Array.isArray(item.categories) && item.categories.some(category => ['oil', 'geopolitics', 'indices', 'trump'].includes(category)));
     const items = filterDisplayNews(relevantItems, filters)
       .filter(item => safeHeadlineUrl(item.url))
       .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
@@ -556,12 +560,12 @@ export function setupNewsDesk() {
         categories.append(element('span', 'news-category news-category-' + category, ({oil:'Crude oil',geopolitics:'Geopolitics',indices:'US indices',trump:'Trump policy'})[category]));
       }
       row.append(meta, link, categories);
-      if (item.source==='grok') {
+      if (item.source==='dot') {
         meta.append(element('span','news-headline-source',item.markets.join(' / ')));
         row.append(element('p','news-event-summary',item.analysis.rationale));
         const evidence=element('div','news-headline-categories');
         for (const src of item.sources) {
-          const a=element('a','news-category','@'+src.author);
+          const a=element('a','news-category',src.name);
           a.href=src.url; a.target='_blank'; a.rel='noopener noreferrer';
           evidence.append(a);
         }

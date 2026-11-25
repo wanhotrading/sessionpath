@@ -1,6 +1,6 @@
 import {createSessionPathMemory,SESSION_PATH_CLOSE} from './session-path-memory.mjs?v=20261124';
 import {applyChartPathOutcomes,compactPathCards} from './session-path-summary.mjs?v=apply-chart-paths-20261124';
-import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=path-only-20261124';
+import {mountSessionBoard,snapshotFields} from './session-board.mjs?v=bbox-news-20261124';
 import {mountAssistantForecastAdapter,expansionResult,archivedForecastRecord,loadHistoricalForecast,historicalFeedRecord,ASSISTANT_HISTORY_URL} from './assistant-forecast-adapter.mjs?v=study-return-20261120';
 import {mainInputPlan,nyInputPlan,sessionPositions,nyClock} from './tradingview-live-core.mjs?v=checkpoint-open-20261113';
 import {configureNYDirectionAutoFill} from './ny-direction-autofill.mjs';
@@ -407,7 +407,7 @@ mountLiveBBoxCheck(bboxCheckPanel,{
  year:()=>$('year').value,isReplay:()=>$('replay-toggle').checked,ready:()=>state.ready,
 });
 mountSessionBoard({
- market:instrument.id,nyClock,mainInputPlan,
+ market:instrument.id,nyClock,mainInputPlan,bboxPanel:bboxCheckPanel,
  archive:request=>archivedForecastRecord(state.days,state.timeline,request),
  historyURL:new URL('/api/history',document.querySelector('meta[name="sessionpath-personal-endpoint"]').content).href,
  parseSaved:historicalFeedRecord,
