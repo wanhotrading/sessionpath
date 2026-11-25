@@ -147,6 +147,8 @@ jobs:
           preview_python="$RUNNER_TEMP/sessionpath-preview-venv/bin/python"
           "$preview_python" -m pip install --disable-pip-version-check --only-binary=:all: Pillow==13.0.0
           "$preview_python" scripts/build-comparison-previews.py docs
+      - name: Include dropdown motion in dashboard and study pages
+        run: python3 scripts/include-dropdown-motion.py docs
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload website

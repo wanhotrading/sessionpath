@@ -1,0 +1,88 @@
+/* Animate the native option picker without replacing the select or its events. */
+@supports (appearance: base-select) and selector(::picker(select)) {
+  select:where(:not([multiple], [size]:not([size="1"]))) {
+    appearance: base-select;
+    align-items: center;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"])))::picker(select) {
+    appearance: base-select;
+    box-sizing: border-box;
+    max-block-size: min(20rem, 55dvh);
+    max-inline-size: calc(100dvw - 12px);
+    margin-block: 3px;
+    padding: 4px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid #526483;
+    border-radius: 12px;
+    background: #162136;
+    color: #edf3ff;
+    color-scheme: dark;
+    font: inherit;
+    box-shadow: 0 10px 24px #070b16a0;
+    clip-path: inset(0 -28px 100% -28px);
+    transform: translateY(-6px);
+    opacity: 0;
+    transition: clip-path 150ms cubic-bezier(.35, 0, .65, 1),
+      transform 150ms ease-in, opacity 130ms ease-in, display 150ms, overlay 150ms;
+    transition-behavior: allow-discrete;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"]))):open::picker(select) {
+    clip-path: inset(-8px -28px -28px -28px);
+    transform: translateY(0);
+    opacity: 1;
+    transition-duration: 235ms, 235ms, 170ms, 235ms, 235ms;
+    transition-timing-function: cubic-bezier(.18, .78, .24, 1), cubic-bezier(.18, .78, .24, 1), ease-out, linear, linear;
+  }
+
+  @starting-style {
+    select:where(:not([multiple], [size]:not([size="1"]))):open::picker(select) {
+      clip-path: inset(0 -28px 100% -28px);
+      transform: translateY(-6px);
+      opacity: 0;
+    }
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"]))) option {
+    box-sizing: border-box;
+    min-block-size: 33px;
+    padding: 6px 9px;
+    border-radius: 7px;
+    background: #162136;
+    color: #edf3ff;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"]))) option:checked {
+    background: #2e4261;
+    color: #f5f8ff;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"]))) option:is(:hover, :focus-visible):not(:disabled) {
+    background: #394e70;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"]))) option:disabled {
+    color: #a1afc7;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"])))::picker-icon {
+    transition: rotate 180ms ease;
+  }
+
+  select:where(:not([multiple], [size]:not([size="1"]))):open::picker-icon {
+    rotate: 180deg;
+  }
+
+  .motion-paused select::picker(select),
+  .motion-paused select::picker-icon {
+    transition: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    select::picker(select), select::picker-icon {
+      transition: none !important;
+    }
+  }
+}
