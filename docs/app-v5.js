@@ -11,7 +11,7 @@ import {instrument,dataPath,assetPath,storageKey as marketStorageKey,mountInstru
 import {setupDeviceView} from './device-view.mjs?v=market-row-20261118';
 import {mountLiveBBoxCheck} from './bbox-live-check.mjs?v=automatic-bbox-20261118';
 import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
-import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=text-blur-20261118';
+import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=avr-deadlines-20261124';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=quick-archive-20261119';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
 import {setupWorkspace} from './workspace-v7.mjs?v=quick-comparison-20261119';
