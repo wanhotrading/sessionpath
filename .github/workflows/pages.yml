@@ -140,6 +140,8 @@ jobs:
           test -s docs/instrument.mjs
           test -s docs/data/nq/session-path-nq.pine
           test -f docs/.nojekyll
+      - name: Prepare and verify market startup data
+        run: node scripts/build-dashboard-startup.mjs docs
       - name: Build comparison chart previews
         run: |
           set -euo pipefail

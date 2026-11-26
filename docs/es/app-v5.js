@@ -1,3 +1,4 @@
+import {loadDashboardResearch} from '../dashboard-data.mjs?v=fast-switch-1';
 import {createSessionPathMemory,SESSION_PATH_CLOSE} from '../session-path-memory.mjs?v=20261124';
 import {applyChartPathOutcomes,compactPathCards} from '../session-path-summary.mjs?v=apply-chart-paths-20261124';
 import {mountSessionBoard,snapshotFields} from '../session-board.mjs?v=tools-zero-20261125';
@@ -328,7 +329,8 @@ $('replay-toggle').addEventListener('change',()=>{syncDate();analyze();});$('rep
 async function startResearch(){
  try{
   $('dataset-status').textContent='Loading '+instrument.id+' research…';
-  [state.days,state.tags,state.timeline,state.extra]=await Promise.all(['days.json','tags.json','timeline.json','planner-extra.json'].map(file=>getJSON(dataPath(file))));
+  [state.days,state.tags,state.timeline,state.extra]=await loadDashboardResearch(instrument.id, () =>
+    Promise.all(['days.json','tags.json','timeline.json','planner-extra.json'].map(file=>loadAsset(dataPath(file),{timeout:60000}))));
   if(!Array.isArray(state.days)||!state.days.length||state.days.some(day=>day.instrument!=='ES'||!/^ES[HMUZ]\d{4}$/.test(day.contract||''))||state.timeline?.instrument!=='ES'||state.extra?.instrument!=='ES')throw Error('ES archive identity did not match; no other market dataset can be substituted.');
   await yieldToBrowser();
   state.shapeDictionary=state.tags;Object.assign(state,enrichResearch(state.days,state.tags,state.extra));migrateCheckpoints();
@@ -342,7 +344,7 @@ async function startResearch(){
   $('dataset-status').textContent=`${instrument.id} · ${state.days.length.toLocaleString()} research dates · 2022–2026`;
   document.documentElement.dataset.startup='ready';$('startup-recovery')?.remove();registerTools();
  }catch(error){
-  state.ready=false;document.documentElement.dataset.startup='failed';
+  state.ready=false;document.documentElement.dataset.startupError=instrument.id+' research could not load. '+error.message;document.documentElement.dataset.startup='failed';
   $('dataset-status').textContent='Research could not be loaded';
   $('forecast').innerHTML=`<div class="panel empty"><p>${esc(error.message)}</p><button type="button" id="retry-research" class="quiet">Retry loading</button></div>`;
   $('retry-research').onclick=()=>location.reload();return;

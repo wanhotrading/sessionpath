@@ -21,8 +21,8 @@ html[data-loading-cover="fading"] #sessionpath-loading{opacity:0}
 html[data-loading-cover] *,html[data-loading-cover] *::before,html[data-loading-cover] *::after{animation-play-state:paused!important}
 @media(prefers-reduced-motion:reduce){#sessionpath-loading{transition:none}#sessionpath-loading .loading-title{transform:none}}
 html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{transition:none}
-</style><script src="background-picker.js?v=mountains-11"></script>
-<meta name="sessionpath-context-endpoint" content="https://sessionpath-api.jjj-jason2345.workers.dev/api/context"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="CL session planning: estimate remaining upside, downside and range expansion from historical analogues."><title>SessionPath.By LUI</title><link rel="icon" type="image/png" href="./assets/brand/sessionpath-classic-mark.png"><link rel="stylesheet" href="style-v5.css"><link rel="stylesheet" href="workspace-v6.css"><script type="module" src="startup.mjs?v=bbox-return-quartiles-20261125"></script><link rel="stylesheet" href="night-v7.css"><link rel="stylesheet" href="replay-v8.css"><link rel="stylesheet" href="screenshot-review.css?v=matched-days-20261023"><link rel="stylesheet" href="forecast-context.css?v=avr-deadlines-20261124"><link rel="stylesheet" href="instrument.css"><link rel="stylesheet" href="device-view.css"><link rel="stylesheet" href="clean-workflow.css?v=tools-slide-20261022"><link rel="stylesheet" href="market-emblem.css"><link rel="stylesheet" href="sunset-layout.css?v=mountains-11"><link rel="stylesheet" href="probability-finish.css"><link rel="stylesheet" href="auto-fill.css?v=complete-inputs-20261103"><script type="module" src="auto-fill.mjs?v=personal-only-20261103"></script><link rel="stylesheet" href="forecast-motion.css?v=percentile-2"><link rel="stylesheet" href="cot-panel.css?v=1"><script type="module" src="cot-panel.mjs?v=1"></script><link rel="stylesheet" href="bbox-live.css?v=smooth-live-20261023">
+</style><!-- sessionpath-startup-data --><link rel="modulepreload" href="./app-v5.js?v=fast-switch-20261126"><script defer src="background-picker.js?v=mountains-11"></script>
+<meta name="sessionpath-context-endpoint" content="https://sessionpath-api.jjj-jason2345.workers.dev/api/context"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="CL session planning: estimate remaining upside, downside and range expansion from historical analogues."><title>SessionPath.By LUI</title><link rel="icon" type="image/png" href="./assets/brand/sessionpath-classic-mark.png"><link rel="stylesheet" href="style-v5.css"><link rel="stylesheet" href="workspace-v6.css"><script type="module" src="startup.mjs?v=fast-switch-20261126"></script><link rel="stylesheet" href="night-v7.css"><link rel="stylesheet" href="replay-v8.css"><link rel="stylesheet" href="screenshot-review.css?v=matched-days-20261023"><link rel="stylesheet" href="forecast-context.css?v=avr-deadlines-20261124"><link rel="stylesheet" href="instrument.css"><link rel="stylesheet" href="device-view.css"><link rel="stylesheet" href="clean-workflow.css?v=tools-slide-20261022"><link rel="stylesheet" href="market-emblem.css"><link rel="stylesheet" href="sunset-layout.css?v=mountains-11"><link rel="stylesheet" href="probability-finish.css"><link rel="stylesheet" href="auto-fill.css?v=complete-inputs-20261103"><script type="module" src="auto-fill.mjs?v=personal-only-20261103"></script><link rel="stylesheet" href="forecast-motion.css?v=percentile-2"><link rel="stylesheet" href="cot-panel.css?v=1"><script type="module" src="cot-panel.mjs?v=1"></script><link rel="stylesheet" href="bbox-live.css?v=smooth-live-20261023">
 <link rel="stylesheet" href="startup.css?v=20261023">
 <style id="sessionpath-brand-style">
 .topbar .brand{gap:8px;flex-shrink:0}.topbar .site-brand-logo{display:block;width:210px;height:70px;object-fit:contain}.topbar .brand small{padding-left:0}
@@ -167,7 +167,7 @@ html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{
   if(fadeIn)requestAnimationFrame(()=>requestAnimationFrame(()=>{
    if(run===generation)root.dataset.loadingCover='switch-hold';
   }));
-  watchdog=setTimeout(()=>failure('Loading is taking longer than usual. You can retry.'),30000);
+  watchdog=setTimeout(()=>{note.textContent='Still loading research…';note.hidden=false;retry.hidden=false;},30000);
   return presentation;
  }
  function failure(message){
@@ -189,12 +189,13 @@ html.motion-paused #sessionpath-loading,body.motion-paused #sessionpath-loading{
  function state(){
   if(navigating)return;
   if(root.dataset.startup==='ready')dismiss();
-  else if(root.dataset.startup==='failed')failure('SessionPath could not finish loading. Please retry.');
+  else if(root.dataset.startup==='failed')failure(root.dataset.startupError||'SessionPath could not finish loading. Please retry.');
  }
  retry.addEventListener('click',()=>location.reload());
  document.addEventListener('sessionpath:instrument-change',event=>{
   const market=event.detail?.instrument;if(!markets[market])return;
   navigating=true;try{sessionStorage.setItem(transferKey,JSON.stringify({market,at:Date.now()}));}catch{}
+  if(window.sessionPathStartup) import('./dashboard-data.mjs?v=fast-switch-1').then(x=>x.warmDestination(market)).catch(()=>{});
   event.detail.finished=show(market,0,true);
  });
  document.addEventListener('DOMContentLoaded',()=>{lock();state();},{once:true});
