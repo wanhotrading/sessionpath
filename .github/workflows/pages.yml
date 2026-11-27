@@ -2,6 +2,8 @@ name: Publish SessionPath
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   actions: read
@@ -9,10 +11,33 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: sessionpath-pages
+  group: sessionpath-pages-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify receiver, sender and forecast lookup
+        run: |
+          node scripts/personal-tradingview/backend/build.mjs
+          git diff --exit-code -- scripts/personal-tradingview/backend/worker.bundle.mjs
+          node --test scripts/test-live-checkpoint-date.mjs scripts/personal-tradingview/backend/test/*.test.mjs scripts/personal-tradingview/pine/sender-audit.test.mjs
+      - name: Verify the four candidate dashboards in Chrome
+        env:
+          NODE_PATH: ${{ runner.temp }}/sessionpath-test/node_modules
+        run: |
+          node scripts/build-dashboard-startup.mjs docs
+          npm install --prefix "$RUNNER_TEMP/sessionpath-test" --ignore-scripts --no-audit --no-fund playwright-core@1.56.1
+          node scripts/test-dashboard-release.cjs
   publish:
+    needs: verify
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
@@ -177,3 +202,4 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
+
