@@ -226,7 +226,6 @@ function normalizeResearchBars(values,{date,observedMs,tick,lastPrice}){
   return values;
 }
 
-
 // state.mjs
 
 function addsBoundaryAtSameObservation(current,incoming){
@@ -361,8 +360,6 @@ class PersonalFeedStore {
   });}
 }
 
-
-
 // overnight-timing.mjs
 
 const OVERNIGHT_STEP_MS = 300_000;
@@ -449,7 +446,6 @@ function summarizeOvernightTiming(packet) {
     priorPaths: traces(start), observedPaths: traces(step),
   };
 }
-
 
 // router.mjs
 const PERSONAL_ORIGIN='https://wanhotrading.github.io';
@@ -601,8 +597,6 @@ function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto}={}){
   };
 }
 
-
-
 // worker.mjs
 import {DurableObject} from 'cloudflare:workers';
 
@@ -612,4 +606,3 @@ export class PersonalFeed extends DurableObject {
   async accept(envelope){return new PersonalFeedStore(this.ctx.storage).accept(envelope);}
 }
 export default {fetch:createPersonalHandler()};
-
