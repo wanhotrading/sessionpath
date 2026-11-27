@@ -2,7 +2,7 @@ import { mountDashboardTiming } from './bbox-timing/dashboard-window.mjs';
 import { mountQuickComparison } from './quick-comparison.mjs?v=path-only-20261124';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
-import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=current-ny-date-20261127';
+import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=candle-lookback-20261127';
 import { archivedResearchBar, contractSymbol } from './followup-observations.mjs?v=2';
 import { mountSessionFollowup } from './session-followup.mjs?v=midnight-elf-20261119';
 
@@ -194,7 +194,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   let saved = null;
   let lookup = null;
   let lastLookup = {key:'', at:0};
-  const findSaved = createSavedCheckpointReader({endpoint:historyURL, market, parse:parseSaved, windows});
+  const findSaved = createSavedCheckpointReader({endpoint:historyURL, market, parse:parseSaved, windows, lookback:followup.loadPrior});
   function readSaved(clock, expected) {
     const key = clock.date + ':' + expected;
     if (lookup || (lastLookup.key === key && Date.now() - lastLookup.at < 60_000) || document.hidden) return;
@@ -255,7 +255,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     }
     const barAt = record.contract.endsWith('1!') ? null : archivedResearchBar(followup.state.days, followup.state.timeline, {date, contract:record.contract});
     const confirmed = Date.parse(record.snapshot.as_of);
-    const exactClose = packet?.endpoint_closes?.[window.cutoff] ?? (!replay ? exactCloses.get(confirmed) : undefined) ??
+    const exactClose = packet?.endpoint_closes?.[window.cutoff] ?? record.snapshot.endpoint_close ?? (!replay ? exactCloses.get(confirmed) : undefined) ??
       (Date.parse(packet?.observed_at) === confirmed ? packet.last_price : null);
     const through = barAt ? (date === clock.date ? clock.minute : window.endMinute) : packet ? nyClock(Date.parse(packet.observed_at)).minute :
       date === clock.date ? clock.minute : window.endMinute;
@@ -330,7 +330,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       const settings = preferences(window.minute, forecastDate);
       const pending = !replay && clock.date === date && clock.minute < window.minute;
       const freshBar = !replay && !record && lastHeartbeat?.date === date && Date.now() - lastHeartbeat.at <= 480_000;
-      const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, freshBar]);
+      const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, freshBar, Boolean(lookup)]);
       const needsNYInputs = index === 2 && record && !sameNYInputs(record.snapshot,forecastDate);
       if (card.key === key && !needsNYInputs) {
         refreshNYCode();
@@ -351,7 +351,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       if (!record) {
         card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' :
           pending ? 'Opens at ' + window.cutoff + ' NY · ' + date :
-          (freshBar ? 'TradingView connected · ' : '') + 'Awaiting verified ' + window.cutoff + ' NY checkpoint · ' + date;
+          (freshBar ? 'TradingView connected · ' : '') + (lookup ? 'Checking saved ' : 'No saved ') + window.cutoff + ' NY snapshot' + (lookup ? '…' : ' · ' + date);
         clearContext(card.context, !ready ? 'Loading historical observations…' : 'Compression & expansion will appear with this checkpoint.');
         updateFollowup(record, records, index, forecastDate, clock, replay);
         return;
@@ -359,7 +359,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       const s = record.snapshot;
       card.price.textContent = String(s.reference_price);
       card.avr.textContent = Number(s.avr.toFixed(4)).toString();
-      card.status.textContent = (replay ? 'Archive' : record.saved ? 'Saved TradingView' : 'TradingView') + ' · ' + record.contract +
+      card.status.textContent = (replay ? 'Archive' : record.source?.method === 'confirmed-candle-lookback-v1' ? 'TradingView candle history' : record.saved ? 'Saved TradingView' : 'TradingView') + ' · ' + record.contract +
         ' · ' + window.cutoff + ' NY' + (record.saved ? ' · ' + forecastDate : '');
       const q = snapshotFields(s, window, forecastDate, settings, mainInputPlan(s));
       void renderContext(card.context, q, { reveal: () => revealForecastText(card.panel) });

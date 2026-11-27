@@ -14,7 +14,7 @@ const finite=Number.isFinite;
 const samePrice=(a,b)=>finite(a)&&finite(b)&&Math.abs(a-b)<=1e-7;
 const validDate=date=>typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&finite(Date.parse(date+'T12:00:00Z'))&&new Date(date+'T12:00:00Z').toISOString().slice(0,10)===date;
 const previousDate=date=>new Date(Date.parse(date+'T12:00:00Z')-86400000).toISOString().slice(0,10);
-export const ASSISTANT_HISTORY_URL=new URL('./assistant-historical-inputs.json?v=history-backfill-20261108',import.meta.url).href;
+export const ASSISTANT_HISTORY_URL=new URL('./assistant-historical-inputs.json?v=chart-lookback-20261127',import.meta.url).href;
 export const EXPLICIT_AVR_PROFILE='explicit-prior10-0930-1600-frozen-before1930-v1';
 
 function historicalInputFailure(request,reason){
@@ -247,4 +247,3 @@ export function mountAssistantForecastAdapter(options){
  doc.defaultView?.addEventListener('pagehide',event=>{if(!event.persisted)clear();});
  return {request,destroy:clear};
 }
-

@@ -4098,6 +4098,486 @@
         "london_complete": true,
         "ready": true
       }
+    },
+    {
+      "market": "CL",
+      "date": "2026-11-27",
+      "contract": "CL1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "66375e9de9f99f3aadb3e4cadad1ecda076f2a829a6a3cb1e307b6d64a4f784e",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 60,
+          "open": "09:30",
+          "close": "14:30",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:03.476Z"
+        },
+        "priorBars": 90
+      },
+      "snapshot": {
+        "cutoff": "03:00",
+        "as_of": "2026-11-27T08:00:00.000Z",
+        "reference_price": 86.27,
+        "open_1930": 85.14,
+        "range_high": 86.6,
+        "range_low": 85.12,
+        "prior_high": 85.22,
+        "prior_low": 84.31,
+        "prior_ny_date": "2026-11-26",
+        "avr": 2.214,
+        "last_hour_rule": 1,
+        "asia_high": 86.6,
+        "asia_low": 85.12,
+        "asia_close": 85.97,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 86.28,
+        "ready": true
+      }
+    },
+    {
+      "market": "CL",
+      "date": "2026-11-27",
+      "contract": "CL1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "66375e9de9f99f3aadb3e4cadad1ecda076f2a829a6a3cb1e307b6d64a4f784e",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 60,
+          "open": "09:30",
+          "close": "14:30",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:03.476Z"
+        },
+        "priorBars": 114
+      },
+      "snapshot": {
+        "cutoff": "05:00",
+        "as_of": "2026-11-27T10:00:00.000Z",
+        "reference_price": 85.66,
+        "open_1930": 85.14,
+        "range_high": 86.6,
+        "range_low": 85.12,
+        "prior_high": 85.22,
+        "prior_low": 84.31,
+        "prior_ny_date": "2026-11-26",
+        "avr": 2.214,
+        "last_hour_rule": 4,
+        "asia_high": 86.6,
+        "asia_low": 85.12,
+        "asia_close": 85.97,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 85.64,
+        "ready": true
+      }
+    },
+    {
+      "market": "NQ",
+      "date": "2026-11-27",
+      "contract": "NQ1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "8a782022853784263debfda69c92a552a527adae46777bbb915f95a7fa1eb38d",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 42,
+          "open": "09:30",
+          "close": "13:00",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:05.683Z"
+        },
+        "priorBars": 90
+      },
+      "snapshot": {
+        "cutoff": "03:00",
+        "as_of": "2026-11-27T08:00:00.000Z",
+        "reference_price": 26694.25,
+        "open_1930": 26251.75,
+        "range_high": 26868.75,
+        "range_low": 26250.75,
+        "prior_high": 26322,
+        "prior_low": 26214,
+        "prior_ny_date": "2026-11-26",
+        "avr": 801.3,
+        "last_hour_rule": 2,
+        "asia_high": 26868.75,
+        "asia_low": 26250.75,
+        "asia_close": 26769,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 26693.25,
+        "ready": true
+      }
+    },
+    {
+      "market": "NQ",
+      "date": "2026-11-27",
+      "contract": "NQ1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "8a782022853784263debfda69c92a552a527adae46777bbb915f95a7fa1eb38d",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 42,
+          "open": "09:30",
+          "close": "13:00",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:05.683Z"
+        },
+        "priorBars": 114
+      },
+      "snapshot": {
+        "cutoff": "05:00",
+        "as_of": "2026-11-27T10:00:00.000Z",
+        "reference_price": 26717.5,
+        "open_1930": 26251.75,
+        "range_high": 26868.75,
+        "range_low": 26250.75,
+        "prior_high": 26322,
+        "prior_low": 26214,
+        "prior_ny_date": "2026-11-26",
+        "avr": 801.3,
+        "last_hour_rule": 2,
+        "asia_high": 26868.75,
+        "asia_low": 26250.75,
+        "asia_close": 26769,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 26719,
+        "ready": true
+      }
+    },
+    {
+      "market": "ES",
+      "date": "2026-11-27",
+      "contract": "ES1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "5b1d661154f7ccfb68ad6b3104a34c8d564b5a661919991cb62d1663d12a431b",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 42,
+          "open": "09:30",
+          "close": "13:00",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:07.503Z"
+        },
+        "priorBars": 90
+      },
+      "snapshot": {
+        "cutoff": "03:00",
+        "as_of": "2026-11-27T08:00:00.000Z",
+        "reference_price": 7314,
+        "open_1930": 7242.5,
+        "range_high": 7334,
+        "range_low": 7242.5,
+        "prior_high": 7256.25,
+        "prior_low": 7232.5,
+        "prior_ny_date": "2026-11-26",
+        "avr": 157.8,
+        "last_hour_rule": 5,
+        "asia_high": 7334,
+        "asia_low": 7242.5,
+        "asia_close": 7320.25,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 7313.5,
+        "ready": true
+      }
+    },
+    {
+      "market": "ES",
+      "date": "2026-11-27",
+      "contract": "ES1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "5b1d661154f7ccfb68ad6b3104a34c8d564b5a661919991cb62d1663d12a431b",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 42,
+          "open": "09:30",
+          "close": "13:00",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:07.503Z"
+        },
+        "priorBars": 114
+      },
+      "snapshot": {
+        "cutoff": "05:00",
+        "as_of": "2026-11-27T10:00:00.000Z",
+        "reference_price": 7320.5,
+        "open_1930": 7242.5,
+        "range_high": 7343,
+        "range_low": 7242.5,
+        "prior_high": 7256.25,
+        "prior_low": 7232.5,
+        "prior_ny_date": "2026-11-26",
+        "avr": 157.8,
+        "last_hour_rule": 2,
+        "asia_high": 7334,
+        "asia_low": 7242.5,
+        "asia_close": 7320.25,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 7320.5,
+        "ready": true
+      }
+    },
+    {
+      "market": "GC",
+      "date": "2026-11-27",
+      "contract": "GC1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "25926b1b064dd6417ef2b92db18052061ee8dea16fab245925565062fda5e403",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 60,
+          "open": "09:30",
+          "close": "14:30",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:00.9Z"
+        },
+        "priorBars": 90
+      },
+      "snapshot": {
+        "cutoff": "03:00",
+        "as_of": "2026-11-27T08:00:00.000Z",
+        "reference_price": 3686.3,
+        "open_1930": 3594.1,
+        "range_high": 3693.9,
+        "range_low": 3583.9,
+        "prior_high": 3613.4,
+        "prior_low": 3592,
+        "prior_ny_date": "2026-11-26",
+        "avr": 69.48,
+        "last_hour_rule": 4,
+        "asia_high": 3693.9,
+        "asia_low": 3583.9,
+        "asia_close": 3682.1,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 3686.2,
+        "ready": true
+      }
+    },
+    {
+      "market": "GC",
+      "date": "2026-11-27",
+      "contract": "GC1!",
+      "source": {
+        "provider": "TradingView native CSV",
+        "avrProfile": "continuous-prior10-0930-1600-frozen-before1930-v1",
+        "priceBasis": "Continuous front contract, unadjusted.",
+        "sha256": "25926b1b064dd6417ef2b92db18052061ee8dea16fab245925565062fda5e403",
+        "method": "confirmed-candle-lookback-v1",
+        "priorReference": {
+          "date": "2026-11-26",
+          "barCount": 60,
+          "open": "09:30",
+          "close": "14:30",
+          "schedule": "https://www.decarleytrading.com/images/stories/holiday202616.pdf"
+        },
+        "avrSource": {
+          "date": "2026-11-26",
+          "cutoff": "08:30",
+          "dates": [
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-16",
+            "2026-11-17",
+            "2026-11-18",
+            "2026-11-19",
+            "2026-11-20",
+            "2026-11-23",
+            "2026-11-24",
+            "2026-11-25"
+          ],
+          "receivedAt": "2026-11-26T23:05:00.9Z"
+        },
+        "priorBars": 114
+      },
+      "snapshot": {
+        "cutoff": "05:00",
+        "as_of": "2026-11-27T10:00:00.000Z",
+        "reference_price": 3701.6,
+        "open_1930": 3594.1,
+        "range_high": 3712.8,
+        "range_low": 3583.9,
+        "prior_high": 3613.4,
+        "prior_low": 3592,
+        "prior_ny_date": "2026-11-26",
+        "avr": 69.48,
+        "last_hour_rule": 4,
+        "asia_high": 3693.9,
+        "asia_low": 3583.9,
+        "asia_close": 3682.1,
+        "asia_complete": true,
+        "london_high": null,
+        "london_low": null,
+        "london_close": null,
+        "london_complete": false,
+        "endpoint_close": 3701.4,
+        "ready": true
+      }
     }
   ]
 }
