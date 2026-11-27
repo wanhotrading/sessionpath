@@ -1,17 +1,4 @@
-const sessionDuration = 86_400_000;
 const retryInterval = 60_000;
-
-function weekdayDates(date, count) {
-  const dates = [];
-  let cursor = Date.parse(date + 'T12:00:00Z');
-  if (!Number.isFinite(cursor)) return dates;
-  while (dates.length < count) {
-    const day = new Date(cursor);
-    if (day.getUTCDay() !== 0 && day.getUTCDay() !== 6) dates.push(day.toISOString().slice(0, 10));
-    cursor -= sessionDuration;
-  }
-  return dates;
-}
 
 export function createSavedCheckpointReader({endpoint, market, parse, windows, fetchImpl=fetch, now=Date.now}) {
   const cache = new Map();
@@ -43,13 +30,11 @@ export function createSavedCheckpointReader({endpoint, market, parse, windows, f
   }
 
   async function findSavedCheckpoint({date, minute}) {
-    for (const session of weekdayDates(date, 3)) {
-      if (session === date && minute < windows[0].minute) continue;
-      const {records, packet} = await load(session);
-      const index = records.findLastIndex((record, i) => record && (session !== date || windows[i].minute <= minute));
-      if (index >= 0) return {date:session, index, record:records[index], records, packet};
-    }
-    return null;
+    const index = windows.findLastIndex(window => window.minute <= minute);
+    if (index < 0) return null;
+    const {records, packet} = await load(date);
+    const record = records[index];
+    return record ? {date, index, record, records, packet} : null;
   }
   findSavedCheckpoint.forDate = load;
   return findSavedCheckpoint;

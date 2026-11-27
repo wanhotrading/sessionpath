@@ -2,7 +2,7 @@ import { mountDashboardTiming } from './bbox-timing/dashboard-window.mjs';
 import { mountQuickComparison } from './quick-comparison.mjs?v=path-only-20261124';
 import { mountFeedWatermark } from './board-feed-watermark.mjs?v=news-ticker-20261118';
 import { cancelForecastTextMotion, revealForecastText } from './forecast-text-motion.mjs?v=market-row-20261118';
-import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=followup-20261118';
+import { createSavedCheckpointReader } from './saved-forecast-checkpoints.mjs?v=current-ny-date-20261127';
 import { archivedResearchBar, contractSymbol } from './followup-observations.mjs?v=2';
 import { mountSessionFollowup } from './session-followup.mjs?v=midnight-elf-20261119';
 
@@ -183,6 +183,7 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   let archiveDate = '';
   let archiveRecords = [];
   let livePacket;
+  let lastHeartbeat;
   let exactCloses = new Map();
   let replayFeed;
   let replayPrior;
@@ -194,13 +195,12 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   let lookup = null;
   let lastLookup = {key:'', at:0};
   const findSaved = createSavedCheckpointReader({endpoint:historyURL, market, parse:parseSaved, windows});
-  const newer = (a, b) => Boolean(a && (!b || a.date > b.date || a.date === b.date && a.index > b.index));
   function readSaved(clock, expected) {
     const key = clock.date + ':' + expected;
     if (lookup || (lastLookup.key === key && Date.now() - lastLookup.at < 60_000) || document.hidden) return;
     lastLookup = {key, at:Date.now()};
     lookup = findSaved(clock).then(result => {
-      if (newer(result, saved) || result && result.date === saved?.date && result.index === saved.index) saved = result;
+      if (result) saved = result;
     }).finally(() => {
       lookup = null;
       scheduleUpdate();
@@ -296,16 +296,18 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     const records = replay ? windows.map((window,index) =>
       requestedReplay?.date === date && requestedReplay.snapshot.cutoff === window.cutoff ? requestedReplay :
         archiveDate === date ? archiveRecords[index] : null) : windows.map(window => {
-      const eligible = verifiedDate && (verifiedDate < date || verifiedDate === date && window.minute <= clock.minute);
+      const eligible = verifiedDate === date && window.minute <= clock.minute;
       const snapshot = eligible ? verifiedSnapshots.get(window.cutoff) : null;
-      return snapshot ? { snapshot, contract: verifiedContract, date: verifiedDate, saved: verifiedDate !== date } : null;
+      return snapshot ? { snapshot, contract: verifiedContract, date } : null;
     });
     const requested = replay ? windows.findIndex(window => window.minute === replayMinute(date)) : -1;
-    const latest = requested >= 0 && records[requested] ? requested : records.findLastIndex(record => Boolean(record));
     const expected = Math.max(0, windows.findLastIndex(window => clock.date === date && clock.minute >= window.minute));
-    let choice = latest >= 0 ? {index:latest,date:records[latest].date||date,record:records[latest]} : null;
-    if (!replay && saved && (saved.date < date || saved.date === date && windows[saved.index].minute <= clock.minute) && newer(saved, choice)) choice = saved;
-    if (ready && !replay && (!choice || choice.date !== date || choice.index < expected)) readSaved(clock, expected);
+    const latest = replay ? (requested >= 0 && records[requested] ? requested : records.findLastIndex(Boolean)) : expected;
+    let choice = records[latest] ? {index:latest,date:records[latest].date || date,record:records[latest]} : null;
+    if (!replay && !choice && clock.minute >= windows[expected].minute) {
+      if (saved?.date === date && saved.index === expected) choice = saved;
+      else if (ready) readSaved(clock, expected);
+    }
     const selected = choice?.index ?? expected;
     const forecastDate = choice?.date ?? date;
     const activeKey = forecastDate + ':' + selected + ':' + Boolean(choice);
@@ -327,7 +329,8 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       const record = choice?.record;
       const settings = preferences(window.minute, forecastDate);
       const pending = !replay && clock.date === date && clock.minute < window.minute;
-      const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, !record && Boolean(lookup)]);
+      const freshBar = !replay && !record && lastHeartbeat?.date === date && Date.now() - lastHeartbeat.at <= 480_000;
+      const key = JSON.stringify([forecastDate, replay, record, settings, ready, pending, freshBar]);
       const needsNYInputs = index === 2 && record && !sameNYInputs(record.snapshot,forecastDate);
       if (card.key === key && !needsNYInputs) {
         refreshNYCode();
@@ -346,8 +349,9 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       card.avr.textContent = '—';
       showContainment(card, null);
       if (!record) {
-        card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' : lookup ? 'Loading saved checkpoint…' :
-          pending ? 'Opens at ' + window.cutoff + ' NY' : 'Awaiting verified ' + window.cutoff + ' checkpoint';
+        card.status.textContent = !ready ? 'Loading research…' : replay ? 'Checkpoint unavailable in archive' :
+          pending ? 'Opens at ' + window.cutoff + ' NY · ' + date :
+          (freshBar ? 'TradingView connected · ' : '') + 'Awaiting verified ' + window.cutoff + ' NY checkpoint · ' + date;
         clearContext(card.context, !ready ? 'Loading historical observations…' : 'Compression & expansion will appear with this checkpoint.');
         updateFollowup(record, records, index, forecastDate, clock, replay);
         return;
@@ -385,8 +389,14 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
     queueMicrotask(update);
   }
 
+  document.addEventListener('sessionpath:feed-heartbeat', event => {
+    if (event.detail.market !== market) return;
+    lastHeartbeat = event.detail;
+    scheduleUpdate();
+  });
   document.addEventListener('sessionpath:verified-checkpoints', event => {
     if (event.detail.market !== market) return;
+    if (verifiedDate && event.detail.session_date < verifiedDate) return;
     livePacket = event.detail;
     const stamp = Date.parse(livePacket.observed_at);
     if (livePacket.snapshots.some(s => Date.parse(s.as_of) === stamp) && Number.isFinite(livePacket.last_price)) {
@@ -394,12 +404,6 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
       if (exactCloses.size > 6) exactCloses.delete(exactCloses.keys().next().value);
     }
     if (verifiedDate !== event.detail.session_date) {
-      const index = windows.findLastIndex(window => verifiedSnapshots.has(window.cutoff));
-      if (index >= 0 && verifiedDate < event.detail.session_date) {
-        const previous = {index,date:verifiedDate,record:{date:verifiedDate,contract:verifiedContract,
-          snapshot:verifiedSnapshots.get(windows[index].cutoff),saved:true}};
-        if (newer(previous,saved)) saved = previous;
-      }
       verifiedDate = event.detail.session_date;
       verifiedSnapshots.clear();
     }

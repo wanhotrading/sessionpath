@@ -217,6 +217,11 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL,aut
    if(!response.ok)throw Error('The TradingView bridge is unavailable. Your current inputs were kept.');
    const body=await response.json();if(!active||seq!==sequence||context!==inputContext())return;
    const packet=validatePersonalRead(body,{market:instrument.id});
+   if(freshHeartbeat(body,instrument.id,Date.now())){
+    document.dispatchEvent(new CustomEvent('sessionpath:feed-heartbeat',{detail:{
+     market:instrument.id,date:body.packet.session_date,at:Date.parse(body.packet.observed_at)
+    }}));
+   }
    snapshots=packet?.snapshots??[];
    if(!packet){const cutoff=followLatest?automaticCutoff(nyClock().minute):$('asof')?.value,waiting=checkpointWaitState(body,{market:instrument.id,cutoff});say(waiting.message,waiting.state);showBBoxHistory();return;}
    apply(packet);
