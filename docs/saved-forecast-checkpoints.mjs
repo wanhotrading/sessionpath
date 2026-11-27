@@ -56,6 +56,7 @@ export function createSavedCheckpointReader({endpoint, market, parse, windows, l
     const record = records[index];
     return record ? {date, index, record, records, packet} : null;
   }
+  findSavedCheckpoint.retry = (date, index) => cache.delete(date + '/' + index);
   findSavedCheckpoint.forDate = load;
   return findSavedCheckpoint;
 }

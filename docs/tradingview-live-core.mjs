@@ -1,3 +1,5 @@
+import {createCheckpointRecovery} from './checkpoint-recovery.mjs';
+import {validPriorCoverage} from './prior-ny-coverage.mjs';
 import {makeBBoxBreakoutHistory} from './bbox-breakout-history.mjs?v=bbox-history-20261116';
 
 // A personal TradingView transport is independent of the public delayed-data source.
@@ -72,10 +74,10 @@ export function validatePersonalRead(body,{market,now=Date.now()}){
  for(const s of p.snapshots){
   const asOf=Date.parse(s.as_of),at=Number.isFinite(asOf)?nyClock(asOf):null,minute=CUTS.includes(s.cutoff)?cutoffMinute(s.cutoff):NaN;
   const requiredDelay=early&&s===last?0:300000;
-  if(!Number.isFinite(asOf)||asOf%60000!==0||s.ready!==true||at.date!==p.session_date||at.minute!==minute||observed<asOf+requiredDelay||s.avr_override!==false||s.avr_count!==10||s.prior_ny_count!==78)throw Error('TradingView checkpoint timing or coverage could not be verified.');
+  if(!Number.isFinite(asOf)||asOf%60000!==0||s.ready!==true||at.date!==p.session_date||at.minute!==minute||observed<asOf+requiredDelay||s.avr_override!==false||s.avr_count!==10||!validPriorCoverage(s))throw Error('TradingView checkpoint timing or coverage could not be verified.');
   const tick={CL:.01,NQ:.25,ES:.25,GC:.1}[market];
   if(!['reference_price','open_1930','range_high','range_low','prior_high','prior_low'].every(k=>num(s[k])&&s[k]>0&&s[k]<=1e9&&Math.abs(s[k]/tick-Math.round(s[k]/tick))<.00001)||!num(s.avr)||s.avr<=0||s.prior_high<=s.prior_low||s.range_high<s.range_low||s.range_high<Math.max(s.reference_price,s.open_1930)||s.range_low>Math.min(s.reference_price,s.open_1930))throw Error('TradingView checkpoint prices are incomplete or inconsistent.');
-  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||new Set(s.avr_dates).size!==10||s.avr_dates.some((d,i)=>!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>=p.session_date||i>0&&d<=s.avr_dates[i-1])||s.prior_ny_date!==s.avr_dates[9]||s.prior_ny_date!==previousWeekday(p.session_date))throw Error('TradingView AVR does not identify ten prior complete sessions.');
+  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||new Set(s.avr_dates).size!==10||s.avr_dates.some((d,i)=>!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>=p.session_date||i>0&&d<=s.avr_dates[i-1])||s.prior_ny_date!==previousWeekday(p.session_date))throw Error('TradingView AVR does not identify ten prior complete sessions.');
   const frozen=Date.parse(s.avr_frozen_at),anchor=nyClock(frozen);
   if(!Number.isFinite(frozen)||frozen%60000!==0||frozen>=asOf||anchor.minute!==1170||anchor.date!==previousDate(p.session_date))throw Error('TradingView AVR was not frozen at the overnight anchor.');
  }
@@ -203,13 +205,14 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL,aut
    completeFill(updated);
   }finally{applying=false;}
  }
+ const recovery=createCheckpointRecovery({notify:()=>document.dispatchEvent(new CustomEvent("sessionpath:recover-checkpoints",{detail:{market:instrument.id}}))});
  async function read(){
   clearTimeout(timer);if(!active||busy||document.hidden)return;
   // A fresh managed connection can mount before the research module. Wait
   // locally for its handlers instead of fetching a packet that cannot apply.
   if(managedURL&&(document.documentElement.dataset.startup!=='ready'||$('analyze-btn')?.disabled)){showBBoxHistory();timer=setTimeout(read,500);return;}
   const seq=sequence,context=inputContext();busy=true;setBusy(true);controller=new AbortController();const expiry=setTimeout(()=>controller.abort(),10000);
-  let snapshots=null;
+  let snapshots=null, recoveryDelay=null;
   try{
    const target=managedURL?new URL(managedURL):new URL('/api/snapshots',url);target.searchParams.set('market',instrument.id);
    const response=await fetch(target,{headers:managedURL?{}:{Authorization:'Bearer '+savedReadKey},credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
@@ -235,7 +238,11 @@ export function mountPersonalTradingView({instrument,endpoint,managedReadURL,aut
     if(followLatest&&clock.minute<300)watched.push('05:00');
     if($('ny-date')?.value===clock.date)watched.push('08:30');
     const delay=snapshots&&!$('replay-toggle')?.checked?checkpointPollDelay(now,watched,snapshots):POLL_INTERVAL;
-    timer=setTimeout(read,resumePending?0:delay);resumePending=false;
+    const selected=[...CUTS].reverse().find(c=>cutoffMinute(c)<=clock.minute);
+    const inSession=selected && clock.minute<960 && ![0,6].includes(new Date(clock.date+'T12:00:00Z').getUTCDay()) && !$('replay-toggle')?.checked;
+    if(inSession && !snapshots?.some(s=>s.cutoff===selected))recoveryDelay=recovery.missing();
+    else recovery.success();
+    timer=setTimeout(read,resumePending?0:Math.min(delay,recoveryDelay??delay));resumePending=false;
    }
   }
  }

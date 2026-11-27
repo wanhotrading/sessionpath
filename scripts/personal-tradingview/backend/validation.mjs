@@ -1,3 +1,5 @@
+import {validPriorCoverage} from '../../../docs/prior-ny-coverage.mjs';
+import {recoverCandleSnapshots} from './recovery.mjs';
 export const PERSONAL_SCHEMA = 'sessionpath.personal.tradingview.v1';
 export const PERSONAL_AVR_PROFILE = 'continuous-prior10-0930-1600-frozen-before1930-v1';
 export const PERSONAL_MARKETS = Object.freeze({CL:0.01,NQ:0.25,ES:0.25,GC:0.1});
@@ -23,7 +25,7 @@ export function nyEpoch(date,clock){
 function instant(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value))bad('INVALID_TIMESTAMP');const n=Date.parse(value);if(!Number.isFinite(n)||new Date(n).toISOString().replace('.000Z','Z')!==value.replace('.000Z','Z'))bad('INVALID_TIMESTAMP');return n;}
 function keys(obj,allowed){if(!obj||typeof obj!=='object'||Array.isArray(obj)||Object.keys(obj).some(k=>!allowed.includes(k)))bad('UNEXPECTED_FIELDS');}
 function price(value,tick){if(typeof value!=='number'||!Number.isFinite(value)||value<=0||value>1e9||Math.abs(value/tick-Math.round(value/tick))>0.00001)bad('INVALID_PRICE');return Number((Math.round(value/tick)*tick).toFixed(2));}
-const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready','bbox_history'];
+const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready','bbox_history','prior_exchange_close'];
 const bboxHistoryKeys=['v','phases','first03','latest_minutes','attempts_up','attempts_down','earlier_close','inherited','past_high','past_low','last_hour_rv'];
 // Same contiguous local chart segments as the historical research.
 const bboxPhaseEnds=[120,180,300,510];
@@ -72,23 +74,23 @@ function normalizeBboxHistory(h,s,tick){
     attempts_down:h.attempts_down,earlier_close:h.earlier_close,inherited:h.inherited,
     past_high:high,past_low:low,last_hour_rv:h.last_hour_rv};
 }
-function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
+export function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   keys(s,snapshotKeys);
   const asOf = instant(s.as_of);
   if (!PERSONAL_CUTOFFS.includes(s.cutoff) || asOf !== nyEpoch(date,s.cutoff)) bad('INVALID_CUTOFF');
   // An exact-open packet may publish only its newest cutoff at this boundary.
   // Earlier snapshots and legacy senders keep the original completed-bar rule.
   if (decisionOpen ? observedMs !== asOf : observedMs < asOf + 300000) bad('INVALID_CUTOFF');
-  if(s.ready!==true||s.avr_override!==false||s.avr_count!==10||s.prior_ny_count!==78||s.asia_complete!==true||!Number.isInteger(s.last_hour_rule)||s.last_hour_rule<1||s.last_hour_rule>5)bad('INCOMPLETE_SNAPSHOT');
+  if(!validDate(s.prior_ny_date)||s.prior_ny_date!==previousWeekday(date))bad('INVALID_PRIOR_SESSION');
+  if(s.ready!==true||s.avr_override!==false||s.avr_count!==10||!validPriorCoverage(s)||s.asia_complete!==true||!Number.isInteger(s.last_hour_rule)||s.last_hour_rule<1||s.last_hour_rule>5)bad('INCOMPLETE_SNAPSHOT');
   if(typeof s.avr!=='number'||!Number.isFinite(s.avr)||s.avr<=0||s.avr>1e9)bad('INVALID_AVR');
   const frozen=nyEpoch(datePlus(date,-1),'19:30');
   if(instant(s.avr_frozen_at)!==frozen)bad('INVALID_AVR_FREEZE');
-  if(!validDate(s.prior_ny_date)||s.prior_ny_date!==previousWeekday(date))bad('INVALID_PRIOR_SESSION');
-  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||s.avr_dates.some((d,i)=>!validDate(d)||!weekday(d)||d>=date||(i>0&&d<=s.avr_dates[i-1])||nyEpoch(d,'16:00')>frozen)||s.avr_dates[9]!==s.prior_ny_date)bad('INVALID_AVR_DATES');
+  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||s.avr_dates.some((d,i)=>!validDate(d)||!weekday(d)||d>=date||(i>0&&d<=s.avr_dates[i-1])||nyEpoch(d,'16:00')>frozen))bad('INVALID_AVR_DATES');
   const result={cutoff:s.cutoff,as_of:new Date(instant(s.as_of)).toISOString()};
   for(const k of ['reference_price','open_1930','range_high','range_low','prior_high','prior_low'])result[k]=price(s[k],tick);
   if(result.prior_high<=result.prior_low||result.range_high<result.range_low||[result.open_1930,result.reference_price].some(v=>v<result.range_low||v>result.range_high))bad('INCONSISTENT_PRICES');
-  Object.assign(result,{prior_ny_date:s.prior_ny_date,prior_ny_count:78,avr:s.avr,avr_count:10,avr_dates:[...s.avr_dates],avr_frozen_at:new Date(frozen).toISOString(),avr_override:false,last_hour_rule:s.last_hour_rule});
+  Object.assign(result,{prior_ny_date:s.prior_ny_date,prior_ny_count:s.prior_ny_count,...(s.prior_exchange_close?{prior_exchange_close:s.prior_exchange_close}:{}),avr:s.avr,avr_count:10,avr_dates:[...s.avr_dates],avr_frozen_at:new Date(frozen).toISOString(),avr_override:false,last_hour_rule:s.last_hour_rule});
   for(const k of ['asia_high','asia_low','asia_close'])result[k]=price(s[k],tick);
   if(result.asia_high<=result.asia_low||result.asia_close<result.asia_low||result.asia_close>result.asia_high||result.asia_high>result.range_high||result.asia_low<result.range_low)bad('INCONSISTENT_ASIA');
   result.asia_complete=true;
@@ -105,7 +107,7 @@ function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   return result;
 }
 export function normalizePacket(input,{now=Date.now()}={}){
-  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing','research_bars']);
+  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing','research_bars','recovery']);
   if(input.schema!==PERSONAL_SCHEMA||!Object.hasOwn(PERSONAL_MARKETS,input.market)||input.source_symbol!==input.market+'1!'||input.timeframe!=='5'||input.timezone!=='America/New_York'||input.confirmed!==true||input.feed_type!=='continuous_front_contract'||input.backadjustment!=='off'||input.avr_profile!==PERSONAL_AVR_PROFILE)bad('INVALID_FEED');
   const observedMs=instant(input.observed_at),sentMs=instant(input.sent_at);
   if(observedMs%300000||observedMs>now+5000||now-observedMs>180000||sentMs<observedMs||sentMs>now+30000||now-sentMs>180000||sentMs-observedMs>180000)bad('STALE_TRANSPORT');
@@ -121,6 +123,16 @@ export function normalizePacket(input,{now=Date.now()}={}){
     tick: PERSONAL_MARKETS[input.market],
     decisionOpen: decisionOpen && index === input.snapshots.length - 1
   }));
+  if (input.recovery && !decisionOpen && snapshots.length < 3) {
+    try {
+      const recovered = recoverCandleSnapshots(input.recovery,{date:input.session_date,market:input.market,observedMs,known:snapshots});
+      const combined = [...snapshots,...recovered].sort((a,b)=>a.cutoff.localeCompare(b.cutoff));
+      const shared = ['open_1930','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_dates','asia_high','asia_low','asia_close'];
+      if (combined.every((s,i)=>s.cutoff===PERSONAL_CUTOFFS[i] && (!i ||
+          shared.every(k=>JSON.stringify(s[k])===JSON.stringify(combined[0][k])) &&
+          s.range_high>=combined[i-1].range_high && s.range_low<=combined[i-1].range_low))) snapshots.splice(0,snapshots.length,...combined);
+    } catch (error) { if (!(error instanceof FeedError)) throw error; }
+  }
   if(snapshots.some((s,i)=>i&&PERSONAL_CUTOFFS.indexOf(s.cutoff)<=PERSONAL_CUTOFFS.indexOf(snapshots[i-1].cutoff)))bad('DUPLICATE_OR_UNORDERED_CUTOFF');
   if(snapshots.length&&(!weekday(input.session_date)||nyDate(observedMs)!==input.session_date))bad('INVALID_SESSION_DATE');
   // Available snapshots are cumulative; a sender may omit a still-unready cutoff,
@@ -152,3 +164,4 @@ function normalizeResearchBars(values,{date,observedMs,tick,lastPrice}){
   if(observedMs<=end&&Math.abs(values.at(-1)*tick-lastPrice)>1e-7)return null;
   return values;
 }
+

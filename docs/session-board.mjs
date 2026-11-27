@@ -428,6 +428,14 @@ export function mountSessionBoard({ market, nyClock, mainInputPlan, archive, his
   document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleUpdate(); });
   new MutationObserver(scheduleUpdate).observe(document.documentElement, { attributes: true, attributeFilter: ['data-startup'] });
   new MutationObserver(refreshNYCode).observe($('ny-reference'), { subtree: true, childList: true });
+  document.addEventListener('sessionpath:recover-checkpoints', event => {
+    if (event.detail?.market !== market || document.hidden || $('replay-toggle').checked || lookup) return;
+    const clock=nyClock(), index=windows.findLastIndex(w=>w.minute<=clock.minute);
+    if(index<0 || (saved?.date===clock.date && saved.index===index)) return;
+    lastLookup = {key:'',at:0};
+    findSaved.retry(clock.date,index);
+    readSaved(clock,index);
+  });
   const clockTimer = setInterval(scheduleUpdate, 30_000);
   window.addEventListener('pagehide', event => { if (!event.persisted) clearInterval(clockTimer); });
   for (const card of cards) {

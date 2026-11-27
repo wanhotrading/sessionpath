@@ -1,3 +1,65 @@
+// ../../../docs/prior-ny-coverage.mjs
+// A shortened reference needs the exchange's final-bar timestamp, carried by the
+// authenticated sender. The ten-day AVR continues to use full 78-bar sessions.
+const coverageClock = new Intl.DateTimeFormat('en-CA', {timeZone:'America/New_York',
+  year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
+function validPriorCoverage(snapshot) {
+  const {prior_ny_count: count, prior_ny_date: date, prior_exchange_close: close, avr_dates: dates} = snapshot;
+  if (!Array.isArray(dates) || dates.length !== 10) return false;
+  if (count === 78) return !close && dates[9] === date;
+  if (!Number.isInteger(count) || count < 1 || count >= 78 || typeof close !== 'string' ||
+      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:00(?:\.000)?Z$/.test(close) || !(dates[9] < date)) return false;
+  const ms = Date.parse(close);
+  if (!Number.isFinite(ms)) return false;
+  const p = Object.fromEntries(coverageClock.formatToParts(ms).map(v => [v.type,v.value]));
+  return [p.year,p.month,p.day].join('-') === date && Number(p.hour)*60+Number(p.minute) === 570+5*count;
+}
+
+// recovery.mjs
+// Decode the sender's contiguous five-minute history. Only a checkpoint candle's
+// open is consumed for that checkpoint. Later OHLC is never used in its forecast.
+function recoverCandleSnapshots(evidence, {date, market, observedMs, known}) {
+  if (!evidence || evidence.v !== 1 || !Array.isArray(evidence.bars) || !evidence.bars.length ||
+      evidence.bars.length > 157 || !Number.isSafeInteger(evidence.base) || evidence.base <= 0) return [];
+  const start = nyEpoch(datePlus(date,-1),'19:30');
+  if (evidence.from !== start || evidence.from + evidence.bars.length * 300000 > observedMs) return [];
+  const tick = PERSONAL_MARKETS[market];
+  let base = evidence.base;
+  const bars = [];
+  for (const row of evidence.bars) {
+    if (!Array.isArray(row) || row.length !== 4 || !row.every(Number.isSafeInteger)) return [];
+    const [o,h,l,c] = row.map(delta => Number(((base + delta) * tick).toFixed(2)));
+    if (l <= 0 || h > 1e9 || h < Math.max(o,c) || l > Math.min(o,c)) return [];
+    if (!bars.length && row[0] !== 0) return [];
+    bars.push({o,h,l,c}); base += row[3];
+  }
+  const ref = evidence.reference;
+  if (!ref || !Array.isArray(ref.avr_dates) || !(ref.avr > 0)) return [];
+  const high = rows => Math.max(...rows.map(b => b.h));
+  const low = rows => Math.min(...rows.map(b => b.l));
+  const asia = bars.slice(0,78);
+  const result = [];
+  for (const cutoff of PERSONAL_CUTOFFS) {
+    const stamp = nyEpoch(date,cutoff), index = (stamp-start)/300000;
+    if (known.some(s => s.cutoff === cutoff) || !bars[index] || asia.length !== 78) continue;
+    const past = bars.slice(0,index), open = bars[index].o;
+    const lastHour = past.slice(-13), baseClose = lastHour.shift().c;
+    const moves = [0,...lastHour.map(b => (b.c-baseClose)/ref.avr)];
+    const hi = Math.max(...moves), lo = Math.min(...moves), end = moves.at(-1);
+    const bounce = lo <= -.08 && end-lo >= .08 && moves.indexOf(lo) < 12;
+    const fade = hi >= .08 && hi-end >= .08 && moves.indexOf(hi) < 12;
+    const rule = bounce && fade ? (moves.indexOf(lo)<moves.indexOf(hi)?4:3) : bounce?3:fade?4:end>=.05?1:end<=-.05?2:5;
+    const london = cutoff === '08:30' ? past.slice(90) : null;
+    const candidate = {...ref,cutoff,as_of:new Date(stamp).toISOString(),ready:true,reference_price:open,
+      open_1930:bars[0].o,range_high:Math.max(high(past),open),range_low:Math.min(low(past),open),
+      last_hour_rule:rule,avr_count:10,avr_frozen_at:new Date(start).toISOString(),avr_override:false,
+      asia_high:high(asia),asia_low:low(asia),asia_close:asia.at(-1).c,asia_complete:true,
+      london_high:london?high(london):null,london_low:london?low(london):null,london_close:london?.at(-1).c??null,london_complete:!!london};
+    result.push(normalizeSnapshot(candidate,{date,market,observedMs,tick,decisionOpen:false}));
+  }
+  return result;
+}
+
 // validation.mjs
 const PERSONAL_SCHEMA = 'sessionpath.personal.tradingview.v1';
 const PERSONAL_AVR_PROFILE = 'continuous-prior10-0930-1600-frozen-before1930-v1';
@@ -24,7 +86,7 @@ function nyEpoch(date,clock){
 function instant(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value))bad('INVALID_TIMESTAMP');const n=Date.parse(value);if(!Number.isFinite(n)||new Date(n).toISOString().replace('.000Z','Z')!==value.replace('.000Z','Z'))bad('INVALID_TIMESTAMP');return n;}
 function keys(obj,allowed){if(!obj||typeof obj!=='object'||Array.isArray(obj)||Object.keys(obj).some(k=>!allowed.includes(k)))bad('UNEXPECTED_FIELDS');}
 function price(value,tick){if(typeof value!=='number'||!Number.isFinite(value)||value<=0||value>1e9||Math.abs(value/tick-Math.round(value/tick))>0.00001)bad('INVALID_PRICE');return Number((Math.round(value/tick)*tick).toFixed(2));}
-const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready','bbox_history'];
+const snapshotKeys=['cutoff','as_of','reference_price','open_1930','range_high','range_low','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_count','avr_dates','avr_frozen_at','avr_override','last_hour_rule','asia_high','asia_low','asia_close','asia_complete','london_high','london_low','london_close','london_complete','ready','bbox_history','prior_exchange_close'];
 const bboxHistoryKeys=['v','phases','first03','latest_minutes','attempts_up','attempts_down','earlier_close','inherited','past_high','past_low','last_hour_rv'];
 // Same contiguous local chart segments as the historical research.
 const bboxPhaseEnds=[120,180,300,510];
@@ -80,16 +142,16 @@ function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   // An exact-open packet may publish only its newest cutoff at this boundary.
   // Earlier snapshots and legacy senders keep the original completed-bar rule.
   if (decisionOpen ? observedMs !== asOf : observedMs < asOf + 300000) bad('INVALID_CUTOFF');
-  if(s.ready!==true||s.avr_override!==false||s.avr_count!==10||s.prior_ny_count!==78||s.asia_complete!==true||!Number.isInteger(s.last_hour_rule)||s.last_hour_rule<1||s.last_hour_rule>5)bad('INCOMPLETE_SNAPSHOT');
+  if(!validDate(s.prior_ny_date)||s.prior_ny_date!==previousWeekday(date))bad('INVALID_PRIOR_SESSION');
+  if(s.ready!==true||s.avr_override!==false||s.avr_count!==10||!validPriorCoverage(s)||s.asia_complete!==true||!Number.isInteger(s.last_hour_rule)||s.last_hour_rule<1||s.last_hour_rule>5)bad('INCOMPLETE_SNAPSHOT');
   if(typeof s.avr!=='number'||!Number.isFinite(s.avr)||s.avr<=0||s.avr>1e9)bad('INVALID_AVR');
   const frozen=nyEpoch(datePlus(date,-1),'19:30');
   if(instant(s.avr_frozen_at)!==frozen)bad('INVALID_AVR_FREEZE');
-  if(!validDate(s.prior_ny_date)||s.prior_ny_date!==previousWeekday(date))bad('INVALID_PRIOR_SESSION');
-  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||s.avr_dates.some((d,i)=>!validDate(d)||!weekday(d)||d>=date||(i>0&&d<=s.avr_dates[i-1])||nyEpoch(d,'16:00')>frozen)||s.avr_dates[9]!==s.prior_ny_date)bad('INVALID_AVR_DATES');
+  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||s.avr_dates.some((d,i)=>!validDate(d)||!weekday(d)||d>=date||(i>0&&d<=s.avr_dates[i-1])||nyEpoch(d,'16:00')>frozen))bad('INVALID_AVR_DATES');
   const result={cutoff:s.cutoff,as_of:new Date(instant(s.as_of)).toISOString()};
   for(const k of ['reference_price','open_1930','range_high','range_low','prior_high','prior_low'])result[k]=price(s[k],tick);
   if(result.prior_high<=result.prior_low||result.range_high<result.range_low||[result.open_1930,result.reference_price].some(v=>v<result.range_low||v>result.range_high))bad('INCONSISTENT_PRICES');
-  Object.assign(result,{prior_ny_date:s.prior_ny_date,prior_ny_count:78,avr:s.avr,avr_count:10,avr_dates:[...s.avr_dates],avr_frozen_at:new Date(frozen).toISOString(),avr_override:false,last_hour_rule:s.last_hour_rule});
+  Object.assign(result,{prior_ny_date:s.prior_ny_date,prior_ny_count:s.prior_ny_count,...(s.prior_exchange_close?{prior_exchange_close:s.prior_exchange_close}:{}),avr:s.avr,avr_count:10,avr_dates:[...s.avr_dates],avr_frozen_at:new Date(frozen).toISOString(),avr_override:false,last_hour_rule:s.last_hour_rule});
   for(const k of ['asia_high','asia_low','asia_close'])result[k]=price(s[k],tick);
   if(result.asia_high<=result.asia_low||result.asia_close<result.asia_low||result.asia_close>result.asia_high||result.asia_high>result.range_high||result.asia_low<result.range_low)bad('INCONSISTENT_ASIA');
   result.asia_complete=true;
@@ -106,7 +168,7 @@ function normalizeSnapshot(s,{date,market,observedMs,tick,decisionOpen}){
   return result;
 }
 function normalizePacket(input,{now=Date.now()}={}){
-  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing','research_bars']);
+  keys(input,['schema','token','market','source_symbol','timeframe','timezone','observed_at','sent_at','session_date','avr_profile','feed_type','backadjustment','snapshots','last_price','confirmed','checkpoint_timing','research_bars','recovery']);
   if(input.schema!==PERSONAL_SCHEMA||!Object.hasOwn(PERSONAL_MARKETS,input.market)||input.source_symbol!==input.market+'1!'||input.timeframe!=='5'||input.timezone!=='America/New_York'||input.confirmed!==true||input.feed_type!=='continuous_front_contract'||input.backadjustment!=='off'||input.avr_profile!==PERSONAL_AVR_PROFILE)bad('INVALID_FEED');
   const observedMs=instant(input.observed_at),sentMs=instant(input.sent_at);
   if(observedMs%300000||observedMs>now+5000||now-observedMs>180000||sentMs<observedMs||sentMs>now+30000||now-sentMs>180000||sentMs-observedMs>180000)bad('STALE_TRANSPORT');
@@ -122,6 +184,16 @@ function normalizePacket(input,{now=Date.now()}={}){
     tick: PERSONAL_MARKETS[input.market],
     decisionOpen: decisionOpen && index === input.snapshots.length - 1
   }));
+  if (input.recovery && !decisionOpen && snapshots.length < 3) {
+    try {
+      const recovered = recoverCandleSnapshots(input.recovery,{date:input.session_date,market:input.market,observedMs,known:snapshots});
+      const combined = [...snapshots,...recovered].sort((a,b)=>a.cutoff.localeCompare(b.cutoff));
+      const shared = ['open_1930','prior_high','prior_low','prior_ny_date','prior_ny_count','avr','avr_dates','asia_high','asia_low','asia_close'];
+      if (combined.every((s,i)=>s.cutoff===PERSONAL_CUTOFFS[i] && (!i ||
+          shared.every(k=>JSON.stringify(s[k])===JSON.stringify(combined[0][k])) &&
+          s.range_high>=combined[i-1].range_high && s.range_low<=combined[i-1].range_low))) snapshots.splice(0,snapshots.length,...combined);
+    } catch (error) { if (!(error instanceof FeedError)) throw error; }
+  }
   if(snapshots.some((s,i)=>i&&PERSONAL_CUTOFFS.indexOf(s.cutoff)<=PERSONAL_CUTOFFS.indexOf(snapshots[i-1].cutoff)))bad('DUPLICATE_OR_UNORDERED_CUTOFF');
   if(snapshots.length&&(!weekday(input.session_date)||nyDate(observedMs)!==input.session_date))bad('INVALID_SESSION_DATE');
   // Available snapshots are cumulative; a sender may omit a still-unready cutoff,
@@ -153,6 +225,7 @@ function normalizeResearchBars(values,{date,observedMs,tick,lastPrice}){
   if(observedMs<=end&&Math.abs(values.at(-1)*tick-lastPrice)>1e-7)return null;
   return values;
 }
+
 
 // state.mjs
 
@@ -289,6 +362,7 @@ class PersonalFeedStore {
 }
 
 
+
 // overnight-timing.mjs
 
 const OVERNIGHT_STEP_MS = 300_000;
@@ -375,6 +449,7 @@ function summarizeOvernightTiming(packet) {
     priorPaths: traces(start), observedPaths: traces(step),
   };
 }
+
 
 // router.mjs
 const PERSONAL_ORIGIN='https://wanhotrading.github.io';
@@ -527,6 +602,7 @@ function createPersonalHandler({now=Date.now,cryptoImpl=globalThis.crypto}={}){
 }
 
 
+
 // worker.mjs
 import {DurableObject} from 'cloudflare:workers';
 
@@ -536,3 +612,4 @@ export class PersonalFeed extends DurableObject {
   async accept(envelope){return new PersonalFeedStore(this.ctx.storage).accept(envelope);}
 }
 export default {fetch:createPersonalHandler()};
+

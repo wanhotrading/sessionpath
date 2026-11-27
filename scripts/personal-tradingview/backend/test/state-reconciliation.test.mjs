@@ -62,7 +62,8 @@ test('NQ corrected prior low and AVR do not rewrite old decisions or prevent a g
   assert.equal(validatePersonalRead({schema:'sessionpath.tradingview.read.v1',status:'ready',receivedAt:saved.receivedAt,packet:saved.packet},{market:'NQ',now:Date.parse(saved.receivedAt)}).snapshots.length,3);
   // Every source packet remains internally coherent. The explicitly labelled
   // first-accepted composite need not pretend to be one unrevised source packet.
-  assert.throws(()=>normalizePacket({...saved.packet,token:'unused'},{now:Date.parse(saved.receivedAt)}),error=>error.code==='INCONSISTENT_SNAPSHOT_SEQUENCE');
+  const {endpoint_closes,...wireFields}=saved.packet;
+  assert.throws(()=>normalizePacket({...wireFields,token:'unused'},{now:Date.parse(saved.receivedAt)}),error=>error.code==='INCONSISTENT_SNAPSHOT_SEQUENCE');
 });
 
 test('repeated revised-source delivery is a duplicate and never manufactures heartbeat freshness',async()=>{
@@ -96,4 +97,5 @@ test('untrusted or internally inconsistent source inputs are still rejected befo
   const {packet,now}=fixture();packet.snapshots[2].avr+=.1;
   assert.throws(()=>normalizePacket(packet,{now}),error=>error.code==='INCONSISTENT_SNAPSHOT_SEQUENCE');
 });
+
 

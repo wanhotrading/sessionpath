@@ -1,3 +1,4 @@
+import {validPriorCoverage} from './prior-ny-coverage.mjs';
 import {validatePersonalRead,nyClock,READ_SCHEMA,PROFILE} from './tradingview-live-core.mjs?v=study-return-20261120';
 import {regime} from './research-core.mjs';
 import {readSnapshot} from './window-engine.mjs';
@@ -94,7 +95,7 @@ export function validateHistoricalRecord(record,request){
  if(typeof record.contract!=='string'||!contractPattern.test(record.contract)||!record.source?.provider||![EXPLICIT_AVR_PROFILE,PROFILE].includes(record.source.avrProfile)||record.source.avrProfile===PROFILE&&!record.contract.endsWith('1!')||record.source.avrProfile===EXPLICIT_AVR_PROFILE&&record.contract.endsWith('1!'))throw unavailable();
  if(!['reference_price','open_1930','range_high','range_low','prior_high','prior_low'].every(key=>finite(s[key])&&s[key]>0&&s[key]<=1e9&&Math.abs(s[key]/tick-Math.round(s[key]/tick))<1e-5)||!(finite(s.avr)&&s.avr>0)||s.prior_high<=s.prior_low||s.range_high<=s.range_low||s.range_high<Math.max(s.reference_price,s.open_1930)||s.range_low>Math.min(s.reference_price,s.open_1930)||!validDate(s.prior_ny_date)||s.prior_ny_date>=request.date)throw unavailable();
  if(s.avr_dates!=null){
-  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||new Set(s.avr_dates).size!==10||s.avr_dates.some((date,i)=>!validDate(date)||date>=request.date||i>0&&date<=s.avr_dates[i-1])||s.avr_count!==10||s.prior_ny_count!==78||s.avr_dates.at(-1)!==s.prior_ny_date||Date.parse(s.avr_frozen_at)!==nyTimestamp(previousDate(request.date),1170))throw unavailable();
+  if(!Array.isArray(s.avr_dates)||s.avr_dates.length!==10||new Set(s.avr_dates).size!==10||s.avr_dates.some((date,i)=>!validDate(date)||date>=request.date||i>0&&date<=s.avr_dates[i-1])||s.avr_count!==10||!validPriorCoverage(s)||Date.parse(s.avr_frozen_at)!==nyTimestamp(previousDate(request.date),1170))throw unavailable();
  }
  for(const name of ['asia','london'])if(s[name+'_complete']){
   const hi=s[name+'_high'],lo=s[name+'_low'],close=s[name+'_close'];if(![hi,lo,close].every(finite)||hi<=lo||close<lo||close>hi)throw unavailable();
