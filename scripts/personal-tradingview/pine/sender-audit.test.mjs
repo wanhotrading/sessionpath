@@ -15,10 +15,10 @@ const f_number=value=>value===null||Number.isNaN(value)?'null':String(Number(val
 function translate(statement){return statement.replaceAll('math.max','Math.max').replaceAll('math.min','Math.min').replaceAll('str.tostring','String').replace(/\bna\b/g,'null').replace(/\band\b/g,'&&').replace(/\bor\b/g,'||').replace(/^\s*string (\w+) = /,'let $1 = ');}
 function execute(lines,context,result){const names=Object.keys(context),body=lines.map(translate).join('\n')+'\nreturn '+result+';';return new Function(...names,body)(...Object.values(context));}
 const snapshotLines=pine.slice(pine.indexOf('f_snapshot(string'),pine.indexOf('\nif sourceConfirmed\n')).split('\n').slice(1).filter(line=>/^    (string s =|s \+=)/.test(line));
-const packetLines=pine.slice(pine.indexOf('    string snapshots ='),pine.indexOf('    if str.length(packet)')).split('\n').filter(line=>/^    (string (snapshots|packet) =|(snapshots|packet) \+=)/.test(line));
+const packetLines=pine.slice(pine.indexOf('    string snapshots ='),pine.indexOf('\n    if str.length(packet) > 8192')).split('\n').filter(line=>/^    (string (snapshots|packet) =|(snapshots|packet) \+=)/.test(line));
 const days=['2026-10-20','2026-10-21','2026-10-22','2026-10-23','2026-10-26','2026-10-27','2026-10-28','2026-10-29','2026-10-30','2026-11-02'];
 const base={f_utc,f_number,f_date:formatDate,f_bbox_history:()=>'',
- Math,String,open1930:100,runningHigh:103,runningLow:98,frozenPriorHigh:105,frozenPriorLow:95,frozenPriorDate:Date.parse('2026-11-02T05:00:00Z'),nightAvr:10,frozenAvrDates:JSON.stringify(days),sessionStart:Date.parse('2026-11-03T00:30:00Z'),asiaHigh:102,asiaLow:99,asiaClose:101,londonHigh:103,londonLow:98,londonClose:100,rule:1};
+ Math,String,frozenCount:78,frozenEnd:null,open1930:100,runningHigh:103,runningLow:98,frozenPriorHigh:105,frozenPriorLow:95,frozenPriorDate:Date.parse('2026-11-02T05:00:00Z'),nightAvr:10,frozenAvrDates:JSON.stringify(days),sessionStart:Date.parse('2026-11-03T00:30:00Z'),asiaHigh:102,asiaLow:99,asiaClose:101,londonHigh:103,londonLow:98,londonClose:100,rule:1};
 export function renderSnapshot(cutoff,overrides={}){return execute(snapshotLines,{...base,cutoff,stamp:Date.parse('2026-11-03T'+({'03:00':'08:00','05:00':'10:00','08:30':'13:30'}[cutoff])+':00Z'),reference:101,londonReady:cutoff==='08:30',...overrides},'s');}
 export function renderPacket(snapshots,market='CL',overrides={}){return execute(packetLines,{f_utc,f_number,f_date:formatDate,String,first:snapshots[0]||'',second:snapshots[1]||'',third:snapshots[2]||'',senderToken:'Q'.repeat(43),syminfo:{root:market,ticker:market+'1!'},observedAt:Date.parse('2026-11-03T13:35:00Z'),timenow:Date.parse('2026-11-03T13:35:01Z'),targetDay:Date.parse('2026-11-03T05:00:00Z'),lastPrice:101,decisionOpen:false,AVR_PROFILE:'continuous-prior10-0930-1600-frozen-before1930-v1',...overrides},'packet');}
 
@@ -97,7 +97,8 @@ test('sender gates real confirmed closes and does not request bar confirmation i
 test('missing latest NY and overnight candles cannot silently reuse an older valid BBOX',()=>{
  assert.match(pine,/latestNyAttemptComplete := false/);
  assert.match(pine,/sourceTime != nyExpectedOpen\n\s+nyComplete := false/);
- assert.match(pine,/latestNyAttemptComplete := nyComplete and nyCount == 78/);
+ assert.match(pine,/if clockMinute == 955 or sourceLastBar\n\s+latestNyAttemptComplete := nyComplete and nyCount == int\(\(clockMinute \+ 5 - 570\) \/ 5\)/);
+ assert.match(pine,/if nyCount == 78\n\s+array.push\(nyRanges/);
  assert.match(pine,/frozenPriorComplete := latestNyAttemptComplete and not na\(priorNyDate\) and priorNyDate == nyActiveDay/);
  assert.match(pine,/priorNyDate == expectedPriorDay/);
  assert.match(pine,/priorWeekdayOffset = dayofweek\(targetDay, TZ\) == dayofweek\.monday \? 3 : dayofweek\(targetDay, TZ\) == dayofweek\.sunday \? 2 : 1/);
@@ -254,3 +255,4 @@ test('receiver retains actual encoded BBOX history throughout the checkpoint seq
   assert.deepEqual(normalized.snapshots.map(s=>s.bbox_history),packet.snapshots.map(s=>s.bbox_history));
  }
 });
+
