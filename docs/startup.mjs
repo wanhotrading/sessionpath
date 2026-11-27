@@ -14,7 +14,7 @@ function recovery(message){
  box.append(text,retry);document.getElementById('dataset-status').after(box);
 }
 const timer=setTimeout(()=>{if(root.dataset.startup!=='ready')recovery('Loading is taking longer than usual. Your saved inputs are safe.');},45000);
-try{await import('./app-v5.js?v=fast-switch-20261126');}
+try{await import('./app-v5.js?v=ny-extensions-20261127');}
 catch(error){
  console.error('SessionPath startup:',error);
  const key='sessionpath-module-retry:'+location.pathname;
