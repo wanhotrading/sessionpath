@@ -15,7 +15,7 @@ import {bboxReturnStats,makeBBoxReturnCode} from './bbox-return-core.mjs';
 import {mountForecastContext,renderForecastContext,clearForecastContext} from './forecast-context.mjs?v=tools-zero-20261125';
 import {mountScreenshotReview} from './screenshot-review.mjs?v=quick-archive-20261119';
 import {renderOutlook,renderComparison,mountDictionary,mountValidation} from './dashboard-v7.mjs';
-import {setupWorkspace} from './workspace-v7.mjs?v=quick-comparison-20261119';
+import {setupWorkspace} from './workspace-v7.mjs?v=ny-extensions-20261127';
 import {mountReplayTools} from './replay-tools.mjs';
 import {mountNYReference,fillNYPositionHelper} from './ny-reference-v5.mjs?v=tools-zero-20261125';
 import {observedUD,makeForecastCode,parseForecastCode,makeChartPine} from './indicator-v5.mjs?v=ny-timing-20261102';
