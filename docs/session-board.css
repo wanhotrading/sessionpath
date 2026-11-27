@@ -256,6 +256,10 @@ html:has(body.session-board-active):not([data-loading-cover]) { overflow-y: auto
 .compact-path-result { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .compact-path-result span { color: #f1f2ff; font-size: 13px; }
 .compact-path-result strong { color: #d7c8ff; font: 650 17px/1.25 ui-monospace, monospace; white-space: nowrap; }
+.ny-path-ranking { display: grid; gap: 7px; margin: 0 0 7px; padding: 0; list-style: none; }
+.ny-path-ranking .compact-path-result strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+.ny-path-track { height: 4px; overflow: hidden; margin-top: 3px; border-radius: 2px; background: #9daac52e; }
+.ny-path-track > span { display: block; height: 100%; background: #c1aeff; transform-origin: left center; }
 .compact-path-sample, .compact-path-source { margin: 3px 0 0; color: #bac9e1; font-size: 11px; }
 .session-board .compact-path-card .observed-select { margin: 9px 0 0; font-size: 11px; }
 .session-board .compact-path-card select { width: 100%; min-width: 0; margin-top: 4px; }

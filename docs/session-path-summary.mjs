@@ -1,4 +1,5 @@
 import { validateVisualTags } from './chart-visual-contract.mjs?v=visual-reading-20261108';
+import { animateForecastMeter } from './forecast-meter-animation.mjs';
 
 const ends = { NTA: -270, ASIA: 120, LONDON: 510 };
 const names = { NTA: 'NTA', ASIA: 'Asia', LONDON: 'London' };
@@ -113,6 +114,63 @@ export function applyChartPathOutcomes(state, reading, { market, date, replace =
   return { applied, unchanged, conflicts, message: 'Session paths filled ' + applied.map(session => names[session]).join(', ') + '.' + conflictText };
 }
 
+const nyCards = new WeakMap();
+
+function nyForecastCard(host, make, {session, bins, n}, context) {
+  const ranked = n > 0 ? bins.filter(bin => Number.isFinite(bin.p)).sort((a, b) => b.count - a.count).slice(0, 4) : [];
+  const signature = JSON.stringify([n, context, ranked.map(bin => [bin.id, bin.count])]);
+  const previous = nyCards.get(host);
+  if (previous?.signature === signature) return previous.card;
+  previous?.observer?.disconnect();
+
+  const card = make('article', 'session-card compact-path-card');
+  card.append(make('h3', '', session.name));
+  const list = make('ol', 'ny-path-ranking');
+  list.setAttribute('aria-label', 'Most likely New York session outcomes');
+  const fills = new Map();
+  for (const bin of ranked) {
+    const item = make('li');
+    const line = make('div', 'compact-path-result');
+    line.append(make('span', '', bin.label), make('strong', 'probability-number', (100 * bin.p).toFixed(1) + '%'));
+    const track = make('div', 'ny-path-track');
+    track.setAttribute('aria-hidden', 'true');
+    const fill = make('span');
+    fill.style.transform = 'scaleX(' + bin.p + ')';
+    track.append(fill);
+    item.title = bin.count + '/' + n + ' historical windows';
+    item.append(line, track);
+    list.append(item);
+    fills.set(bin.id, {fill, p: bin.p});
+  }
+  if (ranked.length) card.append(list);
+  const detail = make('p', 'compact-path-sample', ranked.length
+    ? n + (n === 1 ? ' matching window' : ' matching windows') + (n < 20 ? ' · small sample' : '')
+    : 'No matching cases');
+  if (context.length) detail.title = 'Given ' + context.join(' + ');
+  card.append(detail);
+
+  const state = {card, fills, signature};
+  nyCards.set(host, state);
+  const doc = host.ownerDocument;
+  function reveal() {
+    if (doc.documentElement.dataset.loadingCover) return;
+    state.observer?.disconnect();
+    if (!card.isConnected) return;
+    for (const [id, {fill, p}] of fills) {
+      const from = previous?.revealed ? previous.fills.get(id)?.p ?? 0 : 0;
+      if (from !== p) animateForecastMeter(fill, [{transform:'scaleX(' + from + ')'}, {transform:fill.style.transform}]);
+    }
+    state.revealed = true;
+  }
+  if (ranked.length) {
+    if (doc.documentElement.dataset.loadingCover) {
+      state.observer = new doc.defaultView.MutationObserver(reveal);
+      state.observer.observe(doc.documentElement, {attributes: true, attributeFilter: ['data-loading-cover']});
+    } else queueMicrotask(reveal);
+  }
+  return card;
+}
+
 export function compactPathCards(host, results, { choices, choiceSources, shapes, minute, explore, formatTime }) {
   const doc = host.ownerDocument;
   const make = (tag, style, text) => {
@@ -123,12 +181,13 @@ export function compactPathCards(host, results, { choices, choiceSources, shapes
   };
   const focusedSession = doc.activeElement?.dataset.session;
   host.replaceChildren(...results.map(({ session, bins, conditions, n }) => {
+    const context = conditions.map(({ id, value }) => (names[id] ?? id) + ' ' + (shapes.find(([tag]) => tag === value)?.[1] ?? value));
+    if (session.id === 'NY') return nyForecastCard(host, make, {session, bins, n}, context);
     const selected = choices[session.id];
     const best = bins.reduce((current, bin) => Number.isFinite(bin.p) && (!current || bin.p > current.p) ? bin : current, null);
     const shown = selected ? bins.find(bin => bin.id === selected) : best;
     const article = make('article', 'session-card compact-path-card');
     const title = make('h3', '', session.name);
-    const context = conditions.map(({ id, value }) => (names[id] ?? id) + ' ' + (shapes.find(([tag]) => tag === value)?.[1] ?? value));
     const percent = shown?.p == null ? '—' : (shown.p * 100).toFixed(1) + '%';
     const line = make('div', 'compact-path-result');
     line.append(make('span', '', shown?.label ?? 'No matching cases'), make('strong', 'probability-number', percent));
